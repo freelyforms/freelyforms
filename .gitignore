@@ -1,0 +1,32 @@
+# Private strategy — never commit
+/private/
+*.private.md
+*.strategy.md
+
+# Internal working files (AI handoff, local notes)
+/FIRST_PROMPT_FOR_CLAUDE.md
+/PRIVATE_FILES_README.txt
+CLAUDE.local.md
+.claude/settings.local.json
+*.zip
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Dependencies / build
+node_modules/
+dist/
+.turbo/
+.next/
+.wrangler/
+coverage/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

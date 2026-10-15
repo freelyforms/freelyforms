@@ -1,0 +1,102 @@
+# Architecture
+
+## Architectural objective
+Central infrastructure should coordinate the product without becoming the owner of user submission content.
+
+## High-level flow
+
+```text
+Owner browser
+   |
+   | Google OAuth
+   v
+Application backend --------------------------+
+   |                                          |
+   | stores form schema + routing metadata    |
+   |                                          |
+   +------------------+-----------------------+
+                      |
+                      v
+                Published form
+                      |
+Respondent --------> submit endpoint
+                      |
+                      +--> validation / anti-abuse
+                      |
+                      +--> queue
+                              |
+                              +--> Google Sheets API -> owner's spreadsheet
+                              +--> Google Drive API  -> owner's Drive (files)
+```
+
+## Central application stores
+
+Allowed by default:
+
+- user identity metadata;
+- form metadata;
+- versioned form definitions;
+- public slug/domain routing;
+- encrypted OAuth refresh tokens or equivalent connection credentials;
+- connection health/status;
+- aggregate product analytics;
+- operational delivery metadata that does not contain submission answers;
+- webhook configuration;
+- template metadata.
+
+Avoid by default:
+
+- raw form answers;
+- uploaded files;
+- copies of user spreadsheets;
+- full webhook payload history containing answers.
+
+## Submission delivery
+Use asynchronous delivery where possible:
+
+```text
+POST /forms/:slug/submissions
+ -> validate schema
+ -> rate limit / captcha where required
+ -> accept submission
+ -> enqueue durable delivery job
+ -> return success state
+ -> worker writes to Google
+```
+
+The implementation must define a reliable failure strategy. Suggested states:
+
+- accepted;
+- queued;
+- delivering;
+- delivered;
+- retrying;
+- permanently_failed.
+
+A submission payload may have to exist temporarily in a durable queue to guarantee delivery. It must have a short retention policy and should be encrypted where the queue implementation permits. Do not silently turn the queue into permanent storage.
+
+## Idempotency
+Each accepted submission gets a globally unique submission ID. Google delivery must be idempotent or deduplicatable.
+
+Recommended sheet columns maintained by the platform:
+
+- `_submission_id`
+- `_submitted_at`
+- `_form_version`
+- optional `_source_url`
+- optional UTM/hidden fields configured by owner
+
+## Scaling rule
+Optimise first for correctness and delivery reliability. Batch writes only when traffic makes it necessary.
+
+## Multi-tenancy
+Every resource must be scoped by account/workspace ownership. Avoid relying only on client-provided IDs.
+
+## Public rendering
+Public renderer should be highly cacheable except for dynamic form state. Static form definition/version can be cached at the edge.
+
+## Custom domains
+Design routing so custom domains can be added later without restructuring form identity.
+
+## Self-hosting
+Do not make hosted-only assumptions in core packages. Separate vendor-specific edge bindings from business logic.
