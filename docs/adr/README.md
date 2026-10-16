@@ -5,8 +5,8 @@ Each ADR records one decision: the context, what we decided and what follows fro
 | #                                                  | Decision                                                           | Status                           |
 | -------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------- |
 | [0001](0001-batched-sheets-writes.md)              | Batch Google Sheets writes from the first release                  | Accepted (refined by 0013)       |
-| [0002](0002-raw-writes-for-respondent-data.md)     | Write respondent data with `RAW` value input only                  | Accepted                         |
-| [0003](0003-delivery-states-and-reconciliation.md) | Delivery states and reconciliation of ambiguous writes             | Accepted                         |
+| [0002](0002-raw-writes-for-respondent-data.md)     | Write respondent data with `RAW` value input only                  | Accepted (refined by 0013)       |
+| [0003](0003-delivery-states-and-reconciliation.md) | Delivery states and reconciliation of ambiguous writes             | Accepted (refined by 0013)       |
 | [0004](0004-column-identity-developer-metadata.md) | Column identity through Sheets developer metadata                  | Accepted (refined by 0013)       |
 | [0005](0005-sheet-is-externally-mutable.md)        | The owner's spreadsheet is an externally mutable database          | Accepted                         |
 | [0006](0006-oauth-scopes-drive-file-picker.md)     | OAuth scopes: `drive.file` and Google Picker only                  | Accepted                         |

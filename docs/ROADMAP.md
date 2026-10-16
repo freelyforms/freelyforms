@@ -4,7 +4,7 @@ This is a capability roadmap, not a deadline commitment.
 
 ## Phase 0 — Foundation
 
-Status: done, except the deployment skeleton (no production environment yet) and the design system (starts with the builder).
+Status: done, except the production deployment. The builder's CSS tokens are the start of the design system.
 
 - repository and monorepo setup;
 - CI;

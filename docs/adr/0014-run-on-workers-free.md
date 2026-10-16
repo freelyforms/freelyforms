@@ -17,7 +17,9 @@ A self-managed server was considered and rejected for the hosted service: simila
 - The hosted service starts on Workers Free and moves to Workers Paid when it approaches a free limit or before the public launch, whichever comes first.
 - **Retention:** a transient retry whose next attempt would fall later than the queue's retention minus one hour is moved to the hold store (KV, expiring at the 7-day deadline) instead of being retried in the queue. The hourly job re-sends held deliveries of destinations that are `OK`. The 72-hour transient window and the 7-day deadline of ADR 0008 do not change. `QUEUE_RETENTION_HOURS` (default 24) tells the Worker the configured retention.
 - **Subrequests:** the consumer counts its Google calls and sends groups that would exceed `GOOGLE_CALL_BUDGET` (default 40) back to the queue without delay, to be delivered by the next invocation.
-- Moving to Workers Paid is a configuration change: raise the queue's retention and both variables.
+- **Batches:** the consumer takes at most 10 messages per batch and reads their states with one query, so one invocation stays inside the D1 query limit as well. Backoff follows the delivery's own attempt count, not queue redeliveries (budget requeues also count as redeliveries).
+- **Finding held deliveries:** a delivery parked in the hold store is marked `held_at` in the database. The hourly job resumes destinations that are `OK`, oldest hold first, at most 100 deliveries per run. A resume sends first, clears the mark only if it is still the hold it read, and deletes the key last, so a crash at any step leads to a second send (which the consumer reconciles), never to a lost delivery.
+- Moving to Workers Paid is a configuration change: raise the queue's retention, the batch size and both variables.
 
 ## Consequences
 

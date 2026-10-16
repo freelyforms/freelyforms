@@ -62,13 +62,15 @@ Rules:
 | `multiselect` | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
 | `consent`     | `true`                           | the label is the statement the respondent agrees to |
 
-Every field also has `id`, `label`, optional `description` and optional `required`.
+Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000) and optional `required`. Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
+
+The theme's `accent` colour replaces the accent in both the light and dark palettes; text on accent-coloured buttons is black or white, whichever contrasts more.
 
 Answers to choice fields are option IDs, so renaming an option label never breaks logic or history; the delivery worker writes the label from the form version the response was submitted against.
 
 ## Answer validation
 
-`packages/form-engine` exports `validateSubmission(form, answers)`. It has no runtime dependencies so the same code runs in the public renderer and on the server, where its result is authoritative. It:
+`packages/form-engine` exports `validateSubmission(form, answers)`. It has no runtime dependencies so the same code can run in the browser; today it runs on the server, where its result is authoritative, and client-side validation is still to come. It:
 
 - trims text, collapses line breaks in single-line text and counts length in Unicode code points;
 - converts numbers sent as strings, rejects exponents, hex and locale formats;

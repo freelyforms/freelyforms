@@ -23,6 +23,8 @@ The product should make that infrastructure pleasant to use without forcing user
 4. Files go to the owner's Google Drive.
 5. The owner can leave at any time with their data intact.
 
+Status (MVP in progress): 1–3 work today; files (4) are planned ([ADR 0007](adr/0007-direct-resumable-drive-uploads.md)); for 5, responses already live only in the owner's sheet and a form definition can be exported as JSON from the builder. See [ROADMAP.md](ROADMAP.md).
+
 ## Target users
 
 Initial broad segments:

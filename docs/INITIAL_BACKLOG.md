@@ -26,8 +26,8 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] User/session model (server-side sessions, only a token hash stored, `__Host-` cookie).
 - [x] Google connection model separate from app session.
 - [x] Encrypted token storage (refresh token as an envelope bound to the user ID).
-- [ ] Disconnect/revoke flow (revoke at Google, delete the stored token, block deliveries with a clear state).
-- [ ] Account deletion (metadata and credentials; never the owner's Sheets or Drive files).
+- [x] Disconnect/revoke flow (revoke at Google, delete the stored token; new responses wait as blocked deliveries).
+- [x] Account deletion (metadata, credentials and held deliveries; never the owner's Sheets or Drive files).
 - [x] Scheduled cleanup of expired sessions and pruned delivery records (hourly cron).
 
 ## Builder
@@ -41,6 +41,9 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Publish flow with the public link, the sheet link and the embed code.
 - [x] Delivery status panel: destination state, counts by delivery state, "Resume" after a fix.
 - [ ] Browser tests of the builder (Playwright) once the UI settles.
+- [x] Export the form definition as JSON (CLAUDE.md: forms must be exportable).
+- [x] Saves never overlap; edits are saved when leaving the editor; an ended session is shown with a way to sign in again.
+- [ ] Import a form from JSON.
 
 ## Google Sheets
 
@@ -59,12 +62,12 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 
 - [x] Public route by form ID on the forms domain ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [x] Render published schema.
-- [x] Client + server validation (server-rendered form; client-side enhancement still to do).
+- [x] Server validation with accessible error messages on the server-rendered form.
 - [x] Submit endpoint.
 - [x] Metadata schema without answer storage (`packages/db/migrations`, tested on SQLite and on local D1).
 - [x] API skeleton: Cloudflare Worker (`apps/api`, Hono) with D1 binding, health check, security headers.
 - [x] Decide where blocked payloads are held for up to 7 days ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md): Workers KV with expiration).
-- [x] Durable queue with 7-day encrypted retention ([ADR 0008](adr/0008-queue-retention-and-encryption.md)).
+- [x] Durable delivery with a 7-day encrypted deadline ([ADR 0008](adr/0008-queue-retention-and-encryption.md); on Workers Free the queue keeps 24 h and longer waits move to KV, [ADR 0014](adr/0014-run-on-workers-free.md)).
 - [x] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [x] Success and error states.
 - [ ] Client-side validation enhancement (same `form-engine` in the browser).
@@ -90,7 +93,7 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [ ] Content model for template/feature/integration pages (template schema JSON + page content).
 - [ ] Template preview rendered by the real form renderer.
 - [ ] Sitemaps partitioned by page family; canonical URLs; robots.txt.
-- [ ] `noindex` for public user forms, app, editor and preview routes.
+- [x] `noindex` for public user forms, app, editor and preview routes.
 - [x] Decide public form host domain: `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [ ] Facts/feature-status data source with expiry check in CI, so public pages never show stale or unshipped claims.
 - [ ] Content lint for template pages (duplicate field sets, duplicate titles, required blocks).

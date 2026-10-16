@@ -129,7 +129,7 @@ Every resource must be scoped by account/workspace ownership. Avoid relying only
 
 ## Public rendering
 
-Public renderer should be highly cacheable except for dynamic form state. Static form definition/version can be cached at the edge. Published forms are served from a separate domain, `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
+The public renderer could cache published definitions at the edge; today every form page is rendered per request with `no-store` (a fresh CSP nonce and Turnstile per page), which is cheap enough for the MVP. Published forms are served from a separate domain, `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 
 ## Custom domains
 

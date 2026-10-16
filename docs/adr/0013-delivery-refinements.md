@@ -4,7 +4,7 @@ Date: 2026-10-16
 
 ## Status
 
-Accepted. Refines [ADR 0001](0001-batched-sheets-writes.md), [ADR 0004](0004-column-identity-developer-metadata.md) and [ADR 0011](0011-hold-store-for-blocked-deliveries.md).
+Accepted. Refines [ADR 0001](0001-batched-sheets-writes.md), [ADR 0002](0002-raw-writes-for-respondent-data.md) (write call), [ADR 0003](0003-delivery-states-and-reconciliation.md) (when to reconcile), [ADR 0004](0004-column-identity-developer-metadata.md) and [ADR 0011](0011-hold-store-for-blocked-deliveries.md).
 
 ## Context
 

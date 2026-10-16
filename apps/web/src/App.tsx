@@ -1,4 +1,5 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { Account } from "./Account.js";
 import { api, ApiError, GRANT_DRIVE_URL, SIGN_IN_URL, type Me } from "./api.js";
 import { Editor } from "./Editor.js";
 import { FormList } from "./FormList.js";
@@ -28,11 +29,12 @@ export function App() {
   const route = useRoute();
   const [me, setMe] = useState<Me | null | "loading" | "error">("loading");
 
-  useEffect(() => {
+  const loadMe = useCallback(() => {
     api.me().then(setMe, (err: unknown) => {
       setMe(err instanceof ApiError && err.status === 401 ? null : "error");
     });
   }, []);
+  useEffect(loadMe, [loadMe]);
 
   if (me === "loading") return <p className="center muted">Loading…</p>;
   if (me === "error") {
@@ -51,7 +53,9 @@ export function App() {
           Freely Forms
         </Link>
         <span className="spacer" />
-        <span className="muted small">{me.user.email}</span>
+        <Link to="/account" className="small account-link">
+          {me.user.email}
+        </Link>
         <form method="post" action="/auth/logout">
           <button className="ghost small" type="submit">
             Sign out
@@ -66,6 +70,7 @@ export function App() {
       )}
       {route.name === "forms" && <FormList />}
       {route.name === "form" && <Editor key={route.id} id={route.id} />}
+      {route.name === "account" && <Account me={me} onChange={loadMe} />}
       {route.name === "notFound" && (
         <main className="page">
           <h1>Page not found</h1>

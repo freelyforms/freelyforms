@@ -21,7 +21,7 @@ Request the minimum scopes needed for the user's selected workflow.
 
 Prefer file-scoped access patterns such as `drive.file` where they satisfy the feature. Do not request broad Drive access merely for convenience.
 
-MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets are attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md)). Respondent values are written with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
+MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets will be attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md); not implemented yet, today every form gets a new sheet). Respondent values are written as typed cells that Sheets never parses ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](adr/0013-delivery-refinements.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 
 ## Google Cloud setup
 

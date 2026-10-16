@@ -1,7 +1,7 @@
 import { parseForm, type Form } from "@freelyforms/form-schema";
 import { FIELD_TYPES, MAX_FIELDS, type FieldType } from "@freelyforms/form-schema/limits";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type FormView, type SchemaIssue } from "./api.js";
+import { api, ApiError, SIGN_IN_URL, type FormView, type SchemaIssue } from "./api.js";
 import { Link } from "./App.js";
 import { DesignPanel } from "./DesignPanel.js";
 import {
@@ -20,10 +20,15 @@ import {
   updateOption,
 } from "./draft.js";
 import { FieldEditor } from "./FieldEditor.js";
+import { navigate, setLeaveGuard } from "./router.js";
 import { SharePanel } from "./SharePanel.js";
 
 type SaveState =
-  { state: "saved" | "dirty" | "saving" | "error" } | { state: "invalid"; issues: SchemaIssue[] };
+  | { state: "saved" | "dirty" | "saving" | "error" | "signedOut" }
+  | { state: "invalid"; issues: SchemaIssue[] };
+
+/** Outcome of one save: `stale` means the draft changed while it was being saved. */
+export type FlushResult = "saved" | "stale" | "invalid" | "error" | "signedOut";
 
 type Tab = "build" | "design" | "share";
 
@@ -40,7 +45,12 @@ export function Editor({ id }: { id: string }) {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const formRef = useRef<Form | null>(null);
+  /** Edits made so far, and the edit count the server has. Unsaved work = editSeq > savedSeq. */
   const editSeq = useRef(0);
+  const savedSeq = useRef(0);
+  /** The save in progress; saves never overlap, so an older draft cannot land last. */
+  const inFlight = useRef<Promise<FlushResult> | null>(null);
+  const gone = useRef(false);
 
   useEffect(() => {
     api.getForm(id).then(
@@ -69,30 +79,51 @@ export function Editor({ id }: { id: string }) {
     setSave({ state: "dirty" });
   }, []);
 
-  /** Saves the current draft now. Resolves to true when the server has the latest version. */
-  const flush = useCallback(async (): Promise<boolean> => {
-    const current = formRef.current;
-    if (!current) return false;
-    const seq = editSeq.current;
-    const parsed = parseForm(current);
-    if (!parsed.success) {
-      setSave({ state: "invalid", issues: parsed.issues });
-      return false;
-    }
-    setSave({ state: "saving" });
-    try {
-      const saved = await api.saveDraft(id, parsed.form);
-      setView(saved);
-      setPreviewVersion((n) => n + 1);
-      if (seq === editSeq.current) setSave({ state: "saved" });
-      return seq === editSeq.current;
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "invalid_form") {
-        setSave({ state: "invalid", issues: (err.body.issues as SchemaIssue[] | undefined) ?? [] });
-      } else {
-        setSave({ state: "error" });
+  /** Saves the current draft once, after any save already in progress. */
+  const flush = useCallback(async (): Promise<FlushResult> => {
+    while (inFlight.current) await inFlight.current;
+    const run = async (): Promise<FlushResult> => {
+      const current = formRef.current;
+      if (!current) return "error";
+      const seq = editSeq.current;
+      if (seq === savedSeq.current) return "saved";
+      const parsed = parseForm(current);
+      if (!parsed.success) {
+        setSave({ state: "invalid", issues: parsed.issues });
+        return "invalid";
       }
-      return false;
+      setSave({ state: "saving" });
+      try {
+        const saved = await api.saveDraft(id, parsed.form);
+        savedSeq.current = seq;
+        if (gone.current) return "saved";
+        setView(saved);
+        setPreviewVersion((n) => n + 1);
+        const latest = seq === editSeq.current;
+        setSave({ state: latest ? "saved" : "dirty" });
+        return latest ? "saved" : "stale";
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          setSave({ state: "signedOut" });
+          return "signedOut";
+        }
+        if (err instanceof ApiError && err.code === "invalid_form") {
+          setSave({
+            state: "invalid",
+            issues: (err.body.issues as SchemaIssue[] | undefined) ?? [],
+          });
+          return "invalid";
+        }
+        setSave({ state: "error" });
+        return "error";
+      }
+    };
+    const promise = run();
+    inFlight.current = promise;
+    try {
+      return await promise;
+    } finally {
+      inFlight.current = null;
     }
   }, [id]);
 
@@ -105,7 +136,21 @@ export function Editor({ id }: { id: string }) {
     };
   }, [form, save.state, flush]);
 
-  // Warn before leaving with unsaved edits.
+  // Leaving the editor inside the app: save valid edits on the way out, and ask before dropping
+  // edits that cannot be saved. Reloads and closing the tab are covered by beforeunload.
+  useEffect(() => {
+    setLeaveGuard(() => {
+      if (editSeq.current === savedSeq.current) return true;
+      const valid = formRef.current !== null && parseForm(formRef.current).success;
+      return valid || window.confirm("Some changes cannot be saved yet. Leave and lose them?");
+    });
+    return () => {
+      setLeaveGuard(null);
+      gone.current = true;
+      if (editSeq.current !== savedSeq.current) void flush();
+    };
+  }, [flush]);
+
   useEffect(() => {
     if (save.state === "saved") return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -116,6 +161,13 @@ export function Editor({ id }: { id: string }) {
       window.removeEventListener("beforeunload", warn);
     };
   }, [save.state]);
+
+  /** After the form is deleted there is nothing left to save. */
+  const onDeleted = () => {
+    savedSeq.current = editSeq.current;
+    setSave({ state: "saved" });
+    navigate("/");
+  };
 
   if (loadError) {
     return (
@@ -145,13 +197,16 @@ export function Editor({ id }: { id: string }) {
         </Link>
         <h1 className="editor-title">{form.title}</h1>
         <SaveStatus save={save} onRetry={() => void flush()} />
-        <nav className="tabs" aria-label="Editor sections">
+        <div className="tabs" role="tablist" aria-label="Editor sections">
           {(["build", "design", "share"] as const).map((t) => (
             <button
               key={t}
+              id={`tab-${t}`}
               type="button"
+              role="tab"
               className={tab === t ? "tab active" : "tab"}
-              aria-current={tab === t ? "page" : undefined}
+              aria-selected={tab === t}
+              aria-controls="editor-panel"
               onClick={() => {
                 setTab(t);
               }}
@@ -159,7 +214,7 @@ export function Editor({ id }: { id: string }) {
               {{ build: "Fields", design: "Design", share: "Publish" }[t]}
             </button>
           ))}
-        </nav>
+        </div>
         <button
           type="button"
           className="ghost preview-toggle"
@@ -173,7 +228,21 @@ export function Editor({ id }: { id: string }) {
       </div>
 
       <div className={showPreview ? "editor-body with-preview" : "editor-body"}>
-        <section className="editor-pane" aria-label="Editor">
+        <section
+          id="editor-panel"
+          className="editor-pane"
+          role="tabpanel"
+          aria-labelledby={`tab-${tab}`}
+        >
+          {issues.get("")?.length ? (
+            <div className="card has-issues" role="alert">
+              {issues.get("")?.map((m) => (
+                <p key={m} className="issue">
+                  {m}
+                </p>
+              ))}
+            </div>
+          ) : null}
           {tab === "build" && (
             <>
               <div className="card">
@@ -201,11 +270,6 @@ export function Editor({ id }: { id: string }) {
                     edit(updateMeta(form, { description: e.target.value }));
                   }}
                 />
-                {issues.get("")?.map((m) => (
-                  <p key={m} className="issue">
-                    {m}
-                  </p>
-                ))}
               </div>
 
               {form.fields.length === 0 && (
@@ -296,9 +360,11 @@ export function Editor({ id }: { id: string }) {
             <SharePanel
               view={view}
               fieldCount={form.fields.length}
+              form={form}
               saveState={save.state}
               flush={flush}
               onPublished={setView}
+              onDeleted={onDeleted}
             />
           )}
         </section>
@@ -306,6 +372,7 @@ export function Editor({ id }: { id: string }) {
         <section className="preview-pane" aria-label="Preview">
           <iframe
             title="Preview of your form"
+            loading="lazy"
             src={`/forms/${id}/preview?v=${String(previewVersion)}`}
           />
         </section>
@@ -321,11 +388,22 @@ function SaveStatus({ save, onRetry }: { save: SaveState; onRetry: () => void })
     saving: "Saving…",
     error: "Not saved",
     invalid: "Not saved — fix the highlighted problems",
+    signedOut: "Not saved — your session ended",
   }[save.state];
   return (
     <span className={`save-status ${save.state}`} role="status" aria-live="polite">
       {text}
       {save.state === "error" && (
+        <button type="button" className="link" onClick={onRetry}>
+          Retry
+        </button>
+      )}
+      {save.state === "signedOut" && (
+        <a href={SIGN_IN_URL} target="_blank" rel="noopener">
+          Sign in again (opens a new tab), then retry
+        </a>
+      )}
+      {save.state === "signedOut" && (
         <button type="button" className="link" onClick={onRetry}>
           Retry
         </button>

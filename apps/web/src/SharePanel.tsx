@@ -1,3 +1,4 @@
+import type { Form } from "@freelyforms/form-schema";
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
@@ -7,6 +8,7 @@ import {
   type DestinationState,
   type FormView,
 } from "./api.js";
+import type { FlushResult } from "./Editor.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
   ACCESS_REVOKED:
@@ -44,22 +46,58 @@ const STATE_LABELS: Record<string, string> = {
 
 interface Props {
   view: FormView;
+  form: Form;
   fieldCount: number;
   saveState: string;
-  flush: () => Promise<boolean>;
+  flush: () => Promise<FlushResult>;
   onPublished: (view: FormView) => void;
+  onDeleted: () => void;
 }
 
-export function SharePanel({ view, fieldCount, saveState, flush, onPublished }: Props) {
+const SAVE_ERRORS: Record<Exclude<FlushResult, "saved" | "stale">, string> = {
+  invalid: "Fix the highlighted problems before publishing.",
+  error: "Your latest changes could not be saved. Check your connection and try again.",
+  signedOut: "Your session ended. Sign in again, then publish.",
+};
+
+/** Downloads the form definition as JSON (forms are always exportable). */
+function exportJson(form: Form) {
+  const blob = new Blob([JSON.stringify(form, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${form.id}.json`;
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+export function SharePanel({
+  view,
+  form,
+  fieldCount,
+  saveState,
+  flush,
+  onPublished,
+  onDeleted,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<Deliveries | null>(null);
   const [resumeNote, setResumeNote] = useState<string | null>(null);
+  const [deliveriesError, setDeliveriesError] = useState(false);
 
   const loadDeliveries = useCallback(() => {
-    api.deliveries(view.id).then(setDeliveries, () => {
-      setDeliveries(null);
-    });
+    api.deliveries(view.id).then(
+      (d) => {
+        setDeliveries(d);
+        setDeliveriesError(false);
+      },
+      () => {
+        setDeliveriesError(true);
+      },
+    );
   }, [view.id]);
 
   useEffect(() => {
@@ -70,8 +108,11 @@ export function SharePanel({ view, fieldCount, saveState, flush, onPublished }: 
     setBusy(true);
     setError(null);
     try {
-      if (saveState !== "saved" && !(await flush())) {
-        setError(PUBLISH_ERRORS.invalid_form ?? null);
+      // Save first; retry while edits keep arriving during the save.
+      let saved: FlushResult = "stale";
+      for (let i = 0; i < 3 && saved === "stale"; i++) saved = await flush();
+      if (saved !== "saved") {
+        setError(saved === "stale" ? SAVE_ERRORS.error : SAVE_ERRORS[saved]);
         return;
       }
       onPublished(await api.publish(view.id));
@@ -189,6 +230,11 @@ export function SharePanel({ view, fieldCount, saveState, flush, onPublished }: 
               ))}
             </ul>
           )}
+          {deliveriesError && (
+            <p className="alert" role="alert">
+              Delivery status could not be loaded.
+            </p>
+          )}
           <p className="muted small">Last 30 days. Responses are never stored by Freely Forms.</p>
           {(problem || held) && (
             <button type="button" disabled={busy} onClick={() => void resume()}>
@@ -206,7 +252,23 @@ export function SharePanel({ view, fieldCount, saveState, flush, onPublished }: 
         </div>
       )}
 
-      <DeleteForm id={view.id} />
+      <div className="card">
+        <h2 className="small-heading">Export</h2>
+        <p className="muted small">
+          Download the form definition as JSON (schema version {form.schemaVersion}). Responses are
+          already in your sheet.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            exportJson(form);
+          }}
+        >
+          Download JSON
+        </button>
+      </div>
+
+      <DeleteForm id={view.id} onDeleted={onDeleted} />
     </div>
   );
 }
@@ -264,13 +326,13 @@ function CopyField({
   );
 }
 
-function DeleteForm({ id }: { id: string }) {
+function DeleteForm({ id, onDeleted }: { id: string; onDeleted: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState(false);
   const remove = async () => {
     try {
       await api.deleteForm(id);
-      window.location.assign("/app/");
+      onDeleted();
     } catch {
       setError(true);
     }

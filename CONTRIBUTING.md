@@ -16,7 +16,7 @@ External contributions require signing the [Contributor License Agreement](CLA.m
 
 - Never commit secrets, credentials, real user data or production identifiers.
 - Do not log OAuth tokens or form answers, even in tests or debug output.
-- Respondent data is always written to Google Sheets with `RAW` value input ([ADR 0002](docs/adr/0002-raw-writes-for-respondent-data.md)).
+- Respondent data is always written to Google Sheets as typed cells that Sheets never parses as formulas ([ADR 0002](docs/adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](docs/adr/0013-delivery-refinements.md)).
 - New Google OAuth scopes require an ADR ([ADR 0006](docs/adr/0006-oauth-scopes-drive-file-picker.md)).
 - A feature is complete only with validation, error states, accessibility, tests for critical logic and documentation.
 
@@ -30,12 +30,14 @@ pnpm check   # format, lint, typecheck, tests, private-file guard
 pnpm test:watch
 
 # API and builder on a local Worker with a local D1 database
-cp apps/api/.dev.vars.example apps/api/.dev.vars   # then fill in your own Google OAuth client
+cp apps/api/.dev.vars.example apps/api/.dev.vars   # then fill in your own Google OAuth client (see below)
 pnpm --filter @freelyforms/api db:migrate:local
 pnpm dev   # builds apps/web, then rebuilds it on change while the Worker runs
 ```
 
-Open http://localhost:8787/app/. The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change.
+You need your own Google Cloud project with an OAuth client first: follow "Google Cloud setup" in [docs/GOOGLE_INTEGRATION.md](docs/GOOGLE_INTEGRATION.md) and add your Google account as a test user.
+
+Open http://localhost:8787/app/ in Chrome or Firefox (the `__Host-` session cookie needs a browser that treats `http://localhost` as secure). The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change. CI also runs `pnpm build`; the hourly maintenance job runs locally only with `wrangler dev --test-scheduled`.
 
 To check delivery against real Google Sheets with your own account, sign in at http://localhost:8787/app/ with Drive access, then run `FREELYFORMS_LIVE_GOOGLE=1 pnpm exec vitest run apps/api/test/sheets.live.test.ts`. It creates a spreadsheet named "Freely Forms test responses" in your Drive; it is skipped in normal test runs and CI.
 

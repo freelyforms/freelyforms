@@ -85,6 +85,12 @@ export const api = {
       method: "POST",
     }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
+  disconnectGoogle: () =>
+    request<{ disconnected: true; revokedAtGoogle: boolean }>("/account/google/disconnect", {
+      method: "POST",
+    }),
+  deleteAccount: (confirm: string) =>
+    request<{ deleted: true }>("/account", { method: "DELETE", body: { confirm } }),
 };
 
 export const SIGN_IN_URL = "/auth/google/start";

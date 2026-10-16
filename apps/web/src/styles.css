@@ -197,6 +197,9 @@ button.small {
 .topbar form {
   margin: 0;
 }
+.account-link {
+  color: var(--muted);
+}
 .brand {
   font-weight: 700;
   color: var(--fg);
@@ -550,4 +553,14 @@ button.small {
   .copy {
     flex-direction: column;
   }
+}
+.account {
+  display: grid;
+  gap: 12px;
+}
+.account h1 {
+  margin: 0 0 4px;
+}
+.card.has-issues {
+  border-color: var(--danger);
 }

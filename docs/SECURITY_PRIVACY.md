@@ -10,7 +10,7 @@ Freely Forms does not keep a central database of submission content. Engineering
 - encryption key must not live in the same plaintext database;
 - never send refresh tokens to the browser;
 - never log access or refresh tokens;
-- support token revocation/disconnect;
+- support token revocation/disconnect (implemented: `POST /account/google/disconnect`, also part of account deletion);
 - minimise scopes;
 - document data use clearly for OAuth verification.
 
@@ -27,7 +27,7 @@ Requirements:
 - no application logs containing answers;
 - scrub exception/error reporting;
 - automatic retries for transient Google errors for up to 72 hours;
-- delete failed payloads after the retention policy and report failure state to owner.
+- delete failed payloads after the retention policy and report failure state to owner (today: delivery counts and destination state in the builder; notifications later).
 
 ## Uploaded files
 
@@ -56,13 +56,18 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - CSP;
 - secure cookies;
 - CSRF protection where state-changing browser requests need it;
-- strict CORS policy;
+- no cross-origin API access: the builder is same-origin, the API sends no CORS headers, and only public form submissions accept cross-origin posts;
 - output encoding;
 - schema validation server-side;
 - no HTML injection from field labels/descriptions without sanitisation;
 - dependency scanning;
-- secret scanning;
+- secret scanning (enable GitHub secret scanning and push protection when the repository is published);
 - security headers.
+
+## Operational data
+
+- Workers observability logs record request metadata (method, path, status, timing), never bodies; the code logs only error names and codes.
+- The delivery queue's dead-letter queue (`freelyforms-delivery-dlq`) receives only messages that exhausted retries, which the consumer avoids by acknowledging after its own 72-hour window. It has no consumer and keeps messages for the queue's retention period at most; payloads in it are encrypted like every queued payload.
 
 ## Data deletion
 
