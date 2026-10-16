@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development (never commit .dev.vars).
+# OAuth client: Google Cloud console → Google Auth Platform → Clients → Web application,
+# JavaScript origin http://localhost:8787, redirect URI http://localhost:8787/auth/google/callback.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# 32 random bytes, base64url: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+MASTER_KEY_K1=
