@@ -34,6 +34,7 @@ Before making architectural or product decisions, read:
 6. `docs/ROADMAP.md`
 7. `docs/ENGINEERING_PRINCIPLES.md`
 8. `docs/SEO_PUBLIC_SURFACES.md`
+9. `docs/adr/README.md` — accepted architecture decisions; do not contradict an ADR without writing a new one.
 
 If the local `private/` directory exists, also read all Markdown files in it. Those files contain internal strategy and must never be committed or copied into public documentation.
 
@@ -57,23 +58,25 @@ If the local `private/` directory exists, also read all Markdown files in it. Th
 
 Use a TypeScript monorepo. Prefer current stable versions at implementation time.
 
-Suggested packages/apps:
+Target layout (packages are added only when code needs them; `form-schema` and `form-engine` exist today):
 
 ```text
 apps/
-  web/              # logged-in product + public marketing UI
-  api/              # API / edge handlers
-  renderer/         # optional standalone public form host if separation helps
+  web/              # builder, dashboard and public website
+  api/              # edge API: auth, form CRUD, publish, submit endpoint
+  worker-delivery/  # queue consumer: batching, Sheets writes, reconciliation
 packages/
-  form-schema/
-  form-engine/
-  ui/
-  google/
-  auth/
-  validation/
-  analytics/
-  config/
+  form-schema/      # versioned schema types, JSON Schema export, migrations
+  form-engine/      # validation (and later logic), shared by browser and server
+  renderer/         # lightweight public renderer + embed script
+  google/           # OAuth, Sheets/Drive clients, developer metadata, RAW writes
+  db/               # metadata repository layer (no answers)
+  crypto/           # envelope encryption for tokens and queue payloads
 ```
+
+Do not split out `ui`, `auth`, `analytics` or `validation` packages until a second consumer exists.
+
+Tooling: Node 24 (`.nvmrc`), pnpm workspace, strict TypeScript 6, ESLint, Prettier, Vitest. Run `pnpm check` before committing.
 
 Infrastructure target:
 

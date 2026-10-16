@@ -4,6 +4,8 @@ This is a capability roadmap, not a deadline commitment.
 
 ## Phase 0 — Foundation
 
+Status: repository, monorepo, CI and architecture decisions ([ADRs](adr/)) are in place; schema work has started.
+
 - repository and monorepo setup;
 - CI;
 - schema package;

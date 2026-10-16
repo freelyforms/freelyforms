@@ -12,7 +12,7 @@ Owners rename headers, reorder, insert and delete columns. Mapping fields to col
 
 ## Decision
 
-- Each response column carries Sheets `developerMetadata` with key `app_field_id` and the stable field ID from the form schema. Developer metadata moves with the column when the owner reorders columns.
+- Each response column carries Sheets `developerMetadata` with key `app_field_id` and the stable field ID from the form schema, with `PROJECT` visibility so only our Google Cloud project can read it. Developer metadata moves with the column when the owner reorders columns.
 - The platform caches `field_id → column index` per destination and rebuilds the cache from metadata when a write fails validation or the cache is stale.
 - Header text is for humans only and may be changed freely by the owner.
 - If a field's column is missing, the destination enters an explicit `COLUMN_MISSING` state. The platform never silently remaps to another column.

@@ -2,16 +2,16 @@
 
 ## Repository
 
-- [ ] Initialise pnpm monorepo.
-- [ ] Add TypeScript strict mode.
-- [ ] Add linting/formatting.
-- [ ] Add unit test framework.
-- [ ] Add CI for lint/test/build.
-- [ ] Configure secret scanning.
+- [x] Initialise pnpm monorepo.
+- [x] Add TypeScript strict mode.
+- [x] Add linting/formatting.
+- [x] Add unit test framework.
+- [x] Add CI for format/lint/typecheck/test (`.github/workflows/ci.yml`).
+- [ ] Enable GitHub secret scanning and push protection when the repository is published.
 
 ## Schema
 
-- [ ] Create `packages/form-schema`.
+- [x] Create `packages/form-schema`.
 - [ ] Define schema versioning.
 - [ ] Define MVP field types.
 - [ ] Define validation model.
@@ -40,18 +40,18 @@
 - [ ] Create spreadsheet.
 - [ ] Store destination identifiers.
 - [ ] Create header row.
-- [ ] Append one response.
-- [ ] Stable field-to-column mapping.
+- [ ] Append responses with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).
+- [ ] Stable field-to-column mapping via developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 - [ ] Handle renamed/deleted/new fields.
 
 ## Public form
 
-- [ ] Public route by slug.
+- [ ] Public route by form ID on the forms domain ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [ ] Render published schema.
 - [ ] Client + server validation.
 - [ ] Submit endpoint.
-- [ ] Durable queue.
-- [ ] Idempotent delivery.
+- [ ] Durable queue with 7-day encrypted retention ([ADR 0008](adr/0008-queue-retention-and-encryption.md)).
+- [ ] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [ ] Success and error states.
 - [ ] Embed mode.
 
@@ -71,7 +71,7 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [ ] Template preview rendered by the real form renderer.
 - [ ] Sitemaps partitioned by page family; canonical URLs; robots.txt.
 - [ ] `noindex` for public user forms, app, editor and preview routes.
-- [ ] Decide public form host domain (separate from the marketing site) for abuse isolation.
+- [x] Decide public form host domain: `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [ ] Facts/feature-status data source with expiry check in CI, so public pages never show stale or unshipped claims.
 - [ ] Content lint for template pages (duplicate field sets, duplicate titles, required blocks).
 

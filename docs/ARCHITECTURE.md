@@ -73,6 +73,8 @@ The implementation must define a reliable failure strategy. Suggested states:
 - delivering;
 - delivered;
 - retrying;
+- unknown (request sent, no response — reconcile before retrying);
+- blocked (owner action required);
 - permanently_failed.
 
 A submission payload may have to exist temporarily in a durable queue to guarantee delivery. It is encrypted at the application level and kept for at most 7 days ([ADR 0008](adr/0008-queue-retention-and-encryption.md)). Do not silently turn the queue into permanent storage.
