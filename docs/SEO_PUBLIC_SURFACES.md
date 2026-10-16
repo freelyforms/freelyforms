@@ -49,4 +49,5 @@ Each page should contain a genuinely usable template, preview, field explanation
 - avoid indexing duplicate preview/editor routes.
 
 ## Public form indexing
+
 Default public user forms to noindex unless the owner explicitly chooses to make a form discoverable and the product has anti-spam/content-quality controls.

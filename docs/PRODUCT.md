@@ -1,6 +1,7 @@
 # Product Definition
 
 ## Problem
+
 Traditional form builders usually own the response database. Users either accept platform limits, pay for higher submission/storage tiers, or export data into tools they already use.
 
 Google users already have a capable data environment:
@@ -53,21 +54,27 @@ Initial broad segments:
 ## Differentiators
 
 ### 1. User-owned response storage
+
 Responses are stored in the owner's Google account rather than in a proprietary submission database.
 
 ### 2. Free-forever core
+
 No artificial limits on the number of normal forms or responses. Abuse/rate limits remain necessary.
 
 ### 3. Open source
+
 The code should be inspectable and self-hostable.
 
 ### 4. No data hostage
+
 Export form definition as JSON. Response data already belongs to the user.
 
 ### 5. Google-native workflows
+
 Sheets, Drive, Docs, Gmail and Workspace become building blocks rather than export destinations.
 
 ### 6. BYO infrastructure for expensive optional features
+
 Examples:
 
 - AI: user's OpenAI/Anthropic/Gemini/OpenRouter key;
@@ -77,9 +84,11 @@ Examples:
 ## Product modes
 
 ### Classic form
+
 Traditional multi-field page layout.
 
 ### Conversational form
+
 One-question-at-a-time flow using the same schema.
 
 ## Long-term platform direction

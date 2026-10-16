@@ -1,0 +1,14 @@
+{
+  "name": "@freelyforms/form-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schema-driven validation shared by browser and server.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@freelyforms/form-schema": "workspace:*"
+  }
+}

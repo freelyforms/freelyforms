@@ -1,6 +1,7 @@
 # CLAUDE.md — Project Operating Context
 
 ## Mission
+
 Build a globally useful, open-source, free-forever form and workflow platform whose core differentiator is **user-owned infrastructure**:
 
 - form responses are written to the form owner's Google Sheets;
@@ -12,14 +13,17 @@ Build a globally useful, open-source, free-forever form and workflow platform wh
 Product name: **Freely Forms** (primary domain `freelyforms.com`). Keep the brand out of core architecture identifiers; use it in UI, docs, marketing site and the package scope only.
 
 ## Primary product thesis
+
 > We build the interface. Google stores the data.
 
 Secondary thesis:
+
 > Your forms. Your cloud. Your data.
 
 The product should eventually become the **open-source form and workflow layer for Google Workspace**.
 
 ## Read order
+
 Before making architectural or product decisions, read:
 
 1. `docs/PRODUCT.md`
@@ -50,6 +54,7 @@ If the local `private/` directory exists, also read all Markdown files in it. Th
 - Public repository must not contain anything from `private/` or any internal strategy (marketing, SEO prioritisation, business plans).
 
 ## Suggested implementation shape
+
 Use a TypeScript monorepo. Prefer current stable versions at implementation time.
 
 Suggested packages/apps:
@@ -81,6 +86,7 @@ Infrastructure target:
 Do not prematurely add microservices.
 
 ## Definition of done for each feature
+
 A feature is not complete until it has:
 
 1. schema/data model;
@@ -94,6 +100,7 @@ A feature is not complete until it has:
 9. no leakage of private strategy into public files.
 
 ## Decision-making rule
+
 Prefer the design that improves, in this order:
 
 1. user data ownership;
@@ -106,6 +113,7 @@ Prefer the design that improves, in this order:
 Do not optimise for monetisation unless explicitly asked.
 
 ## Current first milestone
+
 Build an MVP that lets a user:
 
 1. Sign in with Google.

@@ -16,6 +16,7 @@ Future optional integrations:
 - Google Workspace Marketplace.
 
 ## OAuth philosophy
+
 Request the minimum scopes needed for the user's selected workflow.
 
 Prefer file-scoped access patterns such as `drive.file` where they satisfy the feature. Do not request broad Drive access merely for convenience.
@@ -23,6 +24,7 @@ Prefer file-scoped access patterns such as `drive.file` where they satisfy the f
 MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets are attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md)). Respondent values are written with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 
 ## Spreadsheet ownership
+
 A form may support two destinations:
 
 1. Create a new Google Sheet.
@@ -31,6 +33,7 @@ A form may support two destinations:
 The application stores the spreadsheet ID and destination sheet/tab identity, not a copy of the response data.
 
 ## Default sheet shape
+
 Recommended system columns followed by form fields:
 
 ```text
@@ -40,6 +43,7 @@ _submission_id | _submitted_at | Name | Email | ...
 Internally preserve a mapping between stable field IDs and sheet columns.
 
 ## Schema evolution
+
 Changing a form after responses already exist must be safe.
 
 Rules to design:
@@ -51,6 +55,7 @@ Rules to design:
 - duplicate labels -> allowed if field IDs differ, but sheet headers need disambiguation.
 
 ## File uploads
+
 Desired path:
 
 ```text
@@ -63,6 +68,7 @@ Google Drive/
 The app should write a Drive URL/reference into the response row.
 
 ## Disconnects and revoked access
+
 The UI must detect and explain:
 
 - OAuth revoked;

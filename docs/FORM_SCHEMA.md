@@ -1,6 +1,7 @@
 # Versioned Form Schema
 
 ## Principle
+
 The form schema is one of the project's most important assets. All clients and renderers should consume the same versioned model.
 
 ## Minimal conceptual structure
@@ -76,6 +77,7 @@ Next:
 - conditional logic references stable IDs, never labels.
 
 ## Logic model
+
 Support conditions such as:
 
 ```text
@@ -87,9 +89,11 @@ IF score > N THEN jump to page Z
 Do not use arbitrary executable JavaScript in form definitions.
 
 ## Validation
+
 Schema must support both declarative built-in validators and safe parameterised rules.
 
 ## Renderer independence
+
 A valid schema should render in:
 
 - classic web renderer;

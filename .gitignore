@@ -23,6 +23,7 @@ dist/
 .next/
 .wrangler/
 coverage/
+*.tsbuildinfo
 *.log
 
 # OS / editor

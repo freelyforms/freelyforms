@@ -1,6 +1,7 @@
 # Security and Privacy
 
 ## Privacy claim
+
 The product may eventually market itself around not centrally storing submission content. Engineering must make this claim materially true.
 
 ## OAuth token handling
@@ -14,6 +15,7 @@ The product may eventually market itself around not centrally storing submission
 - document data use clearly for OAuth verification.
 
 ## Submission data
+
 Transient handling is allowed only where operationally necessary for reliable delivery.
 
 Requirements:
@@ -26,6 +28,7 @@ Requirements:
 - delete failed payloads after the retention policy and report failure state to owner.
 
 ## Uploaded files
+
 Do not permanently proxy-store uploads unless technically unavoidable. Temporary staging must have automatic expiry.
 
 ## Public form abuse controls
@@ -51,7 +54,9 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - security headers.
 
 ## Data deletion
+
 Account deletion should remove central metadata and revoke/delete stored connection credentials. User-owned Sheets/Drive files should not be deleted unless the user explicitly requests that operation and understands it.
 
 ## Open-source safety
+
 No secrets, cloud IDs that confer access, private strategy, production credentials, or user data belong in the repository.
