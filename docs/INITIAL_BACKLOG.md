@@ -20,10 +20,10 @@
 
 ## Auth
 
-- [ ] Google sign-in.
-- [ ] User/session model.
-- [ ] Google connection model separate from app session.
-- [ ] Encrypted token storage (envelope encryption ready in `packages/crypto`; `google_connections.refresh_token` accepts envelopes only).
+- [x] Google sign-in (OIDC authorization code flow with PKCE, state and nonce; `apps/api/src/auth`).
+- [x] User/session model (server-side sessions, only a token hash stored, `__Host-` cookie).
+- [x] Google connection model separate from app session.
+- [x] Encrypted token storage (refresh token as an envelope bound to the user ID).
 - [ ] Disconnect/revoke flow.
 
 ## Builder

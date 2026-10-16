@@ -190,6 +190,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@freelyforms/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@freelyforms/db':
         specifier: workspace:*
         version: link:../../packages/db

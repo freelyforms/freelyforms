@@ -1,35 +1,20 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 import { app, type Env } from "../src/app.js";
+import { localD1 } from "./d1.js";
 
-const root = join(import.meta.dirname, "..");
-const persist = mkdtempSync(join(tmpdir(), "freelyforms-d1-"));
-let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+let d1: Awaited<ReturnType<typeof localD1>>;
+let env: Env;
 
 beforeAll(async () => {
-  // Apply the real migrations to a local D1 database (workerd), exactly as `wrangler` will in production.
-  execFileSync(
-    "pnpm",
-    ["exec", "wrangler", "d1", "migrations", "apply", "DB", "--local", "--persist-to", persist],
-    { cwd: root, stdio: "pipe", env: { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" } },
-  );
-  proxy = await getPlatformProxy<Env>({
-    configPath: join(root, "wrangler.jsonc"),
-    // `wrangler --persist-to X` stores state under X/v3.
-    persist: { path: join(persist, "v3") },
-  });
+  d1 = await localD1();
+  env = { DB: d1.db, GOOGLE_CLIENT_ID: "x", GOOGLE_CLIENT_SECRET: "x", MASTER_KEY_K1: "x" };
 }, 60_000);
 
 afterAll(async () => {
-  await proxy.dispose();
-  rmSync(persist, { recursive: true, force: true });
+  await d1.dispose();
 });
 
-const request = (path: string, init?: RequestInit) => app.request(path, init, proxy.env);
+const request = (path: string, init?: RequestInit) => app.request(path, init, env);
 
 describe("api", () => {
   it("reports health with a working database", async () => {
@@ -56,7 +41,7 @@ describe("migrations on D1", () => {
   const now = Date.UTC(2026, 9, 16);
 
   it("create every table", async () => {
-    const { results } = await proxy.env.DB.prepare(
+    const { results } = await env.DB.prepare(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' ORDER BY name",
     ).all<{ name: string }>();
     expect(results.map((r) => r.name)).toEqual([
@@ -73,7 +58,7 @@ describe("migrations on D1", () => {
   });
 
   it("enforce envelopes, immutability and cascades", async () => {
-    const db = proxy.env.DB;
+    const db = env.DB;
     await db.batch([
       db
         .prepare(

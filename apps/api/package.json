@@ -14,6 +14,7 @@
     "wrangler": "^4.146.0"
   },
   "dependencies": {
+    "@freelyforms/crypto": "workspace:*",
     "@freelyforms/db": "workspace:*",
     "@freelyforms/form-schema": "workspace:*",
     "hono": "^4.13.12"

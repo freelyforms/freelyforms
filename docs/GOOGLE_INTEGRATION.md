@@ -32,6 +32,16 @@ One Google Cloud project per environment (no organisation is required):
 - OAuth client of type Web application per environment; local development uses origin `http://localhost:8787` and redirect URI `http://localhost:8787/auth/google/callback`;
 - the app stays in Testing mode (test users only) until brand verification for production.
 
+## Sign-in flow
+
+1. `GET /auth/google/start` creates a random `state`, `nonce` and PKCE verifier, stores them in an encrypted, HttpOnly, 10-minute `__Host-` cookie and redirects to Google with the scopes above and `access_type=offline`.
+2. `GET /auth/google/callback` checks `state`, exchanges the code (with the PKCE verifier) at Google's token endpoint and validates the ID token claims (`iss`, `aud`, `exp`, `nonce`, verified email).
+3. The refresh token is stored only as an encrypted envelope bound to the user ID. If Google returns no refresh token and none is stored, the user is sent through the consent screen once (`prompt=consent`).
+4. A server-side session starts: the browser gets a random token in an HttpOnly `__Host-` cookie; the database keeps only its SHA-256 hash.
+5. Users who untick Drive access can still sign in; the connection records the granted scopes so the UI can ask for Drive access when it is needed.
+
+State-changing requests must carry an `Origin` header matching the API origin.
+
 ## Spreadsheet ownership
 
 A form may support two destinations:
