@@ -708,6 +708,8 @@ describe("delivery", () => {
       await owner(`/forms/${id}/deliveries`)
     ).json<{ destination: { state: string } }>();
     expect(status).toEqual({ destination: { state: "SHEET_DELETED" }, counts: { blocked: 1 } });
+    const list = await (await owner("/forms")).json<{ forms: { needsAttention: boolean }[] }>();
+    expect(list.forms[0]?.needsAttention).toBe(true);
 
     google.sheets.set("sheet1", sheet); // the owner restores it from the bin
     const resumed = await (

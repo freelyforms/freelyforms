@@ -162,9 +162,13 @@ export function FormList() {
               <Link to={`/forms/${f.id}`} className="form-card">
                 <span className="form-title">{f.title}</span>
                 <span className="form-meta">
-                  <span className={`status ${f.status === "published" ? "ok" : "draft"}`}>
-                    {f.status === "published" ? "Published" : "Draft"}
-                  </span>
+                  {f.needsAttention ? (
+                    <span className="status warn">Delivery needs attention</span>
+                  ) : (
+                    <span className={`status ${f.status === "published" ? "ok" : "draft"}`}>
+                      {f.status === "published" ? "Published" : "Draft"}
+                    </span>
+                  )}
                   <span aria-hidden="true">·</span>
                   <span>Edited {dateFormat.format(f.updatedAt)}</span>
                 </span>

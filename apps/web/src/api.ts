@@ -11,6 +11,8 @@ export interface FormSummary {
   status: "draft" | "published" | "archived";
   publishedVersion: number | null;
   updatedAt: number;
+  /** Only in the list: delivery to the sheet needs the owner's action. */
+  needsAttention?: boolean;
 }
 
 export interface FormView extends FormSummary {

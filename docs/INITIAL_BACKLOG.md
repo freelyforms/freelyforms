@@ -76,7 +76,8 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [ ] Appearance, later: font, logo, background.
 - [x] Embed: iframe snippet and a small script that resizes the iframe ([API.md](API.md#embedding)).
 - [x] "Report abuse" link on every form page ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
-- [ ] Owner notification of blocked and soon-to-expire deliveries (dashboard first, email later).
+- [x] Dashboard notice: the forms list flags forms whose delivery needs the owner's action.
+- [ ] Email notification of blocked and soon-to-expire deliveries.
 
 ## Abuse/security
 

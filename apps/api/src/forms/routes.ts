@@ -107,10 +107,19 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
 
   forms.get("/", async (c) => {
     const { results } = await c.env.DB.prepare(
-      "SELECT id, title, status, published_version, updated_at FROM forms WHERE owner_id = ? AND status != 'archived' ORDER BY updated_at DESC",
+      `SELECT f.id, f.title, f.status, f.published_version, f.updated_at,
+         d.state AS destination_state,
+         (SELECT count(*) FROM deliveries x WHERE x.form_id = f.id AND x.state = 'blocked') AS blocked
+       FROM forms f LEFT JOIN destinations d ON d.form_id = f.id
+       WHERE f.owner_id = ? AND f.status != 'archived' ORDER BY f.updated_at DESC`,
     )
       .bind(c.var.user.id)
-      .all<Omit<FormRow, "owner_id" | "draft_json">>();
+      .all<
+        Omit<FormRow, "owner_id" | "draft_json"> & {
+          destination_state: string | null;
+          blocked: number;
+        }
+      >();
     return c.json({
       forms: results.map((f) => ({
         id: f.id,
@@ -118,6 +127,12 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
         status: f.status,
         publishedVersion: f.published_version,
         updatedAt: f.updated_at,
+        // Something the owner must fix: the sheet is unreachable or responses are waiting.
+        needsAttention:
+          (f.destination_state !== null &&
+            f.destination_state !== "OK" &&
+            f.destination_state !== "QUOTA") ||
+          f.blocked > 0,
       })),
     });
   });
