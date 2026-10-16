@@ -1,5 +1,5 @@
-import { html, raw } from "hono/html";
-import type { HtmlEscapedString } from "hono/utils/html";
+import { html } from "hono/html";
+import { sitePage, type Html, type SiteContext } from "./layout.js";
 
 /**
  * Privacy policy and terms, served at /privacy and /terms on the app domain. Plain server-rendered
@@ -10,60 +10,17 @@ import type { HtmlEscapedString } from "hono/utils/html";
 export const LEGAL_UPDATED = "16 October 2026";
 const CONTACT = "hello@freelyforms.com";
 
-const STYLE = `
-:root{color-scheme:light dark;--fg:#1b1b1f;--muted:#5d5d66;--bg:#fff;--accent:#1f5fd6}
-@media (prefers-color-scheme:dark){:root{--fg:#ececf1;--muted:#a5a5ae;--bg:#141417;--accent:#8ab0ff}}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,sans-serif}
-main{max-width:720px;margin:0 auto;padding:32px 16px 64px}a{color:var(--accent)}
-h1{font-size:1.8rem;line-height:1.25}h2{font-size:1.2rem;margin-top:2em}.muted{color:var(--muted)}
-nav{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.95rem}
-.cta{display:inline-block;background:var(--accent);color:var(--bg);padding:12px 20px;border-radius:8px;font-weight:600;text-decoration:none}
-.lead{font-size:1.2rem}ol.steps li,ul.list li{margin:6px 0}
-`;
-
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
-
-/** A plain website page with the shared header. `noindex` keeps pre-launch pages out of search. */
-export function sitePage(
-  title: string,
-  body: Html,
-  nonce: string,
-  opts: { noindex?: boolean } = {},
-): Html {
-  return html`<!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        ${opts.noindex ? raw('<meta name="robots" content="noindex" />') : ""}
-        <title>${title}</title>
-        <meta
-          name="description"
-          content="Free, open-source forms whose responses go to your own Google Sheet."
-        />
-        <style nonce="${nonce}">
-          ${raw(STYLE)}
-        </style>
-      </head>
-      <body>
-        <main>
-          <nav>
-            <a href="/">Freely Forms</a><a href="/app/">Open the app</a
-            ><a href="/privacy">Privacy</a><a href="/terms">Terms</a>
-          </nav>
-          ${body}
-        </main>
-      </body>
-    </html>`;
-}
-
-export const legalPage = (title: string, body: Html, nonce: string): Html =>
+export const legalPage = (ctx: SiteContext, path: string, title: string, body: Html): Html =>
   sitePage(
-    `${title} · Freely Forms`,
-    html`<h1>${title}</h1>
-      <p class="muted">Last updated ${LEGAL_UPDATED}</p>
-      ${body}`,
-    nonce,
+    ctx,
+    { title: `${title} · Freely Forms`, description: `Freely Forms ${title.toLowerCase()}.`, path },
+    html`<section>
+      <div class="wrap prose">
+        <h1>${title}</h1>
+        <p class="muted">Last updated ${LEGAL_UPDATED}</p>
+        ${body}
+      </div>
+    </section>`,
   );
 
 export const privacyBody = html`

@@ -187,6 +187,22 @@ describe("owner forms API", () => {
     expect(body.issues.map((i) => i.path)).toContain("title");
   });
 
+  it("creates a form from a website template with a fresh ID", async () => {
+    const res = await owner("/forms", { method: "POST", body: { template: "contact-form" } });
+    expect(res.status).toBe(201);
+    const view = await res.json<{
+      id: string;
+      title: string;
+      draft: { id: string; fields: unknown[] };
+    }>();
+    expect(view.title).toBe("Contact us");
+    expect(view.draft.id).toBe(view.id);
+    expect(view.draft.fields.length).toBeGreaterThan(2);
+    expect((await owner("/forms", { method: "POST", body: { template: "nope" } })).status).toBe(
+      422,
+    );
+  });
+
   it("hides one owner's forms from another owner", async () => {
     const id = await publishedForm();
     const token = randomToken();

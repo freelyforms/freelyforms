@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Account } from "./Account.js";
+import { pendingTemplate } from "./pendingTemplate.js";
 import { AccountMenu } from "./AccountMenu.js";
 import { api, ApiError, GRANT_DRIVE_URL, SIGN_IN_URL, type Me } from "./api.js";
 import { Editor } from "./Editor.js";
@@ -79,6 +80,7 @@ export function App() {
 }
 
 function SignIn() {
+  pendingTemplate(); // remember "Use this template" across the Google sign-in
   const params = new URLSearchParams(window.location.search);
   const error = params.get("auth_error");
   const deleted = params.get("deleted");

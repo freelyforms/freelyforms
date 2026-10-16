@@ -12,6 +12,7 @@ import { sheetsFor, spreadsheetUrl } from "../google-access.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
 import { embedSnippet } from "../public/embed.js";
+import { templateBySlug } from "../site/templates.js";
 import { formPageCsp } from "../public/protect.js";
 import { renderForm, renderMessage } from "../public/render.js";
 import { newFormId, newId, randomToken, readBodyLimited } from "../util.js";
@@ -120,14 +121,21 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     });
   });
 
+  /** Creates an empty draft, or a copy of a website template (`{ template: "<slug>" }`). */
   forms.post("/", async (c) => {
-    const body = await c.req.json<{ title?: unknown }>().catch(() => ({ title: undefined }));
+    const body = await c.req
+      .json<{ title?: unknown; template?: unknown }>()
+      .catch(() => ({ title: undefined, template: undefined }));
+    const template = typeof body.template === "string" ? templateBySlug(body.template) : undefined;
+    if (body.template !== undefined && !template) return c.json({ error: "unknown_template" }, 422);
     const title =
       typeof body.title === "string" && body.title.trim() !== ""
         ? body.title.trim()
-        : "Untitled form";
+        : (template?.form.title ?? "Untitled form");
     const id = newFormId();
-    const draft: Form = { schemaVersion: 1, id, title: title.slice(0, 200), fields: [] };
+    const draft: Form = template
+      ? { ...structuredClone(template.form), id, title: title.slice(0, 200) }
+      : { schemaVersion: 1, id, title: title.slice(0, 200), fields: [] };
     const now = deps.now();
     await c.env.DB.prepare(
       "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",

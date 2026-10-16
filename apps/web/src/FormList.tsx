@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { api, type FormSummary } from "./api.js";
 import { Link } from "./App.js";
+import { clearPendingTemplate, pendingTemplate, templateName } from "./pendingTemplate.js";
 import { navigate } from "./router.js";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -12,6 +13,7 @@ export function FormList() {
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const [template, setTemplate] = useState(pendingTemplate);
 
   useEffect(() => {
     api.listForms().then(
@@ -40,6 +42,19 @@ export function FormList() {
     }
   };
 
+  const createFromTemplate = async () => {
+    if (!template) return;
+    setCreating(true);
+    try {
+      const form = await api.createForm("", template);
+      clearPendingTemplate();
+      navigate(`/forms/${form.id}`);
+    } catch {
+      setError("That template could not be copied. Please try again.");
+      setCreating(false);
+    }
+  };
+
   const newForm = (
     <button
       type="button"
@@ -61,6 +76,35 @@ export function FormList() {
         </h1>
         {!creatingOpen && forms && forms.length > 0 && newForm}
       </div>
+
+      {template && (
+        <div className="card create">
+          <h2 className="section-title">Start from the {templateName(template)} template</h2>
+          <p className="helper">
+            A copy goes into your account; you can change anything before publishing.
+          </p>
+          <div className="row">
+            <button
+              type="button"
+              className="primary"
+              disabled={creating}
+              onClick={() => void createFromTemplate()}
+            >
+              {creating ? "Creating…" : "Create form"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                clearPendingTemplate();
+                setTemplate(null);
+              }}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       {creatingOpen && (
         <form className="card create" onSubmit={(e) => void create(e)}>

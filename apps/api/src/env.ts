@@ -27,6 +27,8 @@ export interface Env {
   FORMS_HOST?: string;
   /** Origin of the website and app, e.g. `https://freelyforms.com`; the bare forms domain redirects there. */
   APP_ORIGIN?: string;
+  /** "1" lets search engines index the website; anything else sends noindex. */
+  SITE_INDEXABLE?: string;
   /** Where abuse reports go; every public form links to it (ADR 0010). */
   ABUSE_EMAIL?: string;
   /**

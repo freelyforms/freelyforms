@@ -74,7 +74,8 @@ async function request<T>(
 export const api = {
   me: () => request<Me>("/auth/me"),
   listForms: () => request<{ forms: FormSummary[] }>("/forms"),
-  createForm: (title: string) => request<FormView>("/forms", { method: "POST", body: { title } }),
+  createForm: (title: string, template?: string) =>
+    request<FormView>("/forms", { method: "POST", body: template ? { template } : { title } }),
   getForm: (id: string) => request<FormView>(`/forms/${id}`),
   saveDraft: (id: string, draft: unknown) =>
     request<FormView>(`/forms/${id}/draft`, { method: "PUT", body: draft }),

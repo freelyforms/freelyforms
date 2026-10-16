@@ -6,9 +6,7 @@ import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
-import { homeBody } from "./site/home.js";
-import { legalPage, privacyBody, sitePage, termsBody } from "./site/legal.js";
-import { randomToken } from "./util.js";
+import { siteRoutes } from "./site/routes.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
 export type { Env } from "./env.js";
@@ -117,6 +115,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   });
 
   app.route("/auth", authRoutes(deps));
+  app.route("/", siteRoutes());
   app.route("/account", accountRoutes(deps));
   app.route("/forms", formRoutes(deps));
   app.get("/f/embed.js", (c) => {
@@ -130,32 +129,6 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
 
   // The builder (apps/web) is a static app under /app/, served from the same origin as the API so
   // the session cookie and the Origin check work without CORS. "/" is the website later.
-  // Homepage (noindex until the public website launches).
-  app.get("/", (c) => {
-    const nonce = randomToken(16);
-    c.header(
-      "Content-Security-Policy",
-      `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
-    );
-    return c.html(
-      sitePage("Freely Forms — free forms for your Google Sheets", homeBody, nonce, {
-        noindex: true,
-      }),
-    );
-  });
-  for (const [path, title, body] of [
-    ["/privacy", "Privacy policy", privacyBody],
-    ["/terms", "Terms of use", termsBody],
-  ] as const) {
-    app.get(path, (c) => {
-      const nonce = randomToken(16);
-      c.header(
-        "Content-Security-Policy",
-        `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
-      );
-      return c.html(legalPage(title, body, nonce));
-    });
-  }
   app.get("/app", (c) => c.redirect("/app/", 301));
   app.get("/app/*", async (c) => {
     if (!c.env.ASSETS)
