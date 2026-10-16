@@ -191,6 +191,15 @@ describe("GET /auth/google/callback", () => {
     expect(await (await h.send("/auth/me")).json()).toMatchObject({
       google: { status: "active", driveAccess: false },
     });
+    expect(await (await h.send("/")).text()).toContain('href="/auth/google/start?consent=1"');
+
+    // Granting Drive later updates the same connection.
+    const again = harness({ sub: "no-drive", refreshToken: REFRESH });
+    await again.signIn("?consent=1");
+    expect(await (await again.send("/auth/me")).json()).toMatchObject({
+      google: { driveAccess: true },
+    });
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM google_connections").first("n")).toBe(1);
   });
 
   it.each([

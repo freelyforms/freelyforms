@@ -28,6 +28,8 @@ describe("api", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
     expect(res.headers.get("strict-transport-security")).toMatch(/max-age=/);
+    // `no-referrer` would make browsers send `Origin: null` on form posts and break the CSRF check.
+    expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
   });
 
   it("returns JSON 404s", async () => {
