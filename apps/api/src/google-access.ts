@@ -34,6 +34,14 @@ export async function sheetsFor(env: Env, deps: Deps, userId: string): Promise<S
     });
     return sheetsClient(deps.fetch, access.token);
   } catch (err) {
+    // A rejected client ID or secret is a deployment problem, not the owner's: make it visible.
+    if (
+      err instanceof GoogleApiError &&
+      err.kind === "TRANSIENT" &&
+      err.status >= 400 &&
+      err.status < 500
+    )
+      console.error("google_token_rejected", err.reason ?? String(err.status));
     if (err instanceof GoogleApiError && err.kind === "ACCESS_REVOKED") {
       await env.DB.prepare(
         "UPDATE google_connections SET status = 'revoked', updated_at = ? WHERE user_id = ?",

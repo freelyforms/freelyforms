@@ -83,6 +83,9 @@ describe("refreshAccessToken", () => {
     [Response.json({ error: "invalid_grant" }, { status: 400 }), "ACCESS_REVOKED"],
     [new Response("oops", { status: 503 }), "TRANSIENT"],
     [new TypeError("network down"), "TRANSIENT"],
+    // Our own misconfiguration must never look like every owner revoking access.
+    [Response.json({ error: "invalid_client" }, { status: 401 }), "TRANSIENT"],
+    [Response.json({ error: "unauthorized_client" }, { status: 400 }), "TRANSIENT"],
   ])("classifies failures (%#)", async (reply, kind) => {
     const { fetchFn } = fake(reply);
     await expect(refreshAccessToken(fetchFn, args)).rejects.toMatchObject({ kind });
@@ -199,8 +202,17 @@ describe("columns", () => {
     ]);
   });
 
-  it("appends columns for new fields after the last known column", async () => {
-    const { fetchFn, calls } = fake(Response.json({}));
+  it("appends columns for new fields after every existing column, including the owner's", async () => {
+    // Columns 0–6 are tagged; the owner added an untagged "Notes" column at index 7.
+    const { fetchFn, calls } = fake(
+      Response.json({
+        sheets: [
+          { properties: { sheetId: 1, gridProperties: { columnCount: 3 } } },
+          { properties: { sheetId: 42, gridProperties: { columnCount: 8 } } },
+        ],
+      }),
+      Response.json({}),
+    );
     const small: Pick<Form, "fields"> = {
       fields: [
         { id: "fld_old", type: "text", label: "Old" },
@@ -213,13 +225,26 @@ describe("columns", () => {
       ["fld_removed", 6],
     ]);
     const updated = await addMissingColumns(sheetsClient(fetchFn, "t"), dest, small, columns);
-    expect(updated.get("fld_new")).toBe(7);
+    expect(updated.get("fld_new")).toBe(8);
     expect(updated.get("fld_removed")).toBe(6);
-    const requests = (calls[0]?.body as { requests: Record<string, unknown>[] }).requests;
+    expect(calls[0]?.method).toBe("GET");
+    const requests = (calls[1]?.body as { requests: Record<string, unknown>[] }).requests;
     expect(requests[0]).toEqual({
       appendDimension: { sheetId: 42, dimension: "COLUMNS", length: 1 },
     });
-    expect(JSON.stringify(requests[1])).toContain('"columnIndex":7');
+    expect(JSON.stringify(requests[1])).toContain('"columnIndex":8');
+  });
+
+  it("reports a deleted tab when adding columns", async () => {
+    const { fetchFn } = fake(Response.json({ sheets: [{ properties: { sheetId: 1 } }] }));
+    await expect(
+      addMissingColumns(
+        sheetsClient(fetchFn, "t"),
+        dest,
+        { fields: [{ id: "fld_x", type: "text", label: "X" }] },
+        new Map(),
+      ),
+    ).rejects.toMatchObject({ kind: "TAB_MISSING" });
   });
 
   it("does not call Google when nothing is missing", async () => {

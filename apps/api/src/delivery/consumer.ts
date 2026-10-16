@@ -14,7 +14,7 @@ import {
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { sheetsFor } from "../google-access.js";
 import { keyringFor } from "../keys.js";
-import { hold } from "./hold.js";
+import { hold, resumeStragglers } from "./hold.js";
 
 /** ADR 0008: transient errors are retried for up to 72 hours. */
 export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -96,20 +96,23 @@ async function loadVersions(
 /** Delivers one form's messages from a batch: one append for all of them (ADR 0001). */
 async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[]): Promise<void> {
   const now = deps.now();
-  const ids = messages.map((m) => m.body.submissionId);
-  const states = new Map<string, { state: string; expires_at: number }>();
-  for (const id of ids) {
+  const states = new Map<string, { state: string; expires_at: number; attempts: number }>();
+  for (const m of messages) {
     const row = await env.DB.prepare(
-      "SELECT state, expires_at FROM deliveries WHERE submission_id = ?",
+      "SELECT state, expires_at, attempts FROM deliveries WHERE submission_id = ?",
     )
-      .bind(id)
-      .first<{ state: string; expires_at: number }>();
-    if (row) states.set(id, row);
+      .bind(m.body.submissionId)
+      .first<{ state: string; expires_at: number; attempts: number }>();
+    if (row) states.set(m.body.submissionId, row);
   }
-  // Already delivered or unknown to us (pruned): nothing to do.
+  // Already delivered, unknown to us (pruned) or a duplicate copy in this batch (Queues delivers
+  // at least once; a resume can re-send): nothing to do.
+  const seen = new Set<string>();
   const pending = messages.filter((m) => {
     const s = states.get(m.body.submissionId);
-    if (!s || s.state === "delivered" || s.state === "permanently_failed") {
+    const duplicate = seen.has(m.body.submissionId);
+    seen.add(m.body.submissionId);
+    if (!s || duplicate || s.state === "delivered" || s.state === "permanently_failed") {
       m.ack();
       return false;
     }
@@ -139,6 +142,7 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
   );
 
   let appending = false;
+  let toWrite = pending;
   try {
     const sheets = await sheetsFor(env, deps, target.ownerId);
     const forms = await loadVersions(env, formId, new Set(pending.map((m) => m.body.formVersion)));
@@ -153,9 +157,10 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
     for (const form of forms.values())
       columns = await addMissingColumns(sheets, target.dest, form, columns);
 
-    // ADR 0003: only an ambiguous earlier write triggers a read of the sheet.
-    let toWrite = pending;
-    if (pending.some((m) => states.get(m.body.submissionId)?.state === "unknown")) {
+    // ADR 0003/0013: any earlier attempt may have written the row (a lost response, a crash during
+    // the append, or a later failure that overwrote the `unknown` state), so every retry reconciles
+    // against the sheet first. First attempts, the common case, never read the sheet.
+    if (pending.some((m) => (states.get(m.body.submissionId)?.attempts ?? 0) > 0)) {
       const present = await existingSubmissionIds(sheets, target.dest);
       const already = pending.filter((m) => present.has(m.body.submissionId));
       await setState(
@@ -199,7 +204,7 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
     if (retryable) {
       // A failed append may still have written the rows: reconcile before writing again.
       const state = appending ? "unknown" : "retrying";
-      for (const m of pending) {
+      for (const m of toWrite) {
         if (now - m.body.submittedAt > TRANSIENT_RETRY_WINDOW_MS) {
           await setState(env, [m.body.submissionId], "permanently_failed", { error: kind });
           m.ack();
@@ -219,7 +224,7 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
     )
       .bind(destinationState, kind, now, target.destinationId)
       .run();
-    for (const m of pending) {
+    for (const m of toWrite) {
       const expiresAt = states.get(m.body.submissionId)?.expires_at ?? 0;
       if (await hold(env, target.destinationId, m.body, expiresAt, now)) {
         await setState(env, [m.body.submissionId], "blocked", { error: kind });
@@ -248,7 +253,8 @@ export async function processBatch(
 
 /**
  * Hourly maintenance: enforce the 7-day deadline in the database (KV expires held payloads by
- * itself), drop expired sessions and prune old delivery records (metadata only).
+ * itself), drop expired sessions, prune old delivery records (metadata only) and finish resumes
+ * that a lagging KV listing or the chunk limit left behind.
  */
 export async function maintenance(env: Env, now: number): Promise<void> {
   const db = env.DB;
@@ -263,4 +269,5 @@ export async function maintenance(env: Env, now: number): Promise<void> {
       .prepare("DELETE FROM deliveries WHERE accepted_at <= ?")
       .bind(now - 30 * 24 * 60 * 60 * 1000),
   ]);
+  await resumeStragglers(env);
 }

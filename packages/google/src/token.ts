@@ -29,12 +29,16 @@ export async function refreshAccessToken(
   } catch {
     throw new GoogleApiError("TRANSIENT", 0, "network");
   }
-  // The token endpoint reports a revoked or expired grant as 400 invalid_grant.
+  // Only `invalid_grant` means the owner's grant is gone. Other 4xx answers (`invalid_client`,
+  // `unauthorized_client`) are our own configuration problem: treating them as revoked access would
+  // mark every owner's connection revoked after one bad secret rotation, so they are retried.
   if (!res.ok) {
     const err = await errorFromResponse(res);
-    throw err.reason === "invalid_grant"
-      ? new GoogleApiError("ACCESS_REVOKED", res.status, "invalid_grant")
-      : err;
+    if (err.reason === "invalid_grant")
+      throw new GoogleApiError("ACCESS_REVOKED", res.status, "invalid_grant");
+    if (err.kind === "ACCESS_REVOKED" || err.kind === "INVALID_REQUEST")
+      throw new GoogleApiError("TRANSIENT", res.status, err.reason ?? "token_endpoint_error");
+    throw err;
   }
   const body = (await res.json()) as {
     access_token?: unknown;

@@ -71,3 +71,33 @@ export function newFormId(): string {
   }
   return id.length === 12 ? `frm_${id}` : newFormId();
 }
+
+/**
+ * Reads a request body up to `maxBytes`, counting bytes as they arrive, so a missing, wrong or
+ * chunked `Content-Length` cannot make us buffer more. Returns null when the body is larger.
+ */
+export async function readBodyLimited(req: Request, maxBytes: number): Promise<Uint8Array | null> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (!req.body) return new Uint8Array();
+  const reader = (req.body as ReadableStream<Uint8Array>).getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}

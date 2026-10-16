@@ -33,14 +33,18 @@ export function fakeKv(now: () => number) {
       store.delete(k);
       return Promise.resolve();
     },
-    list: (opts: { prefix?: string }) =>
-      Promise.resolve({
-        keys: [...store.keys()]
-          .filter((k) => k.startsWith(opts.prefix ?? "") && live(k))
-          .map((name) => ({ name })),
-        list_complete: true,
+    list: (opts: { prefix?: string; limit?: number; cursor?: string }) => {
+      const all = [...store.keys()].filter((k) => k.startsWith(opts.prefix ?? "") && live(k));
+      const from = Number(opts.cursor ?? "0");
+      const to = from + (opts.limit ?? 1000);
+      const done = to >= all.length;
+      return Promise.resolve({
+        keys: all.slice(from, to).map((name) => ({ name })),
+        list_complete: done,
+        ...(done ? {} : { cursor: String(to) }),
         cacheStatus: null,
-      }),
+      });
+    },
   } as unknown as KVNamespace;
   return { kv, store };
 }

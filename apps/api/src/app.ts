@@ -37,6 +37,13 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   // nothing else from this app is reachable there.
   app.use(async (c, next) => {
     const host = new URL(c.req.url).hostname;
+    // Forms never render on the app domain once a forms domain is configured: a redirect keeps
+    // old links working without putting form content next to the session cookie.
+    if (c.env.FORMS_HOST && host !== c.env.FORMS_HOST && c.req.path.startsWith("/f/")) {
+      const formId = c.req.path.slice(3);
+      if (!/^frm_[A-Za-z0-9]{6,32}$/.test(formId)) return c.text("Not found", 404);
+      return c.redirect(`https://${c.env.FORMS_HOST}/${formId}`, 308);
+    }
     if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
       const url = new URL(c.req.url);
       if (!/^\/frm_[A-Za-z0-9]{6,32}$/.test(url.pathname)) return c.text("Not found", 404);

@@ -7,6 +7,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp, type Env } from "../src/app.js";
 import { maintenance, processBatch, TRANSIENT_RETRY_WINDOW_MS } from "../src/delivery/consumer.js";
+import { resumeHeld } from "../src/delivery/hold.js";
 import type { DeliveryMessage, Deps } from "../src/env.js";
 import { randomToken, sha256Base64Url } from "../src/util.js";
 import { localD1 } from "./d1.js";
@@ -186,6 +187,45 @@ describe("owner forms API", () => {
     expect(body.issues.map((i) => i.path)).toContain("title");
   });
 
+  it("hides one owner's forms from another owner", async () => {
+    const id = await publishedForm();
+    const token = randomToken();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO users (id, google_sub, email, created_at) VALUES ('usr_other', 'sub2', 'other@example.com', ?)",
+      ).bind(clock),
+      env.DB.prepare(
+        "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, 'usr_other', ?, ?, ?)",
+      ).bind(await sha256Base64Url(token), clock, clock + 86_400_000, clock),
+    ]);
+    const other = (path: string, method = "GET", body?: unknown) =>
+      app().request(
+        path,
+        {
+          method,
+          headers: {
+            cookie: `__Host-ff_session=${token}`,
+            origin: ORIGIN,
+            "content-type": "application/json",
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        },
+        env,
+      );
+    expect((await (await other("/forms")).json<{ forms: unknown[] }>()).forms).toEqual([]);
+    for (const [path, method, body] of [
+      [`/forms/${id}`, "GET"],
+      [`/forms/${id}/draft`, "PUT", { schemaVersion: 1, id, title: "x", fields: [] }],
+      [`/forms/${id}/publish`, "POST"],
+      [`/forms/${id}/deliveries`, "GET"],
+      [`/forms/${id}/deliveries/resume`, "POST"],
+      [`/forms/${id}`, "DELETE"],
+    ] as const) {
+      expect((await other(path, method, body)).status, `${method} ${path}`).toBe(404);
+    }
+    expect((await owner(`/forms/${id}`)).status).toBe(200);
+  });
+
   it("refuses to publish a form without fields", async () => {
     const { id } = await (
       await owner("/forms", { method: "POST", body: {} })
@@ -323,6 +363,81 @@ describe("public form", () => {
     expect(queue.sent).toHaveLength(0);
   });
 
+  it("refuses bodies over 64 KB even without a Content-Length", async () => {
+    const id = await publishedForm();
+    const big = new TextEncoder().encode(`fld_name=${"a".repeat(70 * 1024)}&fld_email=a%40b.co`);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < big.length; i += 8192) controller.enqueue(big.slice(i, i + 8192));
+        controller.close();
+      },
+    });
+    const res = await app().request(
+      `/f/${id}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: stream,
+        duplex: "half",
+      } as RequestInit,
+      env,
+    );
+    expect(res.status).toBe(413);
+    expect(queue.sent).toHaveLength(0);
+  });
+
+  it("escapes owner-supplied text and echoed answers", async () => {
+    const created = await owner("/forms", { method: "POST", body: { title: "x" } });
+    const { id } = await created.json<{ id: string }>();
+    const evil = "<script>alert(1)</script>";
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: evil,
+        fields: [
+          { id: "fld_a", type: "text", label: evil, description: evil, required: true },
+          { id: "fld_b", type: "radio", label: "R", options: [{ id: "opt_a", label: evil }] },
+          { id: "fld_c", type: "email", label: "E" },
+        ],
+      },
+    });
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    const page = await (
+      await submit(id, { fld_a: "", fld_c: `"><img src=x onerror=alert(1)>` })
+    ).text();
+    expect(page).not.toContain("<script>alert");
+    expect(page).not.toContain("<img src=x");
+    expect(page).toContain("&lt;script&gt;");
+  });
+
+  it("returns a submission ID for honeypot hits too", async () => {
+    const id = await publishedForm();
+    const res = await app().request(
+      `/f/${id}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ fld_name: "A", fld_email: "a@b.co", _hp: "x" }),
+      },
+      env,
+    );
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      submissionId: expect.any(String) as string,
+    });
+    expect(queue.sent).toHaveLength(0);
+  });
+
+  it("redirects forms on the app domain to the forms domain", async () => {
+    const id = await publishedForm();
+    const formsEnv = { ...env, FORMS_HOST: "forms.test" };
+    const res = await app().request(`http://app.test/f/${id}`, {}, formsEnv);
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe(`https://forms.test/${id}`);
+  });
+
   it("serves forms at the root of the forms domain and nothing else there", async () => {
     const id = await publishedForm();
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
@@ -373,6 +488,54 @@ describe("delivery", () => {
     expect(await deliveryStates()).toEqual(["delivered"]);
   });
 
+  it("reconciles a write whose outcome was lost even after a later block and resume", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    const [msg] = queue.sent.splice(0);
+    if (!msg) throw new Error("no message");
+    google.state.failNextAppend = { status: "network", when: "after" }; // row written, reply lost
+    await deliver([msg]);
+    const sheet = onlySheet();
+    google.sheets.delete("sheet1"); // next attempt fails before appending: blocked, not unknown
+    await deliver([msg], 2);
+    expect(await deliveryStates()).toEqual(["blocked"]);
+    google.sheets.set("sheet1", sheet);
+    await owner(`/forms/${id}/deliveries/resume`, { method: "POST" });
+    await deliver();
+    expect(await deliveryStates()).toEqual(["delivered"]);
+    expect(sheet.rows).toHaveLength(2);
+  });
+
+  it("writes one row when the same message arrives twice in one batch", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    const [msg] = queue.sent.splice(0);
+    if (!msg) throw new Error("no message");
+    const outcomes = await deliver([msg, msg]);
+    expect(outcomes.every((o) => o.acked)).toBe(true);
+    expect(onlySheet().rows).toHaveLength(2);
+  });
+
+  it("adds columns for new fields after the owner's own columns", async () => {
+    const id = await publishedForm();
+    const sheet = onlySheet();
+    sheet.columnCount += 1; // the owner adds a "Notes" column at the end
+    const notes = sheet.columnCount - 1;
+    const draft = await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: "Contact",
+        fields: [...fields, { id: "fld_phone", type: "phone", label: "Phone" }],
+      },
+    });
+    expect(draft.status).toBe(200);
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    const phone = sheet.meta.find((m) => m.metadataValue === "fld_phone");
+    expect(phone?.location.dimensionRange.startIndex).toBe(notes + 1);
+  });
+
   it("retries transient errors with backoff and gives up after 72 hours", async () => {
     const id = await publishedForm();
     await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
@@ -411,11 +574,35 @@ describe("delivery", () => {
     const resumed = await (
       await owner(`/forms/${id}/deliveries/resume`, { method: "POST" })
     ).json<{ resumed: number }>();
-    expect(resumed).toEqual({ resumed: 1 });
+    expect(resumed).toEqual({ resumed: 1, more: false });
     expect(kv.store.size).toBe(0);
     await deliver();
     expect(await deliveryStates()).toEqual(["delivered"]);
     expect(sheet.rows).toHaveLength(2);
+  });
+
+  it("resumes in chunks and lets the hourly sweep finish what a resume missed", async () => {
+    const id = await publishedForm();
+    for (let i = 0; i < 3; i++)
+      await submit(id, { fld_name: `N${String(i)}`, fld_email: "a@b.co" });
+    const sheet = onlySheet();
+    google.sheets.delete("sheet1");
+    await deliver();
+    expect(kv.store.size).toBe(3);
+    google.sheets.set("sheet1", sheet);
+    const destinationId = (await env.DB.prepare("SELECT id FROM destinations").first(
+      "id",
+    )) as string;
+    expect(await resumeHeld(env, destinationId, 2)).toMatchObject({ more: true });
+    expect(kv.store.size).toBe(1);
+    expect((await deliveryStates()).sort()).toEqual(["blocked", "queued", "queued"]);
+    // The owner's fix already set the destination to OK; the sweep resumes the rest.
+    await env.DB.prepare("UPDATE destinations SET state = 'OK'").run();
+    await maintenance(env, clock);
+    expect(kv.store.size).toBe(0);
+    await deliver();
+    expect(await deliveryStates()).toEqual(["delivered", "delivered", "delivered"]);
+    expect(sheet.rows).toHaveLength(4);
   });
 
   it("blocks with ACCESS_REVOKED when the owner revokes Google access", async () => {

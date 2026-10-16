@@ -10,7 +10,7 @@ import type { Deps } from "../env.js";
 import { sheetsFor, spreadsheetUrl } from "../google-access.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
-import { newFormId, newId } from "../util.js";
+import { newFormId, newId, readBodyLimited } from "../util.js";
 
 interface FormRow {
   id: string;
@@ -122,11 +122,11 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
   forms.put("/:id/draft", async (c) => {
     const form = await ownedForm(c, c.req.param("id"));
     if (!form) return c.json({ error: "not_found" }, 404);
-    const text = await c.req.text();
-    if (text.length > MAX_DRAFT_BYTES) return c.json({ error: "too_large" }, 413);
+    const bytes = await readBodyLimited(c.req.raw, MAX_DRAFT_BYTES);
+    if (!bytes) return c.json({ error: "too_large" }, 413);
     let input: unknown;
     try {
-      input = JSON.parse(text);
+      input = JSON.parse(new TextDecoder().decode(bytes));
     } catch {
       return c.json({ error: "invalid_json" }, 400);
     }
@@ -185,6 +185,8 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
         )
         .bind(version, now, form.id),
     ];
+    // The version insert (primary key) and the destination insert (unique per form) make a
+    // concurrent publish fail as a whole instead of creating a second version or destination.
     if (created) {
       statements.push(
         db
@@ -194,7 +196,12 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
           .bind(newId("dst"), form.id, created.spreadsheetId, created.sheetId, now, now, now),
       );
     }
-    await db.batch(statements);
+    try {
+      await db.batch(statements);
+    } catch {
+      // A spreadsheet created by the losing request stays in the owner's Drive, unused.
+      return c.json({ error: "publish_conflict" }, 409);
+    }
     destination = await destinationOf(c, form.id);
     const updated = await ownedForm(c, form.id);
     return c.json(updated && view(updated, destination));
@@ -227,17 +234,8 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     )
       .bind(now, destination.id)
       .run();
-    const resumed = await resumeHeld(c.env, destination.id);
-    if (resumed.length > 0) {
-      await c.env.DB.batch(
-        resumed.map((id) =>
-          c.env.DB.prepare(
-            "UPDATE deliveries SET state = 'queued' WHERE submission_id = ? AND state = 'blocked'",
-          ).bind(id),
-        ),
-      );
-    }
-    return c.json({ resumed: resumed.length });
+    const { resumed, more } = await resumeHeld(c.env, destination.id);
+    return c.json({ resumed: resumed.length, more });
   });
 
   forms.delete("/:id", async (c) => {

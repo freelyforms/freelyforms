@@ -5,7 +5,7 @@ import { PAYLOAD_RETENTION_MS } from "@freelyforms/db";
 import { Hono, type Context } from "hono";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { keyringFor } from "../keys.js";
-import { randomToken, ulid } from "../util.js";
+import { randomToken, readBodyLimited, ulid } from "../util.js";
 import {
   formPageCsp,
   TURNSTILE_FIELD,
@@ -40,23 +40,39 @@ async function published(c: Ctx, formId: string): Promise<Published | null> {
   return parsed.success ? { form: parsed.form, version: row.version } : null;
 }
 
-/** Reads urlencoded, multipart or JSON bodies into `{ name: value | value[] }`. */
-async function readAnswers(c: Ctx): Promise<Record<string, unknown> | null> {
+/** Why a body was refused; each maps to a JSON error and status. */
+type BodyProblem = "too_large" | "invalid_body";
+
+/**
+ * Reads urlencoded, multipart or JSON bodies (at most MAX_BODY_BYTES, counted while reading) into
+ * `{ name: value | value[] }`.
+ */
+async function readAnswers(c: Ctx): Promise<Record<string, unknown> | BodyProblem> {
+  const bytes = await readBodyLimited(c.req.raw, MAX_BODY_BYTES);
+  if (!bytes) return "too_large";
   const type = c.req.header("content-type") ?? "";
   if (type.includes("application/json")) {
-    const body = await c.req.json<unknown>().catch(() => null);
-    return body && typeof body === "object" && !Array.isArray(body)
-      ? (body as Record<string, unknown>)
-      : null;
+    try {
+      const body = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+      return body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>)
+        : "invalid_body";
+    } catch {
+      return "invalid_body";
+    }
   }
-  const form = await c.req.parseBody({ all: true }).catch(() => null);
-  if (!form) return null;
+  if (!type.includes("application/x-www-form-urlencoded") && !type.includes("multipart/form-data"))
+    return "invalid_body";
+  const form = await new Response(bytes, { headers: { "content-type": type } })
+    .formData()
+    .catch(() => null);
+  if (!form) return "invalid_body";
   const answers: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(form)) {
+  for (const key of new Set(form.keys())) {
+    const values = form.getAll(key);
     // Files are not accepted yet (ADR 0007 is still a proposal).
-    if (value instanceof File || (Array.isArray(value) && value.some((v) => v instanceof File)))
-      return null;
-    answers[key] = value;
+    if (values.some((v) => typeof v !== "string")) return "invalid_body";
+    answers[key] = values.length === 1 ? values[0] : values;
   }
   return answers;
 }
@@ -69,6 +85,8 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
   pub.use(async (c, next) => {
     const nonce = randomToken(16);
     const turnstile = turnstileEnabled(c.env);
+    // A site key without its secret silently disables the challenge: make that visible.
+    if (!turnstile && c.env.TURNSTILE_SITE_KEY) console.error("turnstile_secret_missing");
     c.set("page", { nonce, turnstileSiteKey: turnstile ? c.env.TURNSTILE_SITE_KEY : undefined });
     await next();
     c.header("X-Robots-Tag", "noindex");
@@ -107,10 +125,9 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
         429,
       );
     }
-    const length = Number(c.req.header("content-length") ?? "0");
-    if (length > MAX_BODY_BYTES) return c.json({ error: "too_large" }, 413);
     const answers = await readAnswers(c);
-    if (!answers) return c.json({ error: "invalid_body" }, 400);
+    if (answers === "too_large") return c.json({ error: "too_large" }, 413);
+    if (answers === "invalid_body") return c.json({ error: "invalid_body" }, 400);
 
     const { form, version } = found;
     if (!(await verifyTurnstile(c.env, deps, answers[TURNSTILE_FIELD], ip))) {
@@ -164,7 +181,8 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
         .run();
       if (wantsJson(c)) return c.json({ ok: true, submissionId }, 201);
     }
-    if (wantsJson(c)) return c.json({ ok: true }, 201);
+    // Honeypot hits get a response indistinguishable from a real one.
+    if (wantsJson(c)) return c.json({ ok: true, submissionId: ulid(deps.now()) }, 201);
     const success = form.settings?.success?.message ?? "Thanks — your response was received.";
     return c.html(renderMessage(form.title, success, c.var.page));
   });

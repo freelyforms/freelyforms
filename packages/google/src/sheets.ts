@@ -157,9 +157,20 @@ export async function resolveColumns(
   return columns;
 }
 
+/** Current number of columns in the tab, including columns the owner added by hand. */
+async function columnCount(client: SheetsClient, dest: Destination): Promise<number> {
+  const found = await client.call<{
+    sheets?: { properties: { sheetId: number; gridProperties?: { columnCount?: number } } }[];
+  }>(`/${dest.spreadsheetId}?fields=sheets.properties(sheetId,gridProperties.columnCount)`);
+  const tab = found.sheets?.find((s) => s.properties.sheetId === dest.sheetId);
+  if (!tab) throw new GoogleApiError("TAB_MISSING", 0, "tab_not_found");
+  return tab.properties.gridProperties?.columnCount ?? 0;
+}
+
 /**
- * Adds a column at the end of the tab for each field that has none yet. Columns of deleted fields
- * are kept (history) and never reused.
+ * Adds a column at the end of the tab for each field that has none yet. New columns go after every
+ * existing column, so the owner's own columns are never overwritten (ADR 0005). Columns of deleted
+ * fields are kept (history) and never reused.
  */
 export async function addMissingColumns(
   client: SheetsClient,
@@ -172,7 +183,7 @@ export async function addMissingColumns(
     .map((field, i) => ({ field, label: labels[i] ?? field.label }))
     .filter(({ field }) => !columns.has(field.id));
   if (missing.length === 0) return columns;
-  const start = columns.size === 0 ? 0 : Math.max(...columns.values()) + 1;
+  const start = await columnCount(client, dest);
   await client.call(`/${dest.spreadsheetId}:batchUpdate`, {
     method: "POST",
     body: {

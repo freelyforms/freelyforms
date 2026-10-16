@@ -6,6 +6,7 @@ interface Meta {
 }
 interface Sheet {
   sheetId: number;
+  columnCount: number;
   rows: unknown[][];
   meta: Meta[];
 }
@@ -55,7 +56,12 @@ export function fakeGoogle() {
           }[]
         )[0]?.data[0]?.rowData[0]?.values ?? []
       ).map((v) => v.userEnteredValue.stringValue);
-      sheets.set(spreadsheetId, { sheetId: 7, rows: [header], meta: [] });
+      sheets.set(spreadsheetId, {
+        sheetId: 7,
+        columnCount: header.length,
+        rows: [header],
+        meta: [],
+      });
       return json({
         spreadsheetId,
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
@@ -65,8 +71,22 @@ export function fakeGoogle() {
     const sheet = sheets.get(id);
     if (!sheet) return fail(404);
 
+    if (!batch && !sub && (init?.method ?? "GET") === "GET") {
+      return json({
+        sheets: [
+          {
+            properties: {
+              sheetId: sheet.sheetId,
+              gridProperties: { columnCount: sheet.columnCount },
+            },
+          },
+        ],
+      });
+    }
     if (batch) {
       for (const req of body.requests as Record<string, Record<string, unknown>>[]) {
+        if (req.appendDimension)
+          sheet.columnCount += (req.appendDimension as { length: number }).length;
         if (req.createDeveloperMetadata)
           sheet.meta.push(
             (req.createDeveloperMetadata as { developerMetadata: Meta }).developerMetadata,
