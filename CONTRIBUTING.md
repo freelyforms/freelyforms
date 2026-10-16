@@ -28,7 +28,13 @@ Requirements: Node.js 24 (see `.nvmrc`) and pnpm (version pinned in `package.jso
 pnpm install
 pnpm check   # format, lint, typecheck, tests, private-file guard
 pnpm test:watch
+
+# API on a local Worker with a local D1 database
+pnpm --filter @freelyforms/api db:migrate:local
+pnpm --filter @freelyforms/api dev
 ```
+
+The API tests apply the real migrations to a local D1 database (workerd) through Wrangler; no Cloudflare account is needed.
 
 The workspace installs only package versions published at least 14 days ago (`minimumReleaseAge` in `pnpm-workspace.yaml`).
 
