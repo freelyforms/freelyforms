@@ -1,0 +1,15 @@
+{
+  "name": "@freelyforms/google",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Google OAuth token refresh and Sheets access for response delivery (drive.file only).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@freelyforms/form-engine": "workspace:*",
+    "@freelyforms/form-schema": "workspace:*"
+  }
+}

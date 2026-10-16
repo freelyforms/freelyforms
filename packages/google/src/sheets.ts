@@ -1,0 +1,275 @@
+import type { AnswerValue } from "@freelyforms/form-engine";
+import type { Field, Form } from "@freelyforms/form-schema";
+import { errorFromResponse, GoogleApiError } from "./errors.js";
+
+const SHEETS = "https://sheets.googleapis.com/v4/spreadsheets";
+
+/** Developer metadata key that ties a column to a field ID (ADR 0004). */
+export const FIELD_METADATA_KEY = "app_field_id";
+/** Columns maintained by the platform, always first (ADR 0003). */
+export const SYSTEM_COLUMNS = ["_submission_id", "_submitted_at", "_form_version"] as const;
+export const RESPONSES_TAB = "Responses";
+
+export interface SheetsClient {
+  /** Calls the Sheets API and returns parsed JSON, or throws `GoogleApiError`. */
+  call<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T>;
+}
+
+/** A Sheets client for one access token. */
+export function sheetsClient(fetchFn: typeof fetch, accessToken: string): SheetsClient {
+  return {
+    async call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+      let res: Response;
+      try {
+        res = await fetchFn(`${SHEETS}${path}`, {
+          method: init.method ?? "GET",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+          },
+          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        });
+      } catch {
+        throw new GoogleApiError("TRANSIENT", 0, "network");
+      }
+      if (!res.ok) throw await errorFromResponse(res);
+      return (await res.json()) as T;
+    },
+  };
+}
+
+interface CellData {
+  userEnteredValue?: { stringValue?: string; numberValue?: number; boolValue?: boolean };
+  userEnteredFormat?: { textFormat: { bold: boolean } };
+}
+
+const text = (value: string): CellData => ({ userEnteredValue: { stringValue: value } });
+
+/** Header labels, disambiguated when two fields share a label. */
+export function headerLabels(form: Pick<Form, "fields">): string[] {
+  const seen = new Map<string, number>();
+  return form.fields.map((field) => {
+    const count = (seen.get(field.label) ?? 0) + 1;
+    seen.set(field.label, count);
+    return count === 1 ? field.label : `${field.label} (${String(count)})`;
+  });
+}
+
+function columnMetadata(sheetId: number, key: string, index: number) {
+  return {
+    createDeveloperMetadata: {
+      developerMetadata: {
+        metadataKey: FIELD_METADATA_KEY,
+        metadataValue: key,
+        visibility: "PROJECT",
+        location: {
+          dimensionRange: { sheetId, dimension: "COLUMNS", startIndex: index, endIndex: index + 1 },
+        },
+      },
+    },
+  };
+}
+
+export interface Destination {
+  spreadsheetId: string;
+  sheetId: number;
+}
+
+/**
+ * Creates the owner's response spreadsheet (via `drive.file`, so the app can only ever see files
+ * it created or the owner picked): one frozen, bold header row, system columns first, and
+ * developer metadata on every column.
+ */
+export async function createResponseSpreadsheet(
+  client: SheetsClient,
+  args: { title: string; form: Pick<Form, "fields"> },
+): Promise<Destination & { url: string }> {
+  const headers = [...SYSTEM_COLUMNS, ...headerLabels(args.form)];
+  const created = await client.call<{
+    spreadsheetId: string;
+    spreadsheetUrl: string;
+    sheets: { properties: { sheetId: number } }[];
+  }>("", {
+    method: "POST",
+    body: {
+      properties: { title: args.title },
+      sheets: [
+        {
+          properties: {
+            title: RESPONSES_TAB,
+            gridProperties: { frozenRowCount: 1, columnCount: headers.length },
+          },
+          data: [
+            {
+              startRow: 0,
+              startColumn: 0,
+              rowData: [
+                {
+                  values: headers.map((h) => ({
+                    ...text(h),
+                    userEnteredFormat: { textFormat: { bold: true } },
+                  })),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const sheetId = created.sheets[0]?.properties.sheetId;
+  if (sheetId === undefined) throw new GoogleApiError("INVALID_REQUEST", 200, "no_sheet_created");
+  const keys = [...SYSTEM_COLUMNS, ...args.form.fields.map((f) => f.id)];
+  await client.call(`/${created.spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: { requests: keys.map((key, i) => columnMetadata(sheetId, key, i)) },
+  });
+  return { spreadsheetId: created.spreadsheetId, sheetId, url: created.spreadsheetUrl };
+}
+
+/** Reads `key → column index` for one tab from developer metadata (ADR 0004). */
+export async function resolveColumns(
+  client: SheetsClient,
+  dest: Destination,
+): Promise<Map<string, number>> {
+  const found = await client.call<{
+    matchedDeveloperMetadata?: {
+      developerMetadata: {
+        metadataValue?: string;
+        location?: { dimensionRange?: { sheetId?: number; startIndex?: number } };
+      };
+    }[];
+  }>(`/${dest.spreadsheetId}/developerMetadata:search`, {
+    method: "POST",
+    body: {
+      dataFilters: [
+        { developerMetadataLookup: { metadataKey: FIELD_METADATA_KEY, locationType: "COLUMN" } },
+      ],
+    },
+  });
+  const columns = new Map<string, number>();
+  for (const { developerMetadata: m } of found.matchedDeveloperMetadata ?? []) {
+    const range = m.location?.dimensionRange;
+    if (m.metadataValue !== undefined && range?.sheetId === dest.sheetId) {
+      columns.set(m.metadataValue, range.startIndex ?? 0);
+    }
+  }
+  return columns;
+}
+
+/**
+ * Adds a column at the end of the tab for each field that has none yet. Columns of deleted fields
+ * are kept (history) and never reused.
+ */
+export async function addMissingColumns(
+  client: SheetsClient,
+  dest: Destination,
+  form: Pick<Form, "fields">,
+  columns: Map<string, number>,
+): Promise<Map<string, number>> {
+  const labels = headerLabels(form);
+  const missing = form.fields
+    .map((field, i) => ({ field, label: labels[i] ?? field.label }))
+    .filter(({ field }) => !columns.has(field.id));
+  if (missing.length === 0) return columns;
+  const start = columns.size === 0 ? 0 : Math.max(...columns.values()) + 1;
+  await client.call(`/${dest.spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: {
+      requests: [
+        {
+          appendDimension: { sheetId: dest.sheetId, dimension: "COLUMNS", length: missing.length },
+        },
+        {
+          updateCells: {
+            start: { sheetId: dest.sheetId, rowIndex: 0, columnIndex: start },
+            rows: [
+              {
+                values: missing.map(({ label }) => ({
+                  ...text(label),
+                  userEnteredFormat: { textFormat: { bold: true } },
+                })),
+              },
+            ],
+            fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+          },
+        },
+        ...missing.map(({ field }, i) => columnMetadata(dest.sheetId, field.id, start + i)),
+      ],
+    },
+  });
+  const updated = new Map(columns);
+  missing.forEach(({ field }, i) => updated.set(field.id, start + i));
+  return updated;
+}
+
+export interface Submission {
+  submissionId: string;
+  submittedAt: number;
+  formVersion: number;
+  values: Readonly<Record<string, AnswerValue>>;
+}
+
+function optionLabels(field: Field, ids: readonly string[]): string {
+  if (!("options" in field)) return ids.join(", ");
+  return ids.map((id) => field.options.find((o) => o.id === id)?.label ?? id).join(", ");
+}
+
+/** Converts one answer to a typed cell. Typed cells are never parsed by Sheets (ADR 0002). */
+export function answerCell(field: Field, value: AnswerValue | undefined): CellData {
+  if (value === undefined) return {};
+  if (typeof value === "number") return { userEnteredValue: { numberValue: value } };
+  if (typeof value === "boolean") return { userEnteredValue: { boolValue: value } };
+  if (typeof value === "string") {
+    return text(
+      field.type === "select" || field.type === "radio" ? optionLabels(field, [value]) : value,
+    );
+  }
+  return text(optionLabels(field, value));
+}
+
+/** Builds row cells positioned by the resolved column map. */
+export function buildRow(
+  form: Pick<Form, "fields">,
+  columns: ReadonlyMap<string, number>,
+  submission: Submission,
+): CellData[] {
+  const cells: CellData[] = [];
+  const put = (key: string, cell: CellData) => {
+    const index = columns.get(key);
+    if (index === undefined) return;
+    while (cells.length <= index) cells.push({});
+    cells[index] = cell;
+  };
+  put("_submission_id", text(submission.submissionId));
+  put("_submitted_at", text(new Date(submission.submittedAt).toISOString()));
+  put("_form_version", { userEnteredValue: { numberValue: submission.formVersion } });
+  for (const field of form.fields) put(field.id, answerCell(field, submission.values[field.id]));
+  return cells;
+}
+
+/**
+ * Appends rows in one request. `AppendCells` addresses the tab by ID, so it keeps working when the
+ * owner renames the tab, and its typed cells are never parsed as formulas (same effect as RAW).
+ */
+export async function appendRows(
+  client: SheetsClient,
+  dest: Destination,
+  rows: CellData[][],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await client.call(`/${dest.spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: {
+      requests: [
+        {
+          appendCells: {
+            sheetId: dest.sheetId,
+            rows: rows.map((values) => ({ values })),
+            fields: "userEnteredValue",
+          },
+        },
+      ],
+    },
+  });
+}

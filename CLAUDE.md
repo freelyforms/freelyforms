@@ -58,7 +58,7 @@ If the local `private/` directory exists, also read all Markdown files in it. Th
 
 Use a TypeScript monorepo. Prefer current stable versions at implementation time.
 
-Target layout (packages are added only when code needs them; `apps/api` and the packages `form-schema`, `form-engine`, `crypto` and `db` exist today):
+Target layout (packages are added only when code needs them; `apps/api` and the packages `form-schema`, `form-engine`, `crypto`, `db` and `google` exist today):
 
 ```text
 apps/

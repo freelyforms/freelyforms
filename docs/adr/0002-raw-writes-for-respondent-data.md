@@ -20,3 +20,7 @@ With `valueInputOption=USER_ENTERED`, Google Sheets parses input as if a person 
 
 - Numbers and dates entered by respondents arrive as text unless the platform converts them deliberately. Typed conversion for numeric and date fields is done by the platform from the validated schema type, never by Sheets parsing respondent text.
 - CSV exports (if added) must apply the same protection (prefixing dangerous leading characters).
+
+## Implementation note (2026-10-16)
+
+Delivery writes rows with the `spreadsheets.batchUpdate` `AppendCells` request instead of `values.append`. Each value is a typed cell (`stringValue`, `numberValue` or `boolValue`), which Sheets stores literally and never parses, so the protection is the same as `RAW`. `AppendCells` addresses the tab by its ID rather than its name, so delivery keeps working when the owner renames the tab.

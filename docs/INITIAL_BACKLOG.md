@@ -38,11 +38,11 @@
 
 ## Google Sheets
 
-- [ ] Create spreadsheet.
+- [x] Create spreadsheet (`packages/google`).
 - [ ] Store destination identifiers.
-- [ ] Create header row.
-- [ ] Append responses with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).
-- [ ] Stable field-to-column mapping via developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
+- [x] Create header row (frozen, bold, system columns first).
+- [x] Append responses as typed, never-parsed cells ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).
+- [x] Stable field-to-column mapping via developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 - [ ] Handle renamed/deleted/new fields.
 
 ## Public form
