@@ -102,8 +102,10 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 
 - [x] Run within Workers Free limits for the beta ([ADR 0014](adr/0014-run-on-workers-free.md)).
 - [x] Production environment on Workers Free: D1, KV, queue + DLQ, rate limits, secrets, custom domains `freelyforms.com` and `freelyforms.link`, real Turnstile widget (2026-10-16). Workers Paid before the public launch.
-- [ ] Production Google Cloud project and OAuth client (today the hosted service uses the development project's client with the production redirect added).
-- [ ] Publish the OAuth app "In production": in Testing, refresh tokens with `drive.file` expire after 7 days, which would block every owner's delivery weekly, and only test users can sign in.
+- [x] Production Google Cloud project `freelyforms-prod`: Sheets and Drive APIs, auth platform "Freely Forms" (External), the four non-sensitive scopes, homepage/privacy/terms links, authorised domain, OAuth client "production" (2026-10-16).
+- [x] OAuth app published "In production" (in Testing, `drive.file` refresh tokens expire after 7 days and only test users can sign in).
+- [ ] Remove the production origin from the development project's OAuth client.
+- [ ] Enable the Picker API in the production project when the Picker is built.
 - [ ] Brand verification: domain ownership in Search Console, app name, logo (120×120), support email, homepage and privacy policy links.
 - [x] Homepage at `/` that describes the app and links the privacy policy and terms (server-rendered, `noindex` until the website launches).
 - [x] "Sign in with Google" button following Google's branding guidelines.

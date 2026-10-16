@@ -10,7 +10,7 @@ Responses go directly to the form owner's Google Sheets. Uploaded files should g
 
 ## Status
 
-Pre-alpha. Deployed at [freelyforms.com](https://freelyforms.com) for testing; sign-in is limited to test users until Google verifies the app. Working today, end to end against real Google accounts: Google sign-in, a forms API, publishing with automatic creation of the response spreadsheet, anonymous public forms with spam protection, and queued, idempotent delivery of responses to the owner's sheet. A web builder with live preview, basic theming and embedding. Owners can disconnect Google or delete their account; the privacy policy and terms are published. In progress: attaching an existing sheet and Google's verification of the app. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/INITIAL_BACKLOG.md](docs/INITIAL_BACKLOG.md).
+Pre-alpha. Deployed at [freelyforms.com](https://freelyforms.com) as an early preview; Google's consent screen shows the domain instead of the app name until brand verification is complete. Working today, end to end against real Google accounts: Google sign-in, a forms API, publishing with automatic creation of the response spreadsheet, anonymous public forms with spam protection, and queued, idempotent delivery of responses to the owner's sheet. A web builder with live preview, basic theming and embedding. Owners can disconnect Google or delete their account; the privacy policy and terms are published. In progress: attaching an existing sheet and Google's verification of the app. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/INITIAL_BACKLOG.md](docs/INITIAL_BACKLOG.md).
 
 ## What this is trying to become
 

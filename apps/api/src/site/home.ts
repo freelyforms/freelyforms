@@ -13,8 +13,8 @@ export const homeBody = html`
   </p>
   <p><a class="cta" href="/app/">Start building</a></p>
   <p class="muted">
-    Early preview: sign-in is limited to invited testers until Google completes its review of the
-    app.
+    Early preview: features may still change. Until Google finishes reviewing our brand, its sign-in
+    screen shows "freelyforms.com" instead of the app's name.
   </p>
 
   <h2>How it works</h2>
