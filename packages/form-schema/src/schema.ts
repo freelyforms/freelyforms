@@ -127,6 +127,9 @@ export const fieldSchema = z
       if (minSelected !== undefined && minSelected > opts.length) {
         bad("minSelected", "minSelected exceeds the number of options");
       }
+      if (maxSelected !== undefined && maxSelected > opts.length) {
+        bad("maxSelected", "maxSelected exceeds the number of options");
+      }
     }
   });
 

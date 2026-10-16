@@ -39,7 +39,7 @@ Allowed by default:
 - user identity metadata;
 - form metadata;
 - versioned form definitions;
-- public slug/domain routing;
+- public form ID/domain routing;
 - encrypted OAuth refresh tokens or equivalent connection credentials;
 - connection health/status;
 - aggregate product analytics;
@@ -59,7 +59,7 @@ Avoid by default:
 Use asynchronous delivery where possible:
 
 ```text
-POST /forms/:slug/submissions
+POST /forms/:formId/submissions   (served on the forms domain, ADR 0010)
  -> validate schema
  -> rate limit / captcha where required
  -> accept submission

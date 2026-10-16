@@ -54,7 +54,12 @@ function toBase64Url(bytes: Uint8Array): string {
 function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) throw new EnvelopeError("Malformed envelope");
   const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
+  let binary: string;
+  try {
+    binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
+  } catch {
+    throw new EnvelopeError("Malformed envelope");
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;

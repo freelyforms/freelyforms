@@ -96,6 +96,21 @@ describe("parseForm", () => {
     expect(issues.join()).toMatch(/minSelected exceeds the number of options/);
   });
 
+  it("rejects maxSelected greater than the number of options", () => {
+    const issues = issuesOf(
+      minimal([
+        {
+          id: "fld_a",
+          type: "multiselect",
+          label: "A",
+          maxSelected: 2,
+          options: [{ id: "opt_x", label: "X" }],
+        },
+      ]),
+    );
+    expect(issues.join()).toMatch(/maxSelected exceeds the number of options/);
+  });
+
   it.each(["fld_", "FLD_a", "fld_A", "field_a", "fld_a-b"])("rejects field ID %s", (id) => {
     expect(issuesOf(minimal([{ id, type: "text", label: "A" }]))).not.toEqual([]);
   });

@@ -69,6 +69,9 @@ describe("envelope encryption", () => {
     );
     await expect(decrypt(ring, { ...env, ct: "!!" })).rejects.toThrow("Malformed envelope");
     await expect(decrypt(ring, { ...env, ct: "" })).rejects.toThrow("Malformed envelope");
+    // Base64 of impossible length must not escape as a platform DOMException.
+    await expect(decrypt(ring, { ...env, ct: "A" })).rejects.toThrow(EnvelopeError);
+    await expect(decrypt(ring, { ...env, dk: "AAAAA" })).rejects.toThrow(EnvelopeError);
   });
 
   it("supports key rotation: old envelopes decrypt and can be re-wrapped", async () => {
