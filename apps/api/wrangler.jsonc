@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "freelyforms",
-      // Placeholder for local development; set the real ID when the database is created.
+      // Local development only (wrangler dev uses a local database); production is below.
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "../../packages/db/migrations",
     },
@@ -54,4 +54,59 @@
   },
   // Hourly maintenance: deadlines, expired sessions, pruning.
   "triggers": { "crons": ["17 * * * *"] },
+  // Hosted service: `wrangler deploy --env production` (ADR 0010, ADR 0014). Bindings are not
+  // inherited by environments, so they are repeated here with the real resource IDs.
+  "env": {
+    "production": {
+      "name": "freelyforms",
+      "routes": [
+        { "pattern": "freelyforms.com", "custom_domain": true },
+        { "pattern": "freelyforms.link", "custom_domain": true },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "freelyforms",
+          "database_id": "d31b640e-597b-49a5-8cd2-c84e329f7f5a",
+          "migrations_dir": "../../packages/db/migrations",
+        },
+      ],
+      "kv_namespaces": [{ "binding": "HOLD", "id": "b23fae6dac624531b1da0da106fa420e" }],
+      "queues": {
+        "producers": [{ "binding": "DELIVERY_QUEUE", "queue": "freelyforms-delivery" }],
+        "consumers": [
+          {
+            "queue": "freelyforms-delivery",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 100,
+            "dead_letter_queue": "freelyforms-delivery-dlq",
+          },
+        ],
+      },
+      "ratelimits": [
+        {
+          "name": "SUBMIT_IP_LIMITER",
+          "namespace_id": "1001",
+          "simple": { "limit": 20, "period": 60 },
+        },
+        {
+          "name": "SUBMIT_FORM_IP_LIMITER",
+          "namespace_id": "1002",
+          "simple": { "limit": 5, "period": 60 },
+        },
+      ],
+      "vars": {
+        "FORMS_HOST": "freelyforms.link",
+        "APP_ORIGIN": "https://freelyforms.com",
+        "ABUSE_EMAIL": "hello@freelyforms.com",
+        "QUEUE_RETENTION_HOURS": "24",
+        "GOOGLE_CALL_BUDGET": "40",
+        // Public site key of the "Freely Forms public forms" widget (hostname freelyforms.link).
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFYiS9Jl1_JLR9CC",
+      },
+      // Secrets (wrangler secret put … --env production): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+      // MASTER_KEY_K1, TURNSTILE_SECRET_KEY.
+    },
+  },
 }

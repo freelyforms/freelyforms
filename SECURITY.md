@@ -9,6 +9,6 @@ Include what you found, steps to reproduce and the potential impact. We aim to a
 ## Scope
 
 - The code in this repository.
-- The hosted service at `freelyforms.com` and published forms at `freelyforms.link`, once they are live (not deployed yet).
+- The hosted service at `freelyforms.com` and published forms at `freelyforms.link` (pre-alpha).
 
 Please do not access other people's data, degrade the service, or use automated scanning that generates significant traffic. Abusive forms (phishing, spam) can be reported to the same address.

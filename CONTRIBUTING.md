@@ -52,3 +52,16 @@ Run `./scripts/install-git-hooks.sh` once after cloning. The pre-commit hook blo
 ## Licence
 
 By contributing you agree that your contributions are licensed under the [Apache License 2.0](LICENSE) and the terms of the [CLA](CLA.md).
+
+## Deploying (maintainers)
+
+The hosted service is the `production` environment in `apps/api/wrangler.jsonc` (Worker `freelyforms`, custom domains `freelyforms.com` and `freelyforms.link`, Workers Free per [ADR 0014](docs/adr/0014-run-on-workers-free.md)).
+
+```sh
+cd apps/api
+pnpm exec wrangler login                                            # once
+pnpm exec wrangler d1 migrations apply DB --remote --env production  # when packages/db/migrations changed
+pnpm --filter @freelyforms/web build && pnpm exec wrangler deploy --env production
+```
+
+Secrets live only in Cloudflare (`wrangler secret put <NAME> --env production`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MASTER_KEY_K1`, `TURNSTILE_SECRET_KEY`. Never paste them into commands, issues or chat; pipe them in.

@@ -501,6 +501,12 @@ describe("public form", () => {
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
     expect((await app().request(`http://forms.test/${id}`, {}, formsEnv)).status).toBe(200);
     expect((await app().request("http://forms.test/auth/me", {}, formsEnv)).status).toBe(404);
+    const home = await app().request(
+      "http://forms.test/",
+      {},
+      { ...formsEnv, APP_ORIGIN: "https://app.test" },
+    );
+    expect(home.headers.get("location")).toBe("https://app.test");
   });
 });
 

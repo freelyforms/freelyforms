@@ -25,6 +25,8 @@ export interface Env {
   MASTER_KEY_K1: string;
   /** Host that serves public forms (ADR 0010), e.g. `freelyforms.link`. Unset in development. */
   FORMS_HOST?: string;
+  /** Origin of the website and app, e.g. `https://freelyforms.com`; the bare forms domain redirects there. */
+  APP_ORIGIN?: string;
   /** Where abuse reports go; every public form links to it (ADR 0010). */
   ABUSE_EMAIL?: string;
   /** Cloudflare Turnstile keys. When both are set, every public form requires a passed challenge. */

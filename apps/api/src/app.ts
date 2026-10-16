@@ -71,6 +71,8 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     }
     if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
       const url = new URL(c.req.url);
+      // The bare forms domain points people to the website.
+      if (url.pathname === "/" && c.env.APP_ORIGIN) return c.redirect(c.env.APP_ORIGIN, 302);
       if (!/^\/(frm_[A-Za-z0-9]{6,32}|embed\.js)$/.test(url.pathname))
         return c.text("Not found", 404);
       url.pathname = `/f${url.pathname}`;
