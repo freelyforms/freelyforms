@@ -32,6 +32,8 @@ Respondent --------> submit endpoint
 
 ## Central application stores
 
+The schema is defined by SQL migrations in `packages/db/migrations`; a test fails if any column name suggests answer or file content.
+
 Allowed by default:
 
 - user identity metadata;

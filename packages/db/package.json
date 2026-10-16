@@ -1,0 +1,11 @@
+{
+  "name": "@freelyforms/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Metadata schema and migrations (Cloudflare D1 / SQLite). Stores no form answers.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
