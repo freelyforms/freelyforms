@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Account } from "./Account.js";
+import { AccountMenu } from "./AccountMenu.js";
 import { api, ApiError, GRANT_DRIVE_URL, SIGN_IN_URL, type Me } from "./api.js";
 import { Editor } from "./Editor.js";
 import { GoogleSignInButton } from "./GoogleButton.js";
@@ -54,14 +55,7 @@ export function App() {
           Freely Forms
         </Link>
         <span className="spacer" />
-        <Link to="/account" className="small account-link">
-          {me.user.email}
-        </Link>
-        <form method="post" action="/auth/logout">
-          <button className="ghost small" type="submit">
-            Sign out
-          </button>
-        </form>
+        <AccountMenu me={me} />
       </header>
       {!me.google.driveAccess && (
         <div className="banner" role="status">

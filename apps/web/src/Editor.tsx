@@ -245,9 +245,10 @@ export function Editor({ id }: { id: string }) {
           ) : null}
           {tab === "build" && (
             <>
-              <div className="card">
+              <div className="card details">
+                <h2 className="section-title">Form details</h2>
                 <label className="field-label" htmlFor="form-title">
-                  Form title
+                  Title
                 </label>
                 <input
                   id="form-title"
@@ -263,7 +264,7 @@ export function Editor({ id }: { id: string }) {
                 </label>
                 <textarea
                   id="form-description"
-                  rows={2}
+                  rows={1}
                   value={form.description ?? ""}
                   maxLength={5000}
                   onChange={(e) => {
@@ -333,7 +334,7 @@ export function Editor({ id }: { id: string }) {
               </ol>
 
               <div className="card add-field">
-                <h2 className="small-heading">Add a field</h2>
+                <h2 className="section-title">Add a field</h2>
                 {form.fields.length >= MAX_FIELDS ? (
                   <p className="muted">A form can have up to {MAX_FIELDS} fields.</p>
                 ) : (
@@ -342,12 +343,12 @@ export function Editor({ id }: { id: string }) {
                       <button
                         key={type}
                         type="button"
-                        className="chip"
+                        className="palette-item"
                         onClick={() => {
                           add(type);
                         }}
                       >
-                        + {FIELD_TYPE_LABELS[type]}
+                        {FIELD_TYPE_LABELS[type]}
                       </button>
                     ))}
                   </div>
@@ -370,6 +371,10 @@ export function Editor({ id }: { id: string }) {
         </section>
 
         <section className="preview-pane" aria-label="Preview">
+          <div className="preview-head">
+            <span className="section-title">Preview</span>
+            <span className="muted small">Submissions are disabled</span>
+          </div>
           <iframe
             title="Preview of your form"
             loading="lazy"
@@ -383,7 +388,7 @@ export function Editor({ id }: { id: string }) {
 
 function SaveStatus({ save, onRetry }: { save: SaveState; onRetry: () => void }) {
   const text = {
-    saved: "All changes saved",
+    saved: "Saved",
     dirty: "Editing…",
     saving: "Saving…",
     error: "Not saved",

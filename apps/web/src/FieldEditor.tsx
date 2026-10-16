@@ -1,6 +1,7 @@
 import type { Field } from "@freelyforms/form-schema";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FIELD_TYPE_LABELS, hasOptions } from "./draft.js";
+import { useDismiss } from "./useDismiss.js";
 
 interface Props {
   field: Field;
@@ -36,6 +37,13 @@ export function FieldEditor(props: Props) {
   const uid = useId();
   const labelRef = useRef<HTMLInputElement>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    setConfirmRemove(false);
+  }, []);
+  useDismiss(menuRef, menuOpen, closeMenu);
   const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
@@ -105,35 +113,50 @@ export function FieldEditor(props: Props) {
         >
           ↓
         </button>
-        <button type="button" className="ghost small" onClick={props.onDuplicate}>
-          Duplicate
-        </button>
-        {confirmRemove ? (
-          <>
-            <button type="button" className="danger small" onClick={props.onRemove}>
-              Delete field
-            </button>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => {
-                setConfirmRemove(false);
-              }}
-            >
-              Keep
-            </button>
-          </>
-        ) : (
+        <div className="menu" ref={menuRef}>
           <button
             type="button"
-            className="ghost small"
+            className="icon"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+            aria-label={`More actions for ${field.label}`}
             onClick={() => {
-              setConfirmRemove(true);
+              setMenuOpen((v) => !v);
+              setConfirmRemove(false);
             }}
           >
-            Delete
+            ⋯
           </button>
-        )}
+          {menuOpen && (
+            <div className="menu-list">
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  props.onDuplicate();
+                }}
+              >
+                Duplicate
+              </button>
+              {confirmRemove ? (
+                <button type="button" className="menu-item danger-text" onClick={props.onRemove}>
+                  Click again to delete
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="menu-item danger-text"
+                  onClick={() => {
+                    setConfirmRemove(true);
+                  }}
+                >
+                  Delete field
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <label className="field-label" htmlFor={id("label")}>
@@ -216,13 +239,13 @@ export function FieldEditor(props: Props) {
         </label>
         <button
           type="button"
-          className="link"
+          className="disclosure"
           aria-expanded={showMore}
           onClick={() => {
             setShowMore((v) => !v);
           }}
         >
-          {showMore ? "Fewer settings" : "More settings"}
+          Field settings {showMore ? "▴" : "▾"}
         </button>
       </div>
 

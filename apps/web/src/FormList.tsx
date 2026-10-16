@@ -1,4 +1,4 @@
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { api, type FormSummary } from "./api.js";
 import { Link } from "./App.js";
 import { navigate } from "./router.js";
@@ -8,8 +8,10 @@ const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", tim
 export function FormList() {
   const [forms, setForms] = useState<FormSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creatingOpen, setCreatingOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.listForms().then(
@@ -21,6 +23,10 @@ export function FormList() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (creatingOpen) titleRef.current?.focus();
+  }, [creatingOpen]);
 
   const create = async (e: SyntheticEvent) => {
     e.preventDefault();
@@ -34,38 +40,75 @@ export function FormList() {
     }
   };
 
+  const newForm = (
+    <button
+      type="button"
+      className="primary"
+      onClick={() => {
+        setCreatingOpen(true);
+      }}
+    >
+      + New form
+    </button>
+  );
+
   return (
     <main className="page">
-      <h1>Your forms</h1>
-      <form className="create" onSubmit={(e) => void create(e)}>
-        <label htmlFor="new-title" className="visually-hidden">
-          New form title
-        </label>
-        <input
-          id="new-title"
-          placeholder="New form title, e.g. Contact us"
-          value={title}
-          maxLength={200}
-          onChange={(e) => {
-            setTitle(e.target.value);
-          }}
-        />
-        <button className="primary" type="submit" disabled={creating}>
-          {creating ? "Creating…" : "Create form"}
-        </button>
-      </form>
+      <div className="page-head">
+        <h1>
+          Forms
+          {forms && forms.length > 0 && <span className="count">{forms.length}</span>}
+        </h1>
+        {!creatingOpen && forms && forms.length > 0 && newForm}
+      </div>
+
+      {creatingOpen && (
+        <form className="card create" onSubmit={(e) => void create(e)}>
+          <label htmlFor="new-title" className="field-label">
+            Form name
+          </label>
+          <div className="row">
+            <input
+              id="new-title"
+              ref={titleRef}
+              placeholder="e.g. Contact us"
+              value={title}
+              maxLength={200}
+              onChange={(e) => {
+                setTitle(e.target.value);
+              }}
+            />
+            <button className="primary" type="submit" disabled={creating}>
+              {creating ? "Creating…" : "Create"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setCreatingOpen(false);
+                setTitle("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       {error && (
         <p className="alert" role="alert">
           {error}
         </p>
       )}
       {forms === null && !error && <p className="muted">Loading…</p>}
-      {forms?.length === 0 && (
-        <div className="empty">
-          <p>No forms yet.</p>
+      {forms?.length === 0 && !creatingOpen && (
+        <div className="card empty">
+          <h2 className="section-title">Create your first form</h2>
           <p className="muted">
-            Create one above. Responses will go to a Google Sheet in your Drive when you publish it.
+            Build it here, share a link or embed it, and every response becomes a row in a Google
+            Sheet in your Drive.
           </p>
+          {newForm}
         </div>
       )}
       {forms && forms.length > 0 && (
@@ -74,10 +117,16 @@ export function FormList() {
             <li key={f.id}>
               <Link to={`/forms/${f.id}`} className="form-card">
                 <span className="form-title">{f.title}</span>
-                <span className={`badge ${f.status}`}>
-                  {f.status === "published" ? "Published" : "Draft"}
+                <span className="form-meta">
+                  <span className={`status ${f.status === "published" ? "ok" : "draft"}`}>
+                    {f.status === "published" ? "Published" : "Draft"}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>Edited {dateFormat.format(f.updatedAt)}</span>
                 </span>
-                <span className="muted small">Edited {dateFormat.format(f.updatedAt)}</span>
+                <span className="chevron" aria-hidden="true">
+                  ›
+                </span>
               </Link>
             </li>
           ))}

@@ -43,17 +43,6 @@ const ATTACH_ERRORS: Record<string, string> = {
   destination_exists: "This form already has a response spreadsheet.",
 };
 
-const STATE_LABELS: Record<string, string> = {
-  delivered: "delivered",
-  queued: "waiting",
-  accepted: "waiting",
-  delivering: "being written",
-  retrying: "retrying",
-  unknown: "being checked",
-  blocked: "on hold",
-  permanently_failed: "failed",
-};
-
 interface Props {
   view: FormView;
   form: Form;
@@ -176,26 +165,40 @@ export function SharePanel({
     destinationState && destinationState !== "OK" ? DESTINATION_PROBLEMS[destinationState] : null;
   const held = (deliveries?.counts.blocked ?? 0) > 0;
 
+  const upToDate = published && !needsPublish;
+  const delivered = deliveries?.counts.delivered ?? 0;
+  const waiting = Object.entries(deliveries?.counts ?? {})
+    .filter(([state]) => state !== "delivered" && state !== "permanently_failed")
+    .reduce((n, [, c]) => n + (c ?? 0), 0);
+  const failed = deliveries?.counts.permanently_failed ?? 0;
+
   return (
-    <div className="share">
-      <div className="card">
-        <h2 className="small-heading">{published ? "Published" : "Not published yet"}</h2>
-        <p className="muted">
-          {published
-            ? view.hasUnpublishedChanges || saveState !== "saved"
-              ? "You have changes that respondents do not see yet."
-              : "Respondents see the latest version."
-            : "Publishing creates a Google Sheet for responses in your Drive and gives you a public link."}
-        </p>
-        <button
-          type="button"
-          className="primary"
-          disabled={busy || fieldCount === 0 || !needsPublish}
-          onClick={() => void publish()}
-        >
-          {busy ? "Publishing…" : published ? "Publish changes" : "Publish form"}
-        </button>
-        {fieldCount === 0 && <p className="muted small">Add at least one field first.</p>}
+    <div className="stack">
+      <section className="card">
+        <div className="status-row">
+          <span className={`status ${published ? (upToDate ? "ok" : "warn") : "draft"}`}>
+            {published ? (upToDate ? "Live · up to date" : "Live · unpublished changes") : "Draft"}
+          </span>
+          <span className="spacer" />
+          {upToDate ? (
+            <span className="muted small">Respondents see the latest version</span>
+          ) : (
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || fieldCount === 0}
+              onClick={() => void publish()}
+            >
+              {busy ? "Publishing…" : published ? "Publish changes" : "Publish form"}
+            </button>
+          )}
+        </div>
+        {!published && (
+          <p className="helper">
+            Publishing gives you a public link and starts sending responses to a Google Sheet.
+          </p>
+        )}
+        {fieldCount === 0 && <p className="helper">Add at least one field first.</p>}
         {error && (
           <p className="alert" role="alert">
             {error}{" "}
@@ -204,120 +207,128 @@ export function SharePanel({
             )}
           </p>
         )}
-      </div>
-
-      {!view.destination && (
-        <div className="card">
-          <h2 className="small-heading">Where responses go</h2>
-          <p className="muted">
-            By default, publishing creates a new spreadsheet in your Drive. You can use one of your
-            existing spreadsheets instead; Freely Forms adds its own tab and never changes your
-            other tabs.
-          </p>
-          <button type="button" disabled={busy} onClick={() => void attach()}>
-            Use an existing Google Sheet…
-          </button>
-          {attachError && (
-            <p className="alert" role="alert">
-              {attachError}{" "}
-              {attachError === ATTACH_ERRORS.google_access_required && (
-                <a href={GRANT_DRIVE_URL}>Grant access</a>
-              )}
-            </p>
-          )}
-        </div>
-      )}
+      </section>
 
       {published && view.public && (
-        <>
-          <div className="card">
-            <h2 className="small-heading">Link</h2>
-            <CopyField label="Public link" value={view.public.url} />
-            <p>
-              <a href={view.public.url} target="_blank" rel="noopener">
-                Open the form
+        <section className="card">
+          <h2 className="section-title">Share</h2>
+          <span className="field-label">Public link</span>
+          <CopyField label="Public link" value={view.public.url} openUrl={view.public.url} />
+          <span className="field-label">Embed on a website</span>
+          <CopyField label="Embed code" value={view.public.embedCode} multiline />
+          <p className="helper">Paste it where the form should appear; it adjusts its height.</p>
+        </section>
+      )}
+
+      <section className="card">
+        <h2 className="section-title">Delivery</h2>
+        {view.destination ? (
+          <>
+            <div className="dest-row">
+              <span>
+                <span className="muted">Destination</span> · Google Sheets
+              </span>
+              <span className="spacer" />
+              <a className="button" href={view.destination.url} target="_blank" rel="noopener">
+                Open sheet
               </a>
-            </p>
-          </div>
-          <div className="card">
-            <h2 className="small-heading">Embed on a website</h2>
-            <p className="muted small">
-              Paste this where the form should appear. It adjusts its height to the form.
-            </p>
-            <CopyField label="Embed code" value={view.public.embedCode} multiline />
-          </div>
-        </>
-      )}
-
-      {view.destination && (
-        <div className="card">
-          <h2 className="small-heading">Responses</h2>
-          <p>
-            Responses are written to{" "}
-            <a href={view.destination.url} target="_blank" rel="noopener">
-              your Google Sheet
-            </a>
-            , usually within seconds.
-          </p>
-          {problem && (
-            <p className="alert" role="alert">
-              {problem}
-              {destinationState === "ACCESS_REVOKED" && (
-                <>
-                  {" "}
-                  <a href={GRANT_DRIVE_URL}>Sign in again</a>
-                </>
+            </div>
+            {problem && (
+              <p className="alert" role="alert">
+                {problem}
+                {destinationState === "ACCESS_REVOKED" && (
+                  <>
+                    {" "}
+                    <a href={GRANT_DRIVE_URL}>Sign in again</a>
+                  </>
+                )}
+              </p>
+            )}
+            {deliveries && (
+              <p className="delivery-summary">
+                <strong>{delivered}</strong> {delivered === 1 ? "response" : "responses"} delivered
+                in the last 30 days
+                {waiting > 0 && (
+                  <>
+                    {" "}
+                    · <strong>{waiting}</strong> waiting
+                  </>
+                )}
+                {failed > 0 && (
+                  <>
+                    {" "}
+                    · <strong>{failed}</strong> not delivered
+                  </>
+                )}
+              </p>
+            )}
+            {deliveriesError && (
+              <p className="alert" role="alert">
+                Delivery status could not be loaded.
+              </p>
+            )}
+            <div className="row">
+              {(problem || held) && (
+                <button type="button" disabled={busy} onClick={() => void resume()}>
+                  I fixed it — resume delivery
+                </button>
               )}
+              <button type="button" className="ghost small" onClick={loadDeliveries}>
+                Refresh
+              </button>
+            </div>
+            {resumeNote && (
+              <p className="muted" role="status">
+                {resumeNote}
+              </p>
+            )}
+            <p className="helper">
+              Responses are written to your sheet, usually within seconds. Freely Forms does not
+              keep delivered responses.
             </p>
-          )}
-          {deliveries && Object.keys(deliveries.counts).length > 0 && (
-            <ul className="counts">
-              {Object.entries(deliveries.counts).map(([state, n]) => (
-                <li key={state}>
-                  <strong>{n}</strong> {STATE_LABELS[state] ?? state}
-                </li>
-              ))}
-            </ul>
-          )}
-          {deliveriesError && (
-            <p className="alert" role="alert">
-              Delivery status could not be loaded.
+          </>
+        ) : (
+          <>
+            <p>
+              Publishing creates a new spreadsheet in your Drive. You can use one of your existing
+              spreadsheets instead; Freely Forms adds its own tab and never changes your other tabs.
             </p>
-          )}
-          <p className="muted small">Last 30 days. Responses are never stored by Freely Forms.</p>
-          {(problem || held) && (
-            <button type="button" disabled={busy} onClick={() => void resume()}>
-              I fixed it — resume delivery
+            <button type="button" disabled={busy} onClick={() => void attach()}>
+              Use an existing Google Sheet…
             </button>
-          )}
-          {resumeNote && (
-            <p className="muted" role="status">
-              {resumeNote}
-            </p>
-          )}
-          <button type="button" className="link" onClick={loadDeliveries}>
-            Refresh
-          </button>
+            {attachError && (
+              <p className="alert" role="alert">
+                {attachError}{" "}
+                {attachError === ATTACH_ERRORS.google_access_required && (
+                  <a href={GRANT_DRIVE_URL}>Grant access</a>
+                )}
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="zone">
+        <h2 className="section-title">Advanced</h2>
+        <div className="card">
+          <div className="dest-row">
+            <span>
+              Export the form as JSON{" "}
+              <span className="muted small">(schema v{form.schemaVersion})</span>
+            </span>
+            <span className="spacer" />
+            <button
+              type="button"
+              onClick={() => {
+                exportJson(form);
+              }}
+            >
+              Download JSON
+            </button>
+          </div>
         </div>
-      )}
-
-      <div className="card">
-        <h2 className="small-heading">Export</h2>
-        <p className="muted small">
-          Download the form definition as JSON (schema version {form.schemaVersion}). Responses are
-          already in your sheet.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            exportJson(form);
-          }}
-        >
-          Download JSON
-        </button>
-      </div>
-
-      <DeleteForm id={view.id} onDeleted={onDeleted} />
+        <DeleteForm id={view.id} onDeleted={onDeleted} />
+      </section>
     </div>
   );
 }
@@ -326,10 +337,12 @@ function CopyField({
   label,
   value,
   multiline = false,
+  openUrl,
 }: {
   label: string;
   value: string;
   multiline?: boolean;
+  openUrl?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -344,15 +357,16 @@ function CopyField({
     }
   };
   return (
-    <div className="copy">
+    <div className={multiline ? "copy multiline" : "copy"}>
       <label className="visually-hidden" htmlFor={`copy-${label}`}>
         {label}
       </label>
       {multiline ? (
         <textarea
           id={`copy-${label}`}
+          className="readonly"
           readOnly
-          rows={4}
+          rows={5}
           value={value}
           onFocus={(e) => {
             e.target.select();
@@ -361,6 +375,7 @@ function CopyField({
       ) : (
         <input
           id={`copy-${label}`}
+          className="readonly"
           readOnly
           value={value}
           onFocus={(e) => {
@@ -368,9 +383,16 @@ function CopyField({
           }}
         />
       )}
-      <button type="button" onClick={() => void copy()}>
-        {copied ? "Copied" : "Copy"}
-      </button>
+      <div className="copy-actions">
+        <button type="button" onClick={() => void copy()}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+        {openUrl && (
+          <a className="button" href={openUrl} target="_blank" rel="noopener">
+            Open
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -388,8 +410,8 @@ function DeleteForm({ id, onDeleted }: { id: string; onDeleted: () => void }) {
   };
   return (
     <div className="card danger-zone">
-      <h2 className="small-heading">Delete form</h2>
-      <p className="muted small">
+      <h3 className="item-title">Delete form</h3>
+      <p className="helper">
         The form stops accepting responses. Your Google Sheet and its responses stay in your Drive.
       </p>
       {confirm ? (
@@ -410,12 +432,12 @@ function DeleteForm({ id, onDeleted }: { id: string; onDeleted: () => void }) {
       ) : (
         <button
           type="button"
-          className="ghost"
+          className="danger-outline"
           onClick={() => {
             setConfirm(true);
           }}
         >
-          Delete form…
+          Delete form
         </button>
       )}
       {error && (

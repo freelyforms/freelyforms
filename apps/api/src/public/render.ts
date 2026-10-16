@@ -26,24 +26,25 @@ export const errorMessage = (e: FieldError) =>
   (MESSAGES[e.code] ?? MESSAGES.invalid_type)?.(e.params ?? {}) ?? "";
 
 const LIGHT =
-  "--fg:#1b1b1f;--muted:#5d5d66;--bg:#fff;--line:#c9c9d1;--accent:#1f5fd6;--on-accent:#fff;--err:#b3261e";
+  "--fg:#1b1b1f;--muted:#5d5d66;--bg:#fff;--line:#b9b9c3;--accent:#1f5fd6;--on-accent:#fff;--err:#b3261e";
 const DARK =
-  "--fg:#ececf1;--muted:#a5a5ae;--bg:#141417;--line:#3b3b43;--accent:#8ab0ff;--on-accent:#141417;--err:#ffb4ab";
+  "--fg:#ececf1;--muted:#a5a5ae;--bg:#141417;--line:#55555f;--accent:#8ab0ff;--on-accent:#141417;--err:#ffb4ab";
 
 const BASE = `
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
-main{max-width:640px;margin:0 auto;padding:24px 16px 32px}h1{font-size:1.6rem;margin:0 0 8px}
-.desc{color:var(--muted);margin:0 0 24px;white-space:pre-line}.field{margin:0 0 20px;border:0;padding:0}
-label,legend{display:block;font-weight:600;margin-bottom:6px}.hint{color:var(--muted);font-size:.9rem;margin:-2px 0 6px}
-input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
-textarea{min-height:120px}.choice{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:4px 0}
+main{max-width:620px;margin:0 auto;padding:40px 20px 24px}h1{font-size:1.75rem;line-height:1.25;margin:0 0 8px}
+.desc{color:var(--muted);margin:0 0 32px;white-space:pre-line}h1+form{margin-top:32px}.field{margin:0 0 24px;border:0;padding:0}
+label,legend{display:block;font-weight:600;margin-bottom:8px}.hint{color:var(--muted);font-size:.9rem;margin:-4px 0 8px}
+input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],textarea,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
+textarea{min-height:120px}.choice{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:6px 0}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.error{color:var(--err);font-size:.9rem;margin-top:4px}button{background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:12px 20px;font:inherit;font-weight:600;cursor:pointer}
-button:disabled{opacity:.6;cursor:not-allowed}
+[aria-invalid=true]{border-color:var(--err)!important}
+.error{color:var(--err);font-size:.9rem;margin-top:6px}button{min-width:120px;background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:12px 24px;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacity:1;cursor:default}
+.cf-turnstile{margin:32px 0 24px}
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.req{color:var(--err)}
-.preview{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;color:var(--muted);font-size:.9rem;margin:0 0 20px}
-footer{max-width:640px;margin:0 auto;padding:0 16px 24px;display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.8rem;color:var(--muted)}
-footer a{color:inherit}
+footer{max-width:620px;margin:0 auto;padding:16px 20px 32px;font-size:.8rem;color:var(--muted)}
+footer p{margin:0 0 4px}footer a{color:inherit}
 `;
 
 /** Black or white text, whichever reads better on the accent colour (WCAG relative luminance). */
@@ -124,16 +125,18 @@ function page(
             : ""
         }
       </head>
-      <body>
+      <body class="${opts.preview ? "is-preview" : ""}">
         <main>${body}</main>
         <footer>
-          <span
-            >Made with
-            <a href="https://freelyforms.com" target="_blank" rel="noopener">Freely Forms</a>.
-            Responses go to the form owner's Google Sheet.</span
-          >
-          ${opts.privacyUrl ? html`<a href="${opts.privacyUrl}" target="_blank" rel="noopener">Privacy</a>` : ""}
-          ${report}
+          <p>
+            Made with
+            <a href="https://freelyforms.com" target="_blank" rel="noopener">Freely Forms</a> ·
+            answers go to the form owner's Google Sheet
+          </p>
+          <p>
+            ${opts.privacyUrl ? html`<a href="${opts.privacyUrl}" target="_blank" rel="noopener">Privacy</a>` : ""}
+            ${opts.privacyUrl && report ? " · " : ""}${report}
+          </p>
         </footer>
         <script nonce="${opts.nonce}">
           ${raw(EMBED_SCRIPT)};
@@ -255,8 +258,7 @@ export function renderForm(
   const turnstile = opts.turnstileSiteKey && !opts.preview ? opts.turnstileSiteKey : undefined;
   return page(
     form.title,
-    html`${opts.preview ? html`<p class="preview" role="note">Preview of your draft. Responses are not sent.</p>` : ""}
-      <h1>${form.title}</h1>
+    html`<h1>${form.title}</h1>
       ${form.description ? html`<p class="desc">${form.description}</p>` : ""}
       ${errors.size ? html`<p class="error" role="alert">Please correct the highlighted fields.</p>` : ""}
       ${state.notice ? html`<p class="error" role="alert">${state.notice}</p>` : ""}

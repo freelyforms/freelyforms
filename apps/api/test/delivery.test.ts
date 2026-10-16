@@ -310,7 +310,8 @@ describe("public form", () => {
     const page = await res.text();
     expect(page).toContain('<label for="fld_name">Name');
     expect(page).toContain("<legend>Topic");
-    expect(page).not.toContain("turnstile");
+    expect(page).not.toContain("challenges.cloudflare.com");
+    expect(page).not.toContain('class="field cf-turnstile"');
   });
 
   it("returns 404 for unknown or unpublished forms", async () => {
@@ -1067,7 +1068,7 @@ describe("intake protection", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
     const page = await res.text();
-    expect(page).toContain("Preview of your draft");
+    expect(page).toContain(`class="is-preview"`);
     expect(page).toMatch(/<button type="submit"\s+disabled/);
     expect((await app().request(`/forms/${id}/preview`, {}, env)).status).toBe(401);
   });

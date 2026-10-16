@@ -47,20 +47,26 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
 
   return (
     <main className="page account">
-      <h1>Account</h1>
-      <div className="card">
-        <h2 className="small-heading">Signed in as</h2>
-        <p>{me.user.name ? `${me.user.name} · ${me.user.email}` : me.user.email}</p>
+      <div className="page-head">
+        <div>
+          <h1>Account</h1>
+          <p className="muted">
+            {me.user.name ? `${me.user.name} · ${me.user.email}` : me.user.email}
+          </p>
+        </div>
       </div>
 
-      <div className="card">
-        <h2 className="small-heading">Google connection</h2>
+      <section className="card">
+        <h2 className="section-title">Google connection</h2>
         {connected ? (
           <>
-            <p>
-              {me.google.driveAccess
-                ? "Freely Forms can create and update the response sheets it made in your Drive. It cannot see anything else in your Drive."
-                : "Freely Forms does not have Drive access yet, so it cannot create response sheets."}
+            <p className="status-line">
+              <span className={`status ${me.google.driveAccess ? "ok" : "warn"}`}>
+                {me.google.driveAccess ? "Google Drive connected" : "Drive access not granted"}
+              </span>
+            </p>
+            <p className="helper">
+              Freely Forms can only open the spreadsheets it creates or that you choose for it.
             </p>
             {!me.google.driveAccess && (
               <p>
@@ -69,31 +75,32 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
                 </a>
               </p>
             )}
-            <p className="muted small">
-              Disconnecting revokes our access at Google. Your published forms keep accepting
-              responses; they wait, encrypted, for up to 7 days. Sign in again within that time and
-              they are delivered within the hour; after that they are deleted.
-            </p>
             {confirmDisconnect ? (
-              <p>
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={busy}
-                  onClick={() => void disconnect()}
-                >
-                  Yes, disconnect
-                </button>{" "}
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => {
-                    setConfirmDisconnect(false);
-                  }}
-                >
-                  Cancel
-                </button>
-              </p>
+              <div className="confirm">
+                <p>
+                  Delivery to your sheets stops until you sign in again. Responses wait, encrypted,
+                  for up to 7 days and are then deleted.
+                </p>
+                <div className="row">
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={busy}
+                    onClick={() => void disconnect()}
+                  >
+                    Disconnect
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setConfirmDisconnect(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
@@ -101,15 +108,18 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
                   setConfirmDisconnect(true);
                 }}
               >
-                Disconnect Google…
+                Disconnect Google Drive
               </button>
             )}
           </>
         ) : (
           <>
-            <p>Google is not connected. Responses to your forms are waiting, not delivered.</p>
+            <p className="status-line">
+              <span className="status warn">Not connected</span>
+            </p>
+            <p className="helper">Responses to your forms are waiting, not delivered.</p>
             <a className="button primary" href={GRANT_DRIVE_URL}>
-              Connect Google
+              Connect Google Drive
             </a>
           </>
         )}
@@ -118,37 +128,42 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
             {note}
           </p>
         )}
-      </div>
+      </section>
 
-      <div className="card danger-zone">
-        <h2 className="small-heading">Delete account</h2>
-        <p>
-          Deletes your account, your forms and their history from Freely Forms, revokes our Google
-          access and discards responses still waiting for delivery. Your Google Sheets and the
-          responses in them stay in your Drive.
-        </p>
-        <label className="field-label" htmlFor="confirm-email">
-          Type <strong>{me.user.email}</strong> to confirm
-        </label>
-        <input
-          id="confirm-email"
-          autoComplete="off"
-          value={confirm}
-          onChange={(e) => {
-            setConfirm(e.target.value);
-          }}
-        />
-        <p>
-          <button
-            type="button"
-            className="danger"
-            disabled={busy || confirm.trim().toLowerCase() !== me.user.email.toLowerCase()}
-            onClick={() => void remove()}
-          >
-            Delete my account
-          </button>
-        </p>
-      </div>
+      <section className="zone">
+        <h2 className="section-title danger-text">Danger zone</h2>
+        <div className="card danger-zone">
+          <h3 className="item-title">Delete account</h3>
+          <ul className="helper-list">
+            <li>Deletes your Freely Forms account, your forms and their history.</li>
+            <li>Your Google Sheets and the responses in them stay in your Drive.</li>
+          </ul>
+          <label className="field-label" htmlFor="confirm-email">
+            Type your email to confirm
+          </label>
+          <p className="helper">
+            <code>{me.user.email}</code>
+          </p>
+          <input
+            id="confirm-email"
+            autoComplete="off"
+            value={confirm}
+            onChange={(e) => {
+              setConfirm(e.target.value);
+            }}
+          />
+          <p>
+            <button
+              type="button"
+              className="danger"
+              disabled={busy || confirm.trim().toLowerCase() !== me.user.email.toLowerCase()}
+              onClick={() => void remove()}
+            >
+              Delete my account
+            </button>
+          </p>
+        </div>
+      </section>
       {error && (
         <p className="alert" role="alert">
           {error}
