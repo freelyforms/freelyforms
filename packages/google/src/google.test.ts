@@ -11,6 +11,7 @@ import {
   GoogleApiError,
   headerLabels,
   refreshAccessToken,
+  revokeToken,
   resolveColumns,
   sheetsClient,
   SYSTEM_COLUMNS,
@@ -89,6 +90,19 @@ describe("refreshAccessToken", () => {
   ])("classifies failures (%#)", async (reply, kind) => {
     const { fetchFn } = fake(reply);
     await expect(refreshAccessToken(fetchFn, args)).rejects.toMatchObject({ kind });
+  });
+});
+
+describe("revokeToken", () => {
+  it.each([
+    [new Response(null, { status: 200 }), true],
+    [Response.json({ error: "invalid_token" }, { status: 400 }), true],
+    [new Response("oops", { status: 503 }), false],
+    [new TypeError("network down"), false],
+  ])("reports whether the grant is gone (%#)", async (reply, expected) => {
+    const { fetchFn, calls } = fake(reply);
+    expect(await revokeToken(fetchFn, "1//r")).toBe(expected);
+    expect(calls[0]?.body).toMatchObject({ token: "1//r" });
   });
 });
 

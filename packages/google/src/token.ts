@@ -54,3 +54,25 @@ export async function refreshAccessToken(
     scopes: typeof body.scope === "string" ? body.scope.split(" ").filter(Boolean) : [],
   };
 }
+
+export const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+
+/**
+ * Revokes a refresh token (and the grant behind it) at Google. Returns true when the grant is
+ * gone, including when Google reports the token as already invalid; false when Google could not
+ * be reached or refused for another reason.
+ */
+export async function revokeToken(fetchFn: typeof fetch, token: string): Promise<boolean> {
+  try {
+    const res = await fetchFn(GOOGLE_REVOKE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }),
+    });
+    if (res.ok) return true;
+    const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+    return res.status === 400 && body.error === "invalid_token";
+  } catch {
+    return false;
+  }
+}

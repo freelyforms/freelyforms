@@ -445,6 +445,37 @@ describe("public form", () => {
     expect(queue.sent).toHaveLength(0);
   });
 
+  it("serves the web app with its CSP and an SPA fallback", async () => {
+    const files: Record<string, string> = {
+      "/": "<!doctype html><title>app</title>",
+      "/assets/app.js": "console.log(1)",
+    };
+    const seen: string[] = [];
+    const ASSETS = {
+      fetch: (req: Request) => {
+        const path = new URL(req.url).pathname;
+        seen.push(path);
+        const body = files[path];
+        return Promise.resolve(
+          body === undefined
+            ? new Response("not found", { status: 404 })
+            : new Response(body, {
+                headers: { "content-type": path.endsWith(".js") ? "text/javascript" : "text/html" },
+              }),
+        );
+      },
+    } as unknown as Fetcher;
+    const appEnv = { ...env, ASSETS };
+    const page = await app().request("/app/forms/frm_abcdef12", {}, appEnv);
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toContain("script-src 'self'");
+    expect(page.headers.get("cache-control")).toBe("no-cache");
+    expect(seen).toEqual(["/forms/frm_abcdef12", "/"]);
+    const js = await app().request("/app/assets/app.js", {}, appEnv);
+    expect(js.headers.get("content-security-policy")).not.toContain("script-src 'self'");
+    expect((await app().request("/app/assets/missing.js", {}, appEnv)).status).toBe(404);
+  });
+
   it("redirects forms on the app domain to the forms domain", async () => {
     const id = await publishedForm();
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
@@ -650,6 +681,42 @@ describe("delivery", () => {
     expect(sheet.rows).toHaveLength(4);
   });
 
+  it("keeps a held delivery when re-sending fails, and the next sweep delivers it", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    const sheet = onlySheet();
+    google.sheets.delete("sheet1");
+    await deliver();
+    google.sheets.set("sheet1", sheet);
+    await env.DB.prepare("UPDATE destinations SET state = 'OK'").run();
+    const send = queue.queue.send.bind(queue.queue);
+    queue.queue.send = () => Promise.reject(new Error("queue down"));
+    await expect(maintenance(env, clock)).rejects.toThrow("queue down");
+    expect(kv.store.size).toBe(1);
+    expect(await env.DB.prepare("SELECT held_at FROM deliveries").first("held_at")).not.toBeNull();
+    queue.queue.send = send;
+    await maintenance(env, clock);
+    expect(kv.store.size).toBe(0);
+    await deliver();
+    expect(await deliveryStates()).toEqual(["delivered"]);
+    expect(sheet.rows).toHaveLength(2);
+  });
+
+  it("drops a leftover hold key whose delivery was already resumed", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    google.sheets.delete("sheet1");
+    await deliver();
+    // An earlier resume sent the message and cleared the mark, then stopped before deleting.
+    await env.DB.prepare("UPDATE deliveries SET held_at = NULL, state = 'queued'").run();
+    const destinationId = (await env.DB.prepare("SELECT id FROM destinations").first(
+      "id",
+    )) as string;
+    await resumeHeld(env, destinationId);
+    expect(kv.store.size).toBe(0);
+    expect(queue.sent).toHaveLength(0);
+  });
+
   it("blocks with ACCESS_REVOKED when the owner revokes Google access", async () => {
     const id = await publishedForm();
     await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
@@ -670,6 +737,57 @@ describe("delivery", () => {
     expect(await env.DB.prepare("SELECT state FROM destinations").first("state")).toBe(
       "COLUMN_MISSING",
     );
+  });
+});
+
+describe("account", () => {
+  it("disconnects Google: revokes the grant, deletes the token, and holds new responses", async () => {
+    const id = await publishedForm();
+    const res = await owner("/account/google/disconnect", { method: "POST" });
+    expect(await res.json()).toEqual({ disconnected: true, revokedAtGoogle: true });
+    expect(google.state.calls).toContain("POST /revoke");
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM google_connections").first("n")).toBe(0);
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    await deliver();
+    expect(await deliveryStates()).toEqual(["blocked"]);
+    expect(kv.store.size).toBe(1);
+  });
+
+  it("deletes the account with all metadata and held payloads, never the sheet", async () => {
+    const id = await publishedForm();
+    google.sheets.delete("sheet1");
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    await deliver();
+    expect(kv.store.size).toBe(1);
+
+    const wrong = await owner("/account", { method: "DELETE", body: { confirm: "someone@else" } });
+    expect(wrong.status).toBe(422);
+    const res = await owner("/account", {
+      method: "DELETE",
+      body: { confirm: "Owner@Example.com" },
+    });
+    expect(await res.json()).toEqual({ deleted: true, revokedAtGoogle: true });
+    expect(res.headers.get("set-cookie")).toContain("__Host-ff_session=;");
+
+    for (const table of [
+      "users",
+      "sessions",
+      "google_connections",
+      "forms",
+      "form_versions",
+      "destinations",
+      "deliveries",
+    ]) {
+      expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first("n"), table).toBe(0);
+    }
+    expect(kv.store.size).toBe(0);
+    expect(
+      google.state.calls.filter(
+        (call) => call.includes("spreadsheets") && call.startsWith("DELETE"),
+      ),
+    ).toEqual([]);
+    expect((await owner("/forms")).status).toBe(401);
+    expect((await app().request(`/f/${id}`, {}, env)).status).toBe(404);
   });
 });
 
