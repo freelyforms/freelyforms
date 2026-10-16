@@ -1,5 +1,12 @@
 import type { Field } from "@freelyforms/form-schema";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { FIELD_TYPE_LABELS, hasOptions } from "./draft.js";
 import { useDismiss } from "./useDismiss.js";
 
@@ -17,8 +24,7 @@ interface Props {
   onUpdateOption: (optionId: string, label: string) => void;
   onRemoveOption: (optionId: string) => void;
   onMoveOption: (optionId: string, delta: number) => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
+  onHandlePointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
 /** "" → undefined (removes the property); otherwise a number, or undefined if not numeric. */
@@ -77,18 +83,22 @@ export function FieldEditor(props: Props) {
         <button
           type="button"
           className="handle"
-          draggable
-          aria-label={`Drag to reorder ${field.label}`}
-          title="Drag to reorder"
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", field.id);
-            props.onDragStart();
+          aria-label={`Reorder ${field.label}`}
+          aria-describedby={id("handle-hint")}
+          title="Drag to reorder (Alt+↑/↓ with the keyboard)"
+          onPointerDown={props.onHandlePointerDown}
+          onKeyDown={(e) => {
+            if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+              e.preventDefault();
+              props.onMove(e.key === "ArrowUp" ? -1 : 1);
+            }
           }}
-          onDragEnd={props.onDragEnd}
         >
-          ⋮⋮
+          <span aria-hidden="true">⠿</span>
         </button>
+        <span id={id("handle-hint")} className="visually-hidden">
+          Drag to reorder. Press Alt and the up or down arrow to move this field.
+        </span>
         <span className="type-tag">{FIELD_TYPE_LABELS[field.type]}</span>
         <span className="spacer" />
         <button

@@ -880,3 +880,65 @@ button.small {
     flex-wrap: wrap;
   }
 }
+
+/* Field reordering (useSortable): handle, insertion line, ghost */
+.handle {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.handle:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.sorting,
+.sorting * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.field-list li {
+  position: relative;
+  transition: opacity 0.15s;
+}
+.field-list li.dragging {
+  opacity: 0.3;
+}
+.field-list li.drop-before::before,
+.field-list li.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field-list li.drop-before::before {
+  top: -8px;
+}
+.field-list li.drop-after::after {
+  bottom: -8px;
+}
+.drag-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  display: grid;
+  gap: 2px;
+  max-width: 320px;
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 25%);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

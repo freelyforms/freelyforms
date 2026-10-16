@@ -10,7 +10,6 @@ import {
   duplicateField,
   FIELD_TYPE_LABELS,
   issuesByField,
-  moveField,
   moveFieldTo,
   moveOption,
   removeField,
@@ -21,6 +20,7 @@ import {
 } from "./draft.js";
 import { FieldEditor } from "./FieldEditor.js";
 import { navigate, setLeaveGuard } from "./router.js";
+import { useSortable } from "./useSortable.js";
 import { SharePanel } from "./SharePanel.js";
 
 type SaveState =
@@ -43,7 +43,7 @@ export function Editor({ id }: { id: string }) {
   const [previewVersion, setPreviewVersion] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const formRef = useRef<Form | null>(null);
   /** Edits made so far, and the edit count the server has. Unsaved work = editSeq > savedSeq. */
   const editSeq = useRef(0);
@@ -78,6 +78,27 @@ export function Editor({ id }: { id: string }) {
     setForm(next);
     setSave({ state: "dirty" });
   }, []);
+
+  /** Moves a field (drag and drop, buttons or Alt+arrows) and announces the new position. */
+  const moveTo = useCallback(
+    (fieldId: string, toIndex: number) => {
+      const current = formRef.current;
+      if (!current) return;
+      const to = Math.max(0, Math.min(current.fields.length - 1, toIndex));
+      const next = moveFieldTo(current, fieldId, to);
+      if (next === current) return;
+      edit(next);
+      const label = current.fields.find((f) => f.id === fieldId)?.label ?? "Field";
+      setAnnouncement(
+        `Moved "${label}" to position ${String(to + 1)} of ${String(current.fields.length)}`,
+      );
+    },
+    [edit],
+  );
+  const { drag, itemRef, onHandlePointerDown } = useSortable(
+    form?.fields.map((f) => f.id) ?? [],
+    moveTo,
+  );
 
   /** Saves the current draft once, after any save already in progress. */
   const flush = useCallback(async (): Promise<FlushResult> => {
@@ -276,19 +297,24 @@ export function Editor({ id }: { id: string }) {
               {form.fields.length === 0 && (
                 <p className="empty muted">Add your first field below.</p>
               )}
-              <ol className="field-list">
+              <ol className={drag ? "field-list sorting" : "field-list"}>
                 {form.fields.map((field, index) => (
                   <li
                     key={field.id}
-                    className={dragId === field.id ? "dragging" : undefined}
-                    onDragOver={(e) => {
-                      if (dragId) e.preventDefault();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragId) edit(moveFieldTo(form, dragId, index));
-                      setDragId(null);
-                    }}
+                    ref={itemRef(field.id)}
+                    className={
+                      [
+                        drag?.id === field.id ? "dragging" : "",
+                        drag && drag.insertAt === index ? "drop-before" : "",
+                        drag &&
+                        drag.insertAt === form.fields.length &&
+                        index === form.fields.length - 1
+                          ? "drop-after"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined
+                    }
                   >
                     <FieldEditor
                       field={field}
@@ -300,7 +326,7 @@ export function Editor({ id }: { id: string }) {
                         edit(updateField(form, field.id, patch));
                       }}
                       onMove={(delta) => {
-                        edit(moveField(form, field.id, delta));
+                        moveTo(field.id, index + delta);
                       }}
                       onRemove={() => {
                         edit(removeField(form, field.id));
@@ -322,16 +348,31 @@ export function Editor({ id }: { id: string }) {
                       onMoveOption={(optionId, delta) => {
                         edit(moveOption(form, field.id, optionId, delta));
                       }}
-                      onDragStart={() => {
-                        setDragId(field.id);
-                      }}
-                      onDragEnd={() => {
-                        setDragId(null);
-                      }}
+                      onHandlePointerDown={onHandlePointerDown(field.id)}
                     />
                   </li>
                 ))}
               </ol>
+              {drag && (
+                <div
+                  className="drag-ghost"
+                  style={{ left: drag.x + 12, top: drag.y + 12 }}
+                  aria-hidden="true"
+                >
+                  {(() => {
+                    const f = form.fields.find((x) => x.id === drag.id);
+                    return f ? (
+                      <>
+                        <span className="type-tag">{FIELD_TYPE_LABELS[f.type]}</span>
+                        <span>{f.label}</span>
+                      </>
+                    ) : null;
+                  })()}
+                </div>
+              )}
+              <p className="visually-hidden" aria-live="polite">
+                {announcement}
+              </p>
 
               <div className="card add-field">
                 <h2 className="section-title">Add a field</h2>
