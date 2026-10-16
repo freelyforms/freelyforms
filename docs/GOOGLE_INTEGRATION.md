@@ -6,11 +6,11 @@ Primary:
 
 - Google Identity / OAuth 2.0;
 - Google Sheets API;
-- Google Drive API.
+- Google Drive API;
+- Google Picker (attaching an existing sheet, ADR 0006).
 
 Future optional integrations:
 
-- Google Picker (required for attaching existing sheets);
 - Google Docs API;
 - Gmail API;
 - Google Workspace Marketplace.
@@ -56,7 +56,7 @@ The application stores the spreadsheet ID and destination sheet/tab identity, no
 Recommended system columns followed by form fields:
 
 ```text
-_submission_id | _submitted_at | Name | Email | ...
+_submission_id | _submitted_at | _form_version | Name | Email | ...
 ```
 
 Internally preserve a mapping between stable field IDs and sheet columns.
@@ -65,13 +65,15 @@ Internally preserve a mapping between stable field IDs and sheet columns.
 
 Changing a form after responses already exist must be safe.
 
-Rules to design:
+Rules (status as of the MVP):
 
-- new field -> append new column;
-- renamed field -> rename human header without changing field identity;
-- deleted field -> retain historical column by default;
-- reordered field -> do not destroy historical mapping;
-- duplicate labels -> allowed if field IDs differ, but sheet headers need disambiguation.
+- new field -> append new column on publish (implemented);
+- renamed field -> rename human header without changing field identity (not yet: headers keep the label from the first publish);
+- deleted field -> retain historical column (implemented);
+- column deleted by the owner -> recreated at the end on the next delivery ([ADR 0013](adr/0013-delivery-refinements.md));
+- reordered field or column -> mapping follows developer metadata (implemented);
+- duplicate labels -> allowed if field IDs differ; headers get a ` (2)` suffix (implemented);
+- columns the owner adds by hand -> ignored by delivery; new field columns go after them (implemented).
 
 ## File uploads
 

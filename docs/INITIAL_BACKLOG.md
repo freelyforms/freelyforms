@@ -1,5 +1,7 @@
 # Initial Engineering Backlog
 
+Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
+
 ## Repository
 
 - [x] Initialise pnpm monorepo.
@@ -24,26 +26,33 @@
 - [x] User/session model (server-side sessions, only a token hash stored, `__Host-` cookie).
 - [x] Google connection model separate from app session.
 - [x] Encrypted token storage (refresh token as an envelope bound to the user ID).
-- [ ] Disconnect/revoke flow.
+- [ ] Disconnect/revoke flow (revoke at Google, delete the stored token, block deliveries with a clear state).
+- [ ] Account deletion (metadata and credentials; never the owner's Sheets or Drive files).
 - [x] Scheduled cleanup of expired sessions and pruned delivery records (hourly cron).
 
 ## Builder
 
-- [ ] Form list/dashboard.
-- [x] Create form.
-- [ ] Add/edit/remove fields.
-- [ ] Reorder fields.
-- [ ] Preview.
+- [x] Forms API: list, create, save draft, publish, soft delete ([API.md](API.md)).
 - [x] Draft/published version model.
+- [ ] Web app `apps/web`: sign-in, form list/dashboard.
+- [ ] Add/edit/remove fields, field settings, options.
+- [ ] Reorder fields.
+- [ ] Preview with the real renderer.
+- [ ] Publish flow with the public link, the sheet link and the embed code.
+- [ ] Delivery status panel: destination state, counts by delivery state, "Resume" after a fix.
 
 ## Google Sheets
 
 - [x] Create spreadsheet (`packages/google`).
+- [ ] Attach an existing spreadsheet through Google Picker (needs a browser API key; ADR 0006).
 - [x] Store destination identifiers.
 - [x] Create header row (frozen, bold, system columns first).
 - [x] Append responses as typed, never-parsed cells ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).
 - [x] Stable field-to-column mapping via developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
-- [x] Handle renamed/deleted/new fields (new fields get new columns on publish; deleted fields keep their column).
+- [x] New and deleted fields (new fields get new columns after all existing ones; deleted fields keep their column; columns the owner deletes are recreated, [ADR 0013](adr/0013-delivery-refinements.md)).
+- [ ] Renamed fields: update the header text on publish.
+- [ ] Column cache to save read quota ([ADR 0013](adr/0013-delivery-refinements.md)).
+- [ ] Per-owner concurrency cap on writes ([ADR 0001](adr/0001-batched-sheets-writes.md)).
 
 ## Public form
 
@@ -57,13 +66,18 @@
 - [x] Durable queue with 7-day encrypted retention ([ADR 0008](adr/0008-queue-retention-and-encryption.md)).
 - [x] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [x] Success and error states.
-- [ ] Embed mode.
+- [ ] Client-side validation enhancement (same `form-engine` in the browser).
+- [ ] Basic appearance: theme settings in the schema (accent colour, font, light/dark), applied by the renderer.
+- [ ] Embed: iframe snippet and a small script that resizes the iframe; documented.
+- [ ] "Report abuse" link on every form page ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
+- [ ] Owner notification of blocked and soon-to-expire deliveries (dashboard first, email later).
 
 ## Abuse/security
 
 - [x] Request limits (Workers Rate Limiting: 20/min per IP, 5/min per IP and form).
 - [x] Turnstile integration (server-side verification; test keys in development).
-- [ ] Logging redaction.
+- [x] Logging policy: only error names and codes are logged, never tokens or answers.
+- [ ] Error reporting with scrubbing (when a reporting service is chosen).
 - [x] Security headers.
 - [x] CSP (nonce-based on form pages; `frame-ancestors 'none'` on app pages, `*` on forms for embedding).
 
@@ -81,8 +95,10 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 
 ## Launch readiness
 
-- [ ] Privacy policy draft.
+- [ ] Production environment: Cloudflare account on Workers Paid; D1, KV, queue + DLQ (7-day retention), rate-limit namespaces; secrets; domains `freelyforms.com` and `freelyforms.link`; real Turnstile keys.
+- [ ] Production Google Cloud project, OAuth client and brand verification.
+- [ ] Privacy policy draft (includes the 7-day transient retention, ADR 0008).
 - [ ] Terms draft.
 - [ ] OAuth verification checklist.
-- [ ] Status/health checks.
+- [ ] Status/health checks; periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)).
 - [ ] Minimal public docs.

@@ -25,11 +25,9 @@ Potential public surfaces:
 Examples of route patterns:
 
 ```text
-/templates/contact-form/
-/templates/customer-feedback/
-/templates/event-registration/
-/templates/job-application/
-/templates/client-intake/
+/templates/<template-slug>/
+/features/<feature-slug>/
+/integrations/<integration-slug>/
 ```
 
 Each page should contain a genuinely usable template, preview, field explanation and one-click use flow. Avoid mass-generating thin pages.

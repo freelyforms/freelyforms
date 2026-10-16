@@ -4,7 +4,7 @@ This is a capability roadmap, not a deadline commitment.
 
 ## Phase 0 — Foundation
 
-Status: repository, monorepo, CI and architecture decisions ([ADRs](adr/)) are in place; schema work has started.
+Status: done, except the deployment skeleton (no production environment yet) and the design system (starts with the builder).
 
 - repository and monorepo setup;
 - CI;
@@ -17,11 +17,13 @@ Status: repository, monorepo, CI and architecture decisions ([ADRs](adr/)) are i
 
 ## Phase 1 — End-to-end MVP
 
+Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Missing: the builder UI, attaching an existing sheet, theme, embed, owner-facing delivery status, account disconnect/deletion, production deployment. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
+
 - Google sign-in;
 - create/edit/delete form;
 - core field types;
 - basic drag/reorder builder;
-- create Google Sheet destination;
+- create a Google Sheet destination or attach an existing one (Google Picker);
 - public form URL;
 - anonymous submission;
 - append to Google Sheet;
@@ -48,7 +50,7 @@ Release publicly as soon as this is trustworthy.
 - duplication/templates;
 - conversational rendering mode.
 
-## Phase 3 — Jotform-class building blocks
+## Phase 3 — Advanced building blocks
 
 - file upload -> Google Drive;
 - signature;

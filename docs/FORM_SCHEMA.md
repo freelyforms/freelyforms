@@ -62,7 +62,7 @@ Rules:
 
 Every field also has `id`, `label`, optional `description` and optional `required`.
 
-Answers to choice fields are option IDs, so renaming an option label never breaks logic or history; the delivery worker writes the current label to the sheet.
+Answers to choice fields are option IDs, so renaming an option label never breaks logic or history; the delivery worker writes the label from the form version the response was submitted against.
 
 ## Answer validation
 

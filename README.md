@@ -8,6 +8,10 @@ An open-source form platform designed around one simple principle:
 
 Responses go directly to the form owner's Google Sheets. Uploaded files should go to the owner's Google Drive. The hosted core is intended to remain free for normal usage without artificial form or response quotas.
 
+## Status
+
+Pre-alpha, not deployed yet. Working today, end to end against real Google accounts: Google sign-in, a forms API, publishing with automatic creation of the response spreadsheet, anonymous public forms with spam protection, and queued, idempotent delivery of responses to the owner's sheet. In progress: the web builder, embedding, basic theming and the first production deployment. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/INITIAL_BACKLOG.md](docs/INITIAL_BACKLOG.md).
+
 ## What this is trying to become
 
 A modern alternative to traditional hosted form builders, with:
@@ -38,7 +42,7 @@ A modern alternative to traditional hosted form builders, with:
 
 ## Documentation
 
-Start with `CLAUDE.md`, then read the documents under `docs/` and the architecture decision records in [`docs/adr/`](docs/adr/).
+Start with [docs/PRODUCT.md](docs/PRODUCT.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), then the [HTTP API](docs/API.md) and the architecture decision records in [`docs/adr/`](docs/adr/). [CONTRIBUTING.md](CONTRIBUTING.md) explains local development.
 
 Internal strategy may exist locally under `private/`. That directory is intentionally ignored by Git and must never be published.
 

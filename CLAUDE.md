@@ -30,11 +30,12 @@ Before making architectural or product decisions, read:
 2. `docs/ARCHITECTURE.md`
 3. `docs/FORM_SCHEMA.md`
 4. `docs/GOOGLE_INTEGRATION.md`
-5. `docs/SECURITY_PRIVACY.md`
-6. `docs/ROADMAP.md`
-7. `docs/ENGINEERING_PRINCIPLES.md`
-8. `docs/SEO_PUBLIC_SURFACES.md`
-9. `docs/adr/README.md` — accepted architecture decisions; do not contradict an ADR without writing a new one.
+5. `docs/API.md`
+6. `docs/SECURITY_PRIVACY.md`
+7. `docs/ROADMAP.md`
+8. `docs/ENGINEERING_PRINCIPLES.md`
+9. `docs/SEO_PUBLIC_SURFACES.md`
+10. `docs/adr/README.md` — accepted architecture decisions; do not contradict an ADR without writing a new one.
 
 If the local `private/` directory exists, also read all Markdown files in it. Those files contain internal strategy and must never be committed or copied into public documentation.
 
@@ -58,17 +59,16 @@ If the local `private/` directory exists, also read all Markdown files in it. Th
 
 Use a TypeScript monorepo. Prefer current stable versions at implementation time.
 
-Target layout (packages are added only when code needs them; `apps/api` and the packages `form-schema`, `form-engine`, `crypto`, `db` and `google` exist today):
+Target layout (packages are added only when code needs them; `apps/api` and the packages `form-schema`, `form-engine`, `crypto`, `db` and `google` exist today). Per ADR 0012 the queue consumer and the public renderer live inside `apps/api` until they need to be split:
 
 ```text
 apps/
   web/              # builder, dashboard and public website
-  api/              # edge API: auth, form CRUD, publish, submit endpoint
-  worker-delivery/  # queue consumer: batching, Sheets writes, reconciliation
+  api/              # one Worker: auth, form CRUD, publish, public forms, queue consumer, cron
 packages/
   form-schema/      # versioned schema types, JSON Schema export, migrations
   form-engine/      # validation (and later logic), shared by browser and server
-  renderer/         # lightweight public renderer + embed script
+  renderer/         # (later) public renderer + embed script, once a second consumer exists
   google/           # OAuth, Sheets/Drive clients, developer metadata, RAW writes
   db/               # metadata repository layer (no answers)
   crypto/           # envelope encryption for tokens and queue payloads

@@ -2,7 +2,7 @@
 
 ## Privacy claim
 
-The product may eventually market itself around not centrally storing submission content. Engineering must make this claim materially true.
+Freely Forms does not keep a central database of submission content. Engineering must keep this statement materially true.
 
 ## OAuth token handling
 
@@ -35,7 +35,7 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 
 ## Public form abuse controls
 
-- per-IP and per-form rate limiting;
+- per-IP and per-IP-and-form rate limiting (a per-form limit across all IPs may follow);
 - bot protection/Turnstile where risk warrants;
 - payload size limits;
 - file type/size validation;
@@ -46,7 +46,9 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 
 - Cloudflare Turnstile on every public form when the deployment sets `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`; the token is verified server-side and never stored.
 - Workers Rate Limiting per IP and per IP and form; over the limit returns 429 with `Retry-After`.
-- Honeypot field, 64 KB body limit, schema validation before anything is queued.
+- Honeypot field (bots get the same response as people), 64 KB body limit counted while reading (a missing or false `Content-Length` does not bypass it), schema validation before anything is queued.
+- A Turnstile site key without its secret disables the challenge and logs `turnstile_secret_missing`.
+- When a forms domain is configured, `/f/<formId>` on the app domain redirects there, so form content never shares an origin with the session cookie.
 - Form pages: nonce-based CSP, no third-party scripts except the Turnstile widget, `noindex`, `no-store`; framing allowed for embeds. App pages: `frame-ancestors 'none'`.
 
 ## Web security baseline

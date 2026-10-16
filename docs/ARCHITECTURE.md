@@ -59,7 +59,7 @@ Avoid by default:
 Use asynchronous delivery where possible:
 
 ```text
-POST /forms/:formId/submissions   (served on the forms domain, ADR 0010)
+POST /f/:formId   (freelyforms.link/<formId> on the forms domain, ADR 0010)
  -> validate schema
  -> rate limit / captcha where required
  -> accept submission
@@ -90,14 +90,15 @@ POST /f/:formId (freelyforms.link/<formId> in production)
  -> load the published version; validate (form-engine); honeypot
  -> deliveries row (accepted → queued), encrypted payload → DELIVERY_QUEUE
  -> success page (or 201 JSON)
-Queue consumer (apps/api, batches of up to 50):
+Queue consumer (same Worker, ADR 0012; batches of up to 50):
  -> group by form; refresh the owner's access token
  -> resolve columns by developer metadata, add columns for new fields
- -> reconcile only if a previous write was ambiguous
+ -> on a retry, reconcile by _submission_id first (ADR 0013)
  -> one AppendCells request per group → delivered
  -> retryable error: retry with backoff (≤ 72 h); owner-actionable: hold in KV → blocked
 POST /forms/:id/deliveries/resume re-queues held deliveries after the owner fixes the sheet.
-Hourly cron enforces the 7-day deadline, deletes expired sessions and prunes delivery records.
+Hourly cron enforces the 7-day deadline, deletes expired sessions, prunes delivery records and
+resumes held deliveries a lagging KV listing missed.
 ```
 
 ## Idempotency
