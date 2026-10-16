@@ -553,6 +553,36 @@ describe("delivery", () => {
     expect(await deliveryStates()).toEqual(["permanently_failed"]);
   });
 
+  it("parks a retry the queue would drop and lets the hourly sweep resend it (ADR 0014)", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    const [msg] = queue.sent.splice(0);
+    if (!msg) throw new Error("no message");
+    clock += 23 * 60 * 60 * 1000; // close to the 24-hour retention of Workers Free
+    google.state.failNextAppend = { status: 503, when: "before" };
+    const [outcome] = await deliver([msg], 12);
+    expect(outcome).toEqual({ acked: true });
+    expect(kv.store.size).toBe(1);
+    expect(await deliveryStates()).toEqual(["unknown"]);
+
+    await maintenance(env, clock);
+    expect(kv.store.size).toBe(0);
+    await deliver();
+    expect(await deliveryStates()).toEqual(["delivered"]);
+    expect(onlySheet().rows).toHaveLength(2);
+  });
+
+  it("sends groups that would exceed the Google call budget back to the queue", async () => {
+    const a = await publishedForm();
+    const b = await publishedForm();
+    await submit(a, { fld_name: "A", fld_email: "a@example.com" });
+    await submit(b, { fld_name: "B", fld_email: "b@example.com" });
+    env = { ...env, GOOGLE_CALL_BUDGET: "8" };
+    const outcomes = await deliver();
+    expect(outcomes).toEqual([{ acked: true }, { acked: false, retryDelay: 0 }]);
+    expect((await deliveryStates()).sort()).toEqual(["delivered", "queued"]);
+  });
+
   it("holds deliveries when the sheet is deleted and resumes after the owner fixes it (ADR 0011)", async () => {
     const id = await publishedForm();
     await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });

@@ -29,6 +29,13 @@ export interface Env {
   /** Submission rate limits (Workers Rate Limiting). Optional so self-hosted setups can omit them. */
   SUBMIT_IP_LIMITER?: RateLimit;
   SUBMIT_FORM_IP_LIMITER?: RateLimit;
+  /**
+   * How long the delivery queue keeps a message (24 on Workers Free, up to 336 on Paid). Retries
+   * that would outlive it move to the hold store instead (ADR 0014). Default 24.
+   */
+  QUEUE_RETENTION_HOURS?: string;
+  /** Google API calls one consumer invocation may make (Workers Free allows 50). Default 40. */
+  GOOGLE_CALL_BUDGET?: string;
 }
 
 /** External effects, injectable for tests. */

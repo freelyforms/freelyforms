@@ -95,7 +95,9 @@ Queue consumer (same Worker, ADR 0012; batches of up to 50):
  -> resolve columns by developer metadata, add columns for new fields
  -> on a retry, reconcile by _submission_id first (ADR 0013)
  -> one AppendCells request per group → delivered
- -> retryable error: retry with backoff (≤ 72 h); owner-actionable: hold in KV → blocked
+ -> retryable error: retry with backoff (≤ 72 h; past the queue's retention, wait in KV, ADR 0014);
+    owner-actionable: hold in KV → blocked
+ -> at most GOOGLE_CALL_BUDGET Google calls per invocation; the rest go back to the queue
 POST /forms/:id/deliveries/resume re-queues held deliveries after the owner fixes the sheet.
 Hourly cron enforces the 7-day deadline, deletes expired sessions, prunes delivery records and
 resumes held deliveries a lagging KV listing missed.

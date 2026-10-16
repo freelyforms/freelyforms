@@ -44,6 +44,9 @@
   "vars": {
     // Turnstile test keys that always pass; production sets real keys as secrets.
     "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    // ADR 0014: Workers Free limits. On Workers Paid raise both (and the queue's retention).
+    "QUEUE_RETENTION_HOURS": "24",
+    "GOOGLE_CALL_BUDGET": "40",
   },
   // Hourly maintenance: deadlines, expired sessions, pruning.
   "triggers": { "crons": ["17 * * * *"] },

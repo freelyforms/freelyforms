@@ -19,6 +19,14 @@ import { hold, resumeStragglers } from "./hold.js";
 /** ADR 0008: transient errors are retried for up to 72 hours. */
 export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
 const MAX_DELAY_S = 6 * 60 * 60;
+const HOUR_MS = 60 * 60 * 1000;
+/** Upper bound of Google calls one form group needs (token, columns, tab size, header, reconcile, append). */
+const CALLS_PER_GROUP = 6;
+
+const numberVar = (value: string | undefined, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
 
 /** Exponential backoff with jitter: 30 s, 60 s, 120 s … capped at 6 hours. */
 export function backoffSeconds(attempts: number, random = Math.random): number {
@@ -204,13 +212,24 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
     if (retryable) {
       // A failed append may still have written the rows: reconcile before writing again.
       const state = appending ? "unknown" : "retrying";
+      // ADR 0014: a retry the queue would drop (retention ends, one hour of margin) waits in the
+      // hold store instead; the hourly sweep sends it back.
+      const retentionMs = (numberVar(env.QUEUE_RETENTION_HOURS, 24) - 1) * HOUR_MS;
       for (const m of toWrite) {
+        const delaySeconds = backoffSeconds(m.attempts);
         if (now - m.body.submittedAt > TRANSIENT_RETRY_WINDOW_MS) {
           await setState(env, [m.body.submissionId], "permanently_failed", { error: kind });
           m.ack();
+        } else if (now + delaySeconds * 1000 - m.timestamp.getTime() > retentionMs) {
+          const expiresAt = states.get(m.body.submissionId)?.expires_at ?? 0;
+          const held = await hold(env, target.destinationId, m.body, expiresAt, now);
+          await setState(env, [m.body.submissionId], held ? state : "permanently_failed", {
+            error: kind,
+          });
+          m.ack();
         } else {
           await setState(env, [m.body.submissionId], state, { error: kind });
-          m.retry({ delaySeconds: backoffSeconds(m.attempts) });
+          m.retry({ delaySeconds });
         }
       }
       if (!(err instanceof GoogleApiError))
@@ -248,7 +267,24 @@ export async function processBatch(
     list.push(m);
     groups.set(m.body.formId, list);
   }
-  for (const [formId, messages] of groups) await deliverGroup(env, deps, formId, messages);
+  // Stay inside the per-invocation subrequest limit: groups that would not fit go back to the
+  // queue at once and are delivered by the next invocation.
+  const budget = numberVar(env.GOOGLE_CALL_BUDGET, 40);
+  let calls = 0;
+  const counted: Deps = {
+    ...deps,
+    fetch: (input, init) => {
+      calls += 1;
+      return deps.fetch(input, init);
+    },
+  };
+  for (const [formId, messages] of groups) {
+    if (calls + CALLS_PER_GROUP > budget) {
+      for (const m of messages) m.retry({ delaySeconds: 0 });
+      continue;
+    }
+    await deliverGroup(env, counted, formId, messages);
+  }
 }
 
 /**

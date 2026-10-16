@@ -95,7 +95,9 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 
 ## Launch readiness
 
-- [ ] Production environment: Cloudflare account on Workers Paid; D1, KV, queue + DLQ (7-day retention), rate-limit namespaces; secrets; domains `freelyforms.com` and `freelyforms.link`; real Turnstile keys.
+- [x] Run within Workers Free limits for the beta ([ADR 0014](adr/0014-run-on-workers-free.md)).
+- [ ] Production environment: D1, KV, queue + DLQ, rate-limit namespaces; secrets; domains `freelyforms.com` and `freelyforms.link`; real Turnstile keys. Workers Paid before the public launch.
+- [ ] Measure consumer CPU time against the 10 ms Workers Free limit.
 - [ ] Production Google Cloud project, OAuth client and brand verification.
 - [ ] Privacy policy draft (includes the 7-day transient retention, ADR 0008).
 - [ ] Terms draft.

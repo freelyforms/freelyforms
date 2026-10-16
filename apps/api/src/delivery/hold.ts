@@ -50,15 +50,21 @@ export async function resumeHeld(
       const value = await env.HOLD.get(name);
       if (value === null) continue; // expired between list and get
       const message = JSON.parse(value) as DeliveryMessage;
-      const setState = (from: string, to: string) =>
-        env.DB.prepare("UPDATE deliveries SET state = ? WHERE submission_id = ? AND state = ?")
-          .bind(to, message.submissionId, from)
-          .run();
-      await setState("blocked", "queued");
+      // Held deliveries are `blocked` (owner had to act) or `retrying`/`unknown` (a transient
+      // retry that would have outlived the queue's retention, ADR 0014).
+      await env.DB.prepare(
+        "UPDATE deliveries SET state = 'queued' WHERE submission_id = ? AND state IN ('blocked', 'retrying', 'unknown')",
+      )
+        .bind(message.submissionId)
+        .run();
       try {
         await env.DELIVERY_QUEUE.send(message, { contentType: "json" });
       } catch (err) {
-        await setState("queued", "blocked");
+        await env.DB.prepare(
+          "UPDATE deliveries SET state = 'retrying' WHERE submission_id = ? AND state = 'queued'",
+        )
+          .bind(message.submissionId)
+          .run();
         throw err;
       }
       await env.HOLD.delete(name);
@@ -70,13 +76,15 @@ export async function resumeHeld(
 }
 
 /**
- * Hourly sweep: destinations that are OK again but still have blocked deliveries (KV listings can
- * lag right after a fix, or a resume stopped at its chunk limit) get another resume.
+ * Hourly sweep for destinations that are OK and may have held deliveries: blocked ones a resume
+ * missed (KV listings can lag right after a fix, or a resume stopped at its chunk limit), and
+ * transient retries parked because the queue would have dropped them (ADR 0014). Retrying rows
+ * still in the queue simply have no key to find.
  */
 export async function resumeStragglers(env: Env): Promise<void> {
   const { results } = await env.DB.prepare(
     `SELECT DISTINCT d.id FROM destinations d JOIN deliveries x ON x.destination_id = d.id
-     WHERE d.state = 'OK' AND x.state = 'blocked' LIMIT 20`,
+     WHERE d.state = 'OK' AND x.state IN ('blocked', 'retrying', 'unknown') LIMIT 20`,
   ).all<{ id: string }>();
   for (const { id } of results) await resumeHeld(env, id);
 }
