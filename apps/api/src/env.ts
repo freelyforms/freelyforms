@@ -12,6 +12,8 @@ export interface DeliveryMessage {
 
 export interface Env {
   DB: D1Database;
+  /** Built web app (apps/web/dist), served under /app/. Absent in tests. */
+  ASSETS?: Fetcher;
   /** Delivery queue (ADR 0001, ADR 0008). */
   DELIVERY_QUEUE: Queue<DeliveryMessage>;
   /** Hold store for blocked deliveries (ADR 0011). */
@@ -23,6 +25,8 @@ export interface Env {
   MASTER_KEY_K1: string;
   /** Host that serves public forms (ADR 0010), e.g. `freelyforms.link`. Unset in development. */
   FORMS_HOST?: string;
+  /** Where abuse reports go; every public form links to it (ADR 0010). */
+  ABUSE_EMAIL?: string;
   /** Cloudflare Turnstile keys. When both are set, every public form requires a passed challenge. */
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;

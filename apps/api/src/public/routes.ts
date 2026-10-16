@@ -87,7 +87,11 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
     const turnstile = turnstileEnabled(c.env);
     // A site key without its secret silently disables the challenge: make that visible.
     if (!turnstile && c.env.TURNSTILE_SITE_KEY) console.error("turnstile_secret_missing");
-    c.set("page", { nonce, turnstileSiteKey: turnstile ? c.env.TURNSTILE_SITE_KEY : undefined });
+    c.set("page", {
+      nonce,
+      turnstileSiteKey: turnstile ? c.env.TURNSTILE_SITE_KEY : undefined,
+      abuseEmail: c.env.ABUSE_EMAIL,
+    });
     await next();
     c.header("X-Robots-Tag", "noindex");
     c.header("Cache-Control", "no-store");
@@ -121,6 +125,7 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
           found.form.title,
           "Too many submissions from your network. Please try again in a minute.",
           c.var.page,
+          found.form,
         ),
         429,
       );
@@ -184,7 +189,7 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
     // Honeypot hits get a response indistinguishable from a real one.
     if (wantsJson(c)) return c.json({ ok: true, submissionId: ulid(deps.now()) }, 201);
     const success = form.settings?.success?.message ?? "Thanks — your response was received.";
-    return c.html(renderMessage(form.title, success, c.var.page));
+    return c.html(renderMessage(form.title, success, c.var.page, form));
   });
 
   return pub;

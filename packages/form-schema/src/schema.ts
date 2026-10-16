@@ -138,9 +138,19 @@ export const successSchema = z.strictObject({
   message: z.string().min(1).max(2_000).regex(nonBlank, "Must not be blank"),
 });
 
+/** Basic appearance. Colours are validated hex values, so renderers can use them in CSS as-is. */
+export const themeSchema = z.strictObject({
+  accent: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Use a hex colour such as #1f5fd6")
+    .optional(),
+  colorScheme: z.enum(["auto", "light", "dark"]).optional(),
+});
+
 export const settingsSchema = z.strictObject({
   submitLabel: z.string().min(1).max(60).regex(nonBlank, "Must not be blank").optional(),
   success: successSchema.optional(),
+  theme: themeSchema.optional(),
 });
 
 export const formSchemaV1 = z
@@ -170,6 +180,7 @@ export type Form = z.infer<typeof formSchemaV1>;
 export type Field = z.infer<typeof fieldSchema>;
 export type FieldOption = z.infer<typeof optionSchema>;
 export type FormSettings = z.infer<typeof settingsSchema>;
+export type FormTheme = z.infer<typeof themeSchema>;
 
 export interface SchemaIssue {
   /** Location of the problem, e.g. `fields.2.options.0.id`. */

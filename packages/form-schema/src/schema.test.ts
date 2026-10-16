@@ -39,6 +39,13 @@ describe("parseForm", () => {
     expect(issues.join()).toMatch(/colour/);
   });
 
+  it("accepts a theme and rejects colours that are not plain hex", () => {
+    const themed = (theme: unknown) => ({ ...(minimal([]) as object), settings: { theme } });
+    expect(issuesOf(themed({ accent: "#1F5fd6", colorScheme: "dark" }))).toEqual([]);
+    expect(issuesOf(themed({ accent: "red;}body{display:none" }))).not.toEqual([]);
+    expect(issuesOf(themed({ colorScheme: "sepia" }))).not.toEqual([]);
+  });
+
   it("rejects unknown field types", () => {
     expect(issuesOf(minimal([{ id: "fld_a", type: "html", label: "A" }]))).not.toEqual([]);
   });

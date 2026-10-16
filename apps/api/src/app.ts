@@ -1,17 +1,31 @@
 import { Hono } from "hono";
-import { html } from "hono/html";
 import { secureHeaders } from "hono/secure-headers";
 import { FORM_SCHEMA_VERSION } from "@freelyforms/form-schema/limits";
-import { DRIVE_FILE_SCOPE } from "./auth/google.js";
 import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
+import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
-import { currentUser } from "./auth/session.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
 export type { Env } from "./env.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** CSP for the builder: own scripts and styles only; it may frame its own previews. */
+function appCsp(env: Env): string {
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data: https://*.googleusercontent.com",
+    "connect-src 'self'",
+    `frame-src 'self'${env.FORMS_HOST ? ` https://${env.FORMS_HOST}` : ""}`,
+    "form-action 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
 
 export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
@@ -21,10 +35,18 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   // X-Frame-Options is replaced by CSP frame-ancestors: app pages forbid framing, public forms allow
   // it so owners can embed them.
   app.use(
-    secureHeaders({ referrerPolicy: "strict-origin-when-cross-origin", xFrameOptions: false }),
+    secureHeaders({
+      referrerPolicy: "strict-origin-when-cross-origin",
+      xFrameOptions: false,
+      crossOriginResourcePolicy: false,
+    }),
   );
   app.use(async (c, next) => {
     await next();
+    // Same-origin by default; the embed script opts out so owners' sites can load it.
+    if (!c.res.headers.has("Cross-Origin-Resource-Policy")) {
+      c.header("Cross-Origin-Resource-Policy", "same-origin");
+    }
     if (!c.res.headers.has("Content-Security-Policy")) {
       c.header(
         "Content-Security-Policy",
@@ -41,12 +63,13 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     // old links working without putting form content next to the session cookie.
     if (c.env.FORMS_HOST && host !== c.env.FORMS_HOST && c.req.path.startsWith("/f/")) {
       const formId = c.req.path.slice(3);
-      if (!/^frm_[A-Za-z0-9]{6,32}$/.test(formId)) return c.text("Not found", 404);
+      if (!/^(frm_[A-Za-z0-9]{6,32}|embed\.js)$/.test(formId)) return c.text("Not found", 404);
       return c.redirect(`https://${c.env.FORMS_HOST}/${formId}`, 308);
     }
     if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
       const url = new URL(c.req.url);
-      if (!/^\/frm_[A-Za-z0-9]{6,32}$/.test(url.pathname)) return c.text("Not found", 404);
+      if (!/^\/(frm_[A-Za-z0-9]{6,32}|embed\.js)$/.test(url.pathname))
+        return c.text("Not found", 404);
       url.pathname = `/f${url.pathname}`;
       // No waitUntil is needed on this path, so the execution context is not forwarded.
       return app.fetch(new Request(url, c.req.raw), c.env);
@@ -73,47 +96,33 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
 
   app.route("/auth", authRoutes(deps));
   app.route("/forms", formRoutes(deps));
+  app.get("/f/embed.js", (c) => {
+    c.header("Content-Type", "text/javascript; charset=utf-8");
+    // Loaded by owners' sites, so it must be readable cross-origin (secureHeaders defaults to same-origin).
+    c.header("Cross-Origin-Resource-Policy", "cross-origin");
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.body(EMBED_JS);
+  });
   app.route("/f", publicRoutes(deps));
 
-  // Temporary landing page until apps/web exists: lets developers try sign-in end to end.
-  app.get("/", async (c) => {
-    const user = await currentUser(c, deps.now());
-    const error = c.req.query("auth_error");
-    const connection = user
-      ? await c.env.DB.prepare("SELECT scopes FROM google_connections WHERE user_id = ?")
-          .bind(user.id)
-          .first<{ scopes: string }>()
-      : null;
-    const driveAccess = connection?.scopes.split(" ").includes(DRIVE_FILE_SCOPE) ?? false;
-    return c.html(
-      html`<!doctype html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>Freely Forms (development)</title>
-          </head>
-          <body>
-            <h1>Freely Forms</h1>
-            ${error ? html`<p role="alert">Sign-in failed: ${error}</p>` : ""}
-            ${
-              user
-                ? html`<p>Signed in as ${user.email}.</p>
-                    ${
-                      driveAccess
-                        ? html`<p>Google Drive access: granted.</p>`
-                        : html`<p>
-                            Google Drive access is needed to create response sheets.
-                            <a href="/auth/google/start?consent=1">Grant Google Drive access</a>
-                          </p>`
-                    }
-                    <p><a href="/auth/me">Account JSON</a></p>
-                    <form method="post" action="/auth/logout"><button>Sign out</button></form>`
-                : html`<p><a href="/auth/google/start">Sign in with Google</a></p>`
-            }
-          </body>
-        </html>`,
-    );
+  // The builder (apps/web) is a static app under /app/, served from the same origin as the API so
+  // the session cookie and the Origin check work without CORS. "/" is the website later.
+  app.get("/", (c) => c.redirect("/app/", 302));
+  app.get("/app", (c) => c.redirect("/app/", 301));
+  app.get("/app/*", async (c) => {
+    if (!c.env.ASSETS)
+      return c.text("The web app is not built. Run: pnpm --filter @freelyforms/web build", 503);
+    let res = await c.env.ASSETS.fetch(c.req.raw);
+    // Client-side routes (no file extension) all load the app shell.
+    if (res.status === 404 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
+      res = await c.env.ASSETS.fetch(new Request(new URL("/app/", c.req.url), c.req.raw));
+    }
+    const out = new Response(res.body, res);
+    if (out.headers.get("content-type")?.includes("text/html")) {
+      out.headers.set("Content-Security-Policy", appCsp(c.env));
+      out.headers.set("Cache-Control", "no-cache");
+    }
+    return out;
   });
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));

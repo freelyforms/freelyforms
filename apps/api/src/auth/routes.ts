@@ -31,7 +31,8 @@ type Ctx = Context<{ Bindings: Env }>;
 const redirectUri = (c: Ctx) => `${new URL(c.req.url).origin}/auth/google/callback`;
 
 /** Browser-facing failure: back to the start page with a short, non-sensitive code. */
-const fail = (c: Ctx, code: string) => c.redirect(`/?auth_error=${encodeURIComponent(code)}`, 302);
+const fail = (c: Ctx, code: string) =>
+  c.redirect(`/app/?auth_error=${encodeURIComponent(code)}`, 302);
 
 async function readTransaction(c: Ctx, now: number): Promise<Transaction | null> {
   const raw = getCookie(c, TXN_COOKIE, "host");
@@ -170,7 +171,7 @@ export function authRoutes(deps: Deps): Hono<{ Bindings: Env }> {
     // Rotate: a new sign-in always replaces the browser's previous session.
     await endSession(c);
     await startSession(c, user.id, now);
-    return c.redirect("/", 302);
+    return c.redirect("/app/", 302);
   });
 
   auth.get("/me", async (c) => {
@@ -192,7 +193,7 @@ export function authRoutes(deps: Deps): Hono<{ Bindings: Env }> {
 
   auth.post("/logout", async (c) => {
     await endSession(c);
-    return c.redirect("/", 303);
+    return c.redirect("/app/", 303);
   });
 
   return auth;

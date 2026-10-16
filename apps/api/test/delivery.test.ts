@@ -226,6 +226,21 @@ describe("owner forms API", () => {
     expect((await owner(`/forms/${id}`)).status).toBe(200);
   });
 
+  it("reports unpublished changes", async () => {
+    const id = await publishedForm();
+    const state = async () =>
+      (await (await owner(`/forms/${id}`)).json<{ hasUnpublishedChanges: boolean }>())
+        .hasUnpublishedChanges;
+    expect(await state()).toBe(false);
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: { schemaVersion: 1, id, title: "Contact v2", fields },
+    });
+    expect(await state()).toBe(true);
+    await owner(`/forms/${id}/publish`, { method: "POST" });
+    expect(await state()).toBe(false);
+  });
+
   it("refuses to publish a form without fields", async () => {
     const { id } = await (
       await owner("/forms", { method: "POST", body: {} })
@@ -295,7 +310,7 @@ describe("public form", () => {
     const page = await res.text();
     expect(page).toContain('<label for="fld_name">Name');
     expect(page).toContain("<legend>Topic");
-    expect(page).not.toContain("<script");
+    expect(page).not.toContain("turnstile");
   });
 
   it("returns 404 for unknown or unpublished forms", async () => {
@@ -746,12 +761,71 @@ describe("intake protection", () => {
     expect(JSON.stringify(queue.sent[0])).not.toContain("good-token");
   });
 
-  it("serves form pages with a nonce-based CSP and no scripts without Turnstile", async () => {
+  it("serves form pages with a nonce-based CSP whose only script is the embed sizer", async () => {
     const id = await publishedForm();
     const page = await app().request(`/f/${id}`, {}, env);
     const csp = page.headers.get("content-security-policy") ?? "";
-    expect(csp).toContain("script-src 'none'");
-    const nonce = /style-src 'nonce-([^']+)'/.exec(csp)?.[1];
-    expect(await page.text()).toContain(`<style nonce="${nonce ?? "missing"}">`);
+    const nonce = /style-src 'nonce-([^']+)'/.exec(csp)?.[1] ?? "missing";
+    expect(csp).toContain(`script-src 'nonce-${nonce}'`);
+    expect(csp).not.toContain("challenges.cloudflare.com");
+    const text = await page.text();
+    expect(text).toContain(`<style nonce="${nonce}">`);
+    expect(text.match(/<script/g)).toHaveLength(1);
+    expect(text).toContain("freelyforms:height");
+  });
+
+  it("applies the owner's theme and links abuse reports", async () => {
+    const created = await owner("/forms", { method: "POST", body: { title: "Themed" } });
+    const { id } = await created.json<{ id: string }>();
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: "Themed",
+        settings: { theme: { accent: "#ffd400", colorScheme: "dark" } },
+        fields,
+      },
+    });
+    await owner(`/forms/${id}/publish`, { method: "POST" });
+    const page = await (
+      await app().request(`/f/${id}`, {}, { ...env, ABUSE_EMAIL: "abuse@example.com" })
+    ).text();
+    expect(page).toContain("color-scheme:dark");
+    expect(page).toContain("--accent:#ffd400;--on-accent:#000");
+    expect(page).not.toContain("prefers-color-scheme");
+    expect(page).toContain(`href="mailto:abuse@example.com?subject=Abuse%20report%3A%20${id}"`);
+  });
+
+  it("serves the embed script on both hosts and gives owners the snippet", async () => {
+    const id = await publishedForm();
+    const local = await app().request("/f/embed.js", {}, env);
+    expect(local.headers.get("content-type")).toContain("javascript");
+    expect(local.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
+    expect(await local.text()).toContain("iframe[data-freelyforms]");
+    const formsEnv = { ...env, FORMS_HOST: "forms.test" };
+    expect((await app().request("http://forms.test/embed.js", {}, formsEnv)).status).toBe(200);
+    const view = await (
+      await app().request(`/forms/${id}`, { headers: { cookie, origin: ORIGIN } }, formsEnv)
+    ).json<{ public: { url: string; embedCode: string } }>();
+    expect(view.public.url).toBe(`https://forms.test/${id}`);
+    expect(view.public.embedCode).toContain(`src="https://forms.test/${id}"`);
+    expect(view.public.embedCode).toContain('src="https://forms.test/embed.js"');
+  });
+
+  it("previews the draft for its owner only, without submitting", async () => {
+    const created = await owner("/forms", { method: "POST", body: { title: "Draft" } });
+    const { id } = await created.json<{ id: string }>();
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: { schemaVersion: 1, id, title: "Draft", fields },
+    });
+    const res = await owner(`/forms/${id}/preview`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
+    const page = await res.text();
+    expect(page).toContain("Preview of your draft");
+    expect(page).toMatch(/<button type="submit"\s+disabled/);
+    expect((await app().request(`/forms/${id}/preview`, {}, env)).status).toBe(401);
   });
 });

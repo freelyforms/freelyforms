@@ -50,6 +50,24 @@
             "message"
           ],
           "additionalProperties": false
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "accent": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "colorScheme": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "light",
+                "dark"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

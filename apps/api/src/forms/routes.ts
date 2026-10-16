@@ -10,7 +10,10 @@ import type { Deps } from "../env.js";
 import { sheetsFor, spreadsheetUrl } from "../google-access.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
-import { newFormId, newId, readBodyLimited } from "../util.js";
+import { embedSnippet } from "../public/embed.js";
+import { formPageCsp } from "../public/protect.js";
+import { renderForm, renderMessage } from "../public/render.js";
+import { newFormId, newId, randomToken, readBodyLimited } from "../util.js";
 
 interface FormRow {
   id: string;
@@ -49,7 +52,26 @@ async function destinationOf(c: Ctx, formId: string): Promise<DestinationRow | n
     .first<DestinationRow>();
 }
 
-function view(form: FormRow, destination: DestinationRow | null) {
+/** Public URLs of a form: the forms domain in production, `/f/` on this origin in development. */
+function publicLinks(c: Ctx, form: FormRow) {
+  const base = c.env.FORMS_HOST ? `https://${c.env.FORMS_HOST}` : `${new URL(c.req.url).origin}/f`;
+  const url = `${base}/${form.id}`;
+  return {
+    url,
+    embedCode: embedSnippet(url, form.title, `${base}/embed.js`),
+  };
+}
+
+/** The published definition, as stored (the draft is stored the same way, so strings compare). */
+async function publishedJson(c: Ctx, form: FormRow): Promise<string | null> {
+  if (form.published_version === null) return null;
+  return c.env.DB.prepare("SELECT schema_json FROM form_versions WHERE form_id = ? AND version = ?")
+    .bind(form.id, form.published_version)
+    .first<string>("schema_json");
+}
+
+async function view(c: Ctx, form: FormRow, destination: DestinationRow | null) {
+  const published = await publishedJson(c, form);
   return {
     id: form.id,
     title: form.title,
@@ -57,6 +79,8 @@ function view(form: FormRow, destination: DestinationRow | null) {
     publishedVersion: form.published_version,
     updatedAt: form.updated_at,
     draft: JSON.parse(form.draft_json) as unknown,
+    hasUnpublishedChanges: published !== null && published !== form.draft_json,
+    public: form.status === "published" ? publicLinks(c, form) : null,
     destination: destination && {
       state: destination.state,
       url: spreadsheetUrl(destination.spreadsheet_id, destination.sheet_id),
@@ -110,13 +134,13 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       .bind(id, c.var.user.id, draft.title, JSON.stringify(draft), now, now)
       .run();
     const form = await ownedForm(c, id);
-    return c.json(form && view(form, null), 201);
+    return c.json(form && (await view(c, form, null)), 201);
   });
 
   forms.get("/:id", async (c) => {
     const form = await ownedForm(c, c.req.param("id"));
     if (!form) return c.json({ error: "not_found" }, 404);
-    return c.json(view(form, await destinationOf(c, form.id)));
+    return c.json(await view(c, form, await destinationOf(c, form.id)));
   });
 
   forms.put("/:id/draft", async (c) => {
@@ -139,7 +163,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       .bind(JSON.stringify(parsed.form), parsed.form.title, deps.now(), form.id)
       .run();
     const updated = await ownedForm(c, form.id);
-    return c.json(updated && view(updated, await destinationOf(c, form.id)));
+    return c.json(updated && (await view(c, updated, await destinationOf(c, form.id))));
   });
 
   /**
@@ -204,7 +228,35 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     }
     destination = await destinationOf(c, form.id);
     const updated = await ownedForm(c, form.id);
-    return c.json(updated && view(updated, destination));
+    return c.json(updated && (await view(c, updated, destination)));
+  });
+
+  /**
+   * The draft rendered by the real public renderer, for the builder's preview frame. Same origin
+   * as the builder; it can be framed only by it and never submits.
+   */
+  forms.get("/:id/preview", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const nonce = randomToken(16);
+    const parsed = parseForm(JSON.parse(form.draft_json));
+    c.header("Cache-Control", "no-store");
+    c.header("X-Robots-Tag", "noindex");
+    c.header(
+      "Content-Security-Policy",
+      formPageCsp(nonce, false).replace("frame-ancestors *", "frame-ancestors 'self'"),
+    );
+    const page = { nonce, preview: true };
+    if (!parsed.success) {
+      return c.html(
+        renderMessage(
+          form.title,
+          `The draft has ${String(parsed.issues.length)} problem(s) to fix before it can be previewed.`,
+          page,
+        ),
+      );
+    }
+    return c.html(renderForm(parsed.form, "", page));
   });
 
   forms.get("/:id/deliveries", async (c) => {

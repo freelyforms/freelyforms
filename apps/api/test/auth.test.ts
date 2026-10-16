@@ -142,7 +142,7 @@ describe("GET /auth/google/callback", () => {
     expect(url.searchParams.get("prompt")).toBe("consent");
     const res = await h.callback(url.searchParams.get("state") ?? "");
     expect(res.status).toBe(302);
-    expect(location(res)).toBe("/");
+    expect(location(res)).toBe("/app/");
     expect(res.headers.getSetCookie().join()).toMatch(/__Host-ff_session=.+HttpOnly/);
 
     const sent = h.tokenRequests[0];
@@ -176,13 +176,13 @@ describe("GET /auth/google/callback", () => {
 
   it("fails rather than looping when consent still returns no refresh token", async () => {
     const res = await harness({ sub: "stubborn" }).signIn("?consent=1");
-    expect(location(res)).toBe("/?auth_error=no_refresh_token");
+    expect(location(res)).toBe("/app/?auth_error=no_refresh_token");
   });
 
   it("lets a returning user sign in without a new refresh token", async () => {
     await harness({ sub: "returning", refreshToken: REFRESH }).signIn("?consent=1");
     const h = harness({ sub: "returning" });
-    expect(location(await h.signIn())).toBe("/");
+    expect(location(await h.signIn())).toBe("/app/");
     expect((await h.send("/auth/me")).status).toBe(200);
     const users = await env.DB.prepare("SELECT count(*) AS n FROM users").first("n");
     expect(users).toBe(1);
@@ -194,7 +194,6 @@ describe("GET /auth/google/callback", () => {
     expect(await (await h.send("/auth/me")).json()).toMatchObject({
       google: { status: "active", driveAccess: false },
     });
-    expect(await (await h.send("/")).text()).toContain('href="/auth/google/start?consent=1"');
 
     // Granting Drive later updates the same connection.
     const again = harness({ sub: "no-drive", refreshToken: REFRESH });
@@ -214,14 +213,14 @@ describe("GET /auth/google/callback", () => {
   ])("rejects an ID token with %s", async (_name, claims, code) => {
     const h = harness({ sub: "bad", refreshToken: REFRESH, claims });
     const res = await h.signIn("?consent=1");
-    expect(location(res)).toBe(`/?auth_error=${code}`);
+    expect(location(res)).toBe(`/app/?auth_error=${code}`);
     expect(await env.DB.prepare("SELECT count(*) AS n FROM users").first("n")).toBe(0);
   });
 
   it("rejects a mismatched state", async () => {
     const h = harness({ sub: "csrf" });
     await h.start();
-    expect(location(await h.callback("forged"))).toBe("/?auth_error=invalid_state");
+    expect(location(await h.callback("forged"))).toBe("/app/?auth_error=invalid_state");
     expect(h.tokenRequests).toHaveLength(0);
   });
 
@@ -230,7 +229,7 @@ describe("GET /auth/google/callback", () => {
     const { url } = await h.start();
     h.jar.clear();
     expect(location(await h.callback(url.searchParams.get("state") ?? ""))).toBe(
-      "/?auth_error=invalid_state",
+      "/app/?auth_error=invalid_state",
     );
   });
 
@@ -238,12 +237,12 @@ describe("GET /auth/google/callback", () => {
     const h = harness({ sub: "cancel" });
     await h.start();
     const res = await h.send("/auth/google/callback?error=access_denied&state=x");
-    expect(location(res)).toBe("/?auth_error=access_denied");
+    expect(location(res)).toBe("/app/?auth_error=access_denied");
   });
 
   it("handles a failed token exchange", async () => {
     const res = await harness({ sub: "fail", status: 400 }).signIn("?consent=1");
-    expect(location(res)).toBe("/?auth_error=token_exchange_failed");
+    expect(location(res)).toBe("/app/?auth_error=token_exchange_failed");
   });
 });
 
@@ -281,12 +280,10 @@ describe("sessions", () => {
     expect((await h.send("/auth/me")).status).toBe(401);
   });
 
-  it("shows sign-in state on the development landing page without inline scripts", async () => {
+  it("sends the browser to the web app, which needs a build when assets are missing", async () => {
     const h = harness({ sub: "landing", refreshToken: REFRESH });
-    expect(await (await h.send("/")).text()).toContain('href="/auth/google/start"');
-    await h.signIn("?consent=1");
-    const page = await (await h.send("/")).text();
-    expect(page).toContain("Signed in as landing@example.com");
-    expect(page).not.toContain("<script");
+    expect(location(await h.send("/"))).toBe("/app/");
+    const res = await h.send("/app/forms");
+    expect(res.status).toBe(503);
   });
 });
