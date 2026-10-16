@@ -37,6 +37,8 @@ pnpm dev   # builds apps/web, then rebuilds it on change while the Worker runs
 
 You need your own Google Cloud project with an OAuth client first: follow "Google Cloud setup" in [docs/GOOGLE_INTEGRATION.md](docs/GOOGLE_INTEGRATION.md) and add your Google account as a test user.
 
+Attaching an existing sheet locally needs `PICKER_API_KEY` and `GOOGLE_PROJECT_NUMBER` in `.dev.vars` (a key from your project restricted to `http://localhost:8787/*`); without them that one feature reports it is unavailable.
+
 Open http://localhost:8787/app/ in Chrome or Firefox (the `__Host-` session cookie needs a browser that treats `http://localhost` as secure). The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change. CI also runs `pnpm build`; the hourly maintenance job runs locally only with `wrangler dev --test-scheduled`.
 
 To check delivery against real Google Sheets with your own account, sign in at http://localhost:8787/app/ with Drive access, then run `FREELYFORMS_LIVE_GOOGLE=1 pnpm exec vitest run apps/api/test/sheets.live.test.ts`. It creates a spreadsheet named "Freely Forms test responses" in your Drive; it is skipped in normal test runs and CI.

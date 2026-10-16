@@ -85,6 +85,16 @@ export function fakeGoogle() {
     }
     if (batch) {
       for (const req of body.requests as Record<string, Record<string, unknown>>[]) {
+        if (req.addSheet) {
+          // The fake keeps one tab per spreadsheet: adding a tab replaces it.
+          sheet.sheetId += 100;
+          sheet.rows = [[]];
+          sheet.meta = [];
+          sheet.columnCount = (
+            req.addSheet as { properties: { gridProperties: { columnCount: number } } }
+          ).properties.gridProperties.columnCount;
+          return json({ replies: [{ addSheet: { properties: { sheetId: sheet.sheetId } } }] });
+        }
         if (req.appendDimension)
           sheet.columnCount += (req.appendDimension as { length: number }).length;
         if (req.createDeveloperMetadata)

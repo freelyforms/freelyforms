@@ -1,6 +1,7 @@
 import { parseForm, type Form } from "@freelyforms/form-schema";
 import {
   addMissingColumns,
+  addResponseTab,
   createResponseSpreadsheet,
   GoogleApiError,
   resolveColumns,
@@ -257,6 +258,50 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       );
     }
     return c.html(renderForm(parsed.form, "", page));
+  });
+
+  /**
+   * Attaches a spreadsheet the owner picked with Google Picker (ADR 0006): a new responses tab is
+   * added to it, so the owner's own tabs are never touched. Only before the form has a
+   * destination; switching sheets later needs its own design (held deliveries, history).
+   */
+  forms.post("/:id/destination", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const body = await c.req
+      .json<{ spreadsheetId?: unknown }>()
+      .catch(() => ({ spreadsheetId: undefined }));
+    const spreadsheetId = body.spreadsheetId;
+    if (typeof spreadsheetId !== "string" || !/^[A-Za-z0-9_-]{20,100}$/.test(spreadsheetId)) {
+      return c.json({ error: "invalid_spreadsheet_id" }, 422);
+    }
+    if (await destinationOf(c, form.id)) return c.json({ error: "destination_exists" }, 409);
+    const parsed = parseForm(JSON.parse(form.draft_json));
+    const draft = parsed.success ? parsed.form : { title: form.title, fields: [] };
+    let dest: { spreadsheetId: string; sheetId: number };
+    try {
+      dest = await addResponseTab(await sheetsFor(c.env, deps, c.var.user.id), spreadsheetId, {
+        title: `${draft.title} responses`,
+        form: draft,
+      });
+    } catch (err) {
+      // drive.file: a file that was not picked through our Picker app ID is invisible (404).
+      if (err instanceof GoogleApiError && err.kind === "SHEET_DELETED") {
+        return c.json({ error: "sheet_not_accessible" }, 409);
+      }
+      return googleFailure(c, err);
+    }
+    const now = deps.now();
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO destinations (id, form_id, type, spreadsheet_id, sheet_id, state, last_ok_at, created_at, updated_at) VALUES (?, ?, 'google_sheet', ?, ?, 'OK', ?, ?, ?)",
+      )
+        .bind(newId("dst"), form.id, dest.spreadsheetId, dest.sheetId, now, now, now)
+        .run();
+    } catch {
+      return c.json({ error: "destination_exists" }, 409);
+    }
+    return c.json(await view(c, form, await destinationOf(c, form.id)));
   });
 
   forms.get("/:id/deliveries", async (c) => {

@@ -9,6 +9,7 @@ import {
   type FormView,
 } from "./api.js";
 import type { FlushResult } from "./Editor.js";
+import { pickSpreadsheet } from "./picker.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
   ACCESS_REVOKED:
@@ -31,6 +32,15 @@ const PUBLISH_ERRORS: Record<string, string> = {
     "The response sheet is missing. Restore it in Google Drive, then publish again.",
   publish_conflict: "The form was published from another tab at the same time. Reload the page.",
   google_unavailable: "Google is not responding right now. Please try again in a minute.",
+};
+
+const ATTACH_ERRORS: Record<string, string> = {
+  picker_unavailable: "Choosing an existing spreadsheet is not available on this server yet.",
+  picker_script: "Google's file chooser could not be loaded. Check your connection or ad blocker.",
+  google_access_required: "Freely Forms needs access to your Google Drive first.",
+  sheet_not_accessible:
+    "Freely Forms cannot open that spreadsheet. Choose it again in the file chooser.",
+  destination_exists: "This form already has a response spreadsheet.",
 };
 
 const STATE_LABELS: Record<string, string> = {
@@ -87,6 +97,7 @@ export function SharePanel({
   const [deliveries, setDeliveries] = useState<Deliveries | null>(null);
   const [resumeNote, setResumeNote] = useState<string | null>(null);
   const [deliveriesError, setDeliveriesError] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
 
   const loadDeliveries = useCallback(() => {
     api.deliveries(view.id).then(
@@ -120,6 +131,22 @@ export function SharePanel({
     } catch (err) {
       const code = err instanceof ApiError ? err.code : "network";
       setError(PUBLISH_ERRORS[code] ?? "Publishing failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const attach = async () => {
+    setBusy(true);
+    setAttachError(null);
+    try {
+      const spreadsheetId = await pickSpreadsheet();
+      if (spreadsheetId) onPublished(await api.attachSpreadsheet(view.id, spreadsheetId));
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : "picker_script";
+      setAttachError(
+        ATTACH_ERRORS[code] ?? "The spreadsheet could not be connected. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -178,6 +205,28 @@ export function SharePanel({
           </p>
         )}
       </div>
+
+      {!view.destination && (
+        <div className="card">
+          <h2 className="small-heading">Where responses go</h2>
+          <p className="muted">
+            By default, publishing creates a new spreadsheet in your Drive. You can use one of your
+            existing spreadsheets instead; Freely Forms adds its own tab and never changes your
+            other tabs.
+          </p>
+          <button type="button" disabled={busy} onClick={() => void attach()}>
+            Use an existing Google Sheet…
+          </button>
+          {attachError && (
+            <p className="alert" role="alert">
+              {attachError}{" "}
+              {attachError === ATTACH_ERRORS.google_access_required && (
+                <a href={GRANT_DRIVE_URL}>Grant access</a>
+              )}
+            </p>
+          )}
+        </div>
+      )}
 
       {published && view.public && (
         <>

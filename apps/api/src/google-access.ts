@@ -2,6 +2,7 @@ import { decryptText, type Envelope } from "@freelyforms/crypto";
 import {
   GoogleApiError,
   refreshAccessToken,
+  type AccessToken,
   sheetsClient,
   type SheetsClient,
 } from "@freelyforms/google";
@@ -13,6 +14,11 @@ import { keyringFor } from "./keys.js";
  * throws `GoogleApiError("ACCESS_REVOKED")`.
  */
 export async function sheetsFor(env: Env, deps: Deps, userId: string): Promise<SheetsClient> {
+  return sheetsClient(deps.fetch, (await accessTokenFor(env, deps, userId)).token);
+}
+
+/** A short-lived access token for the user (same failure handling as `sheetsFor`). */
+export async function accessTokenFor(env: Env, deps: Deps, userId: string): Promise<AccessToken> {
   const row = await env.DB.prepare(
     "SELECT refresh_token, status FROM google_connections WHERE user_id = ?",
   )
@@ -32,7 +38,7 @@ export async function sheetsFor(env: Env, deps: Deps, userId: string): Promise<S
       refreshToken,
       now: deps.now(),
     });
-    return sheetsClient(deps.fetch, access.token);
+    return access;
   } catch (err) {
     // A rejected client ID or secret is a deployment problem, not the owner's: make it visible.
     if (

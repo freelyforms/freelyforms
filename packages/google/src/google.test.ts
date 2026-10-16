@@ -3,6 +3,7 @@ import { parseForm, type Form } from "@freelyforms/form-schema";
 import { describe, expect, it } from "vitest";
 import {
   addMissingColumns,
+  addResponseTab,
   answerCell,
   appendRows,
   buildRow,
@@ -271,6 +272,41 @@ describe("columns", () => {
       columns,
     );
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("addResponseTab", () => {
+  it("adds a tab with header and metadata, renaming when the title is taken", async () => {
+    const { fetchFn, calls } = fake(
+      Response.json(
+        {
+          error: {
+            code: 400,
+            message: 'A sheet with the name "Contact responses" already exists.',
+          },
+        },
+        { status: 400 },
+      ),
+      Response.json({ replies: [{ addSheet: { properties: { sheetId: 99 } } }] }),
+      Response.json({}),
+    );
+    const small: Pick<Form, "fields"> = { fields: [{ id: "fld_a", type: "text", label: "A" }] };
+    const dest = await addResponseTab(sheetsClient(fetchFn, "t"), "sheet123", {
+      title: "Contact responses",
+      form: small,
+    });
+    expect(dest).toEqual({ spreadsheetId: "sheet123", sheetId: 99 });
+    expect(JSON.stringify(calls[1]?.body)).toContain('"title":"Contact responses (2)"');
+    const requests = (calls[2]?.body as { requests: Record<string, unknown>[] }).requests;
+    expect(JSON.stringify(requests[0])).toContain('"stringValue":"_submission_id"');
+    expect(requests.filter((r) => "createDeveloperMetadata" in r)).toHaveLength(4);
+  });
+
+  it("reports a spreadsheet the app cannot open", async () => {
+    const { fetchFn } = fake(googleError(404));
+    await expect(
+      addResponseTab(sheetsClient(fetchFn, "t"), "nope", { title: "x", form: { fields: [] } }),
+    ).rejects.toMatchObject({ kind: "SHEET_DELETED" });
   });
 });
 

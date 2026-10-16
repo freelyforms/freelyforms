@@ -103,6 +103,10 @@
       "vars": {
         "FORMS_HOST": "freelyforms.link",
         "APP_ORIGIN": "https://freelyforms.com",
+        // Google Picker (ADR 0006): public browser key of project freelyforms-prod, restricted to the
+        // Picker API and https://freelyforms.com/*, and that project's number (the Picker app ID).
+        "PICKER_API_KEY": "AIzaSyAH5Ov9FdrFH5MM4RD6z2o-J7rKDEl4jBA",
+        "GOOGLE_PROJECT_NUMBER": "878819233095",
         "ABUSE_EMAIL": "hello@freelyforms.com",
         "QUEUE_RETENTION_HOURS": "24",
         "GOOGLE_CALL_BUDGET": "40",

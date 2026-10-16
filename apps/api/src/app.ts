@@ -19,11 +19,12 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function appCsp(env: Env): string {
   return [
     "default-src 'self'",
-    "script-src 'self'",
+    // Google Picker (ADR 0006) loads its script from apis.google.com and opens in a docs.google.com frame.
+    "script-src 'self' https://apis.google.com",
     "style-src 'self'",
-    "img-src 'self' data: https://*.googleusercontent.com",
-    "connect-src 'self'",
-    `frame-src 'self'${env.FORMS_HOST ? ` https://${env.FORMS_HOST}` : ""}`,
+    "img-src 'self' data: https://*.googleusercontent.com https://ssl.gstatic.com",
+    "connect-src 'self' https://*.googleapis.com",
+    `frame-src 'self' https://docs.google.com https://drive.google.com${env.FORMS_HOST ? ` https://${env.FORMS_HOST}` : ""}`,
     "form-action 'self'",
     "object-src 'none'",
     "base-uri 'none'",

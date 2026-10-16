@@ -24,8 +24,8 @@ export const homeBody = html`
       choices, checkboxes and consent.
     </li>
     <li>
-      Publish it. Freely Forms creates a response spreadsheet in your Drive and gives you a link and
-      an embed code.
+      Publish it. Freely Forms creates a response spreadsheet in your Drive, or adds a tab to one
+      you choose, and gives you a link and an embed code.
     </li>
     <li>
       People answer without a Google account. Each response becomes a new row in your sheet, usually
@@ -53,9 +53,9 @@ export const homeBody = html`
 
   <h2>What Freely Forms can access</h2>
   <p>
-    Your name and email address, and only the files Freely Forms creates in your Google Drive. It
-    cannot see anything else in your Drive. Read the <a href="/privacy">privacy policy</a> and the
-    <a href="/terms">terms of use</a>.
+    Your name and email address, and only the spreadsheets Freely Forms creates or that you choose
+    for it in Google's file picker. It cannot see anything else in your Drive. Read the
+    <a href="/privacy">privacy policy</a> and the <a href="/terms">terms of use</a>.
   </p>
 
   <p class="muted">

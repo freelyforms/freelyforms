@@ -28,6 +28,7 @@ MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadshe
 One Google Cloud project per environment (no organisation is required):
 
 - APIs enabled: Google Sheets API, Google Drive API, Google Picker API;
+- a browser API key restricted to the Picker API and the site's origin, set as `PICKER_API_KEY`, and the project number as `GOOGLE_PROJECT_NUMBER` (the Picker's app ID, which is what grants `drive.file` access to the picked file); without them the builder hides nothing but reports that attaching is unavailable;
 - Google Auth Platform: user type External, scopes `openid`, `email`, `profile`, `drive.file` (all non-sensitive);
 - OAuth client of type Web application per environment; local development uses origin `http://localhost:8787` and redirect URI `http://localhost:8787/auth/google/callback`; the hosted service uses `https://freelyforms.com` and `https://freelyforms.com/auth/google/callback`;
 - authorised domain `freelyforms.com`, verified in Google Search Console by a project owner; homepage `https://freelyforms.com/`, privacy policy `https://freelyforms.com/privacy`, terms `https://freelyforms.com/terms`;

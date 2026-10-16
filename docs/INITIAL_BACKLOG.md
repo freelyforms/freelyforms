@@ -48,7 +48,8 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 ## Google Sheets
 
 - [x] Create spreadsheet (`packages/google`).
-- [ ] Attach an existing spreadsheet through Google Picker (needs a browser API key; ADR 0006).
+- [x] Attach an existing spreadsheet through Google Picker (ADR 0006): a new responses tab, before the first publish; browser API key restricted to the Picker API and the site.
+- [ ] Switch a published form to another spreadsheet (held deliveries and history need a design).
 - [x] Store destination identifiers.
 - [x] Create header row (frozen, bold, system columns first).
 - [x] Append responses as typed, never-parsed cells ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).

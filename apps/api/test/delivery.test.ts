@@ -767,6 +767,76 @@ describe("delivery", () => {
   });
 });
 
+describe("existing spreadsheets (Google Picker)", () => {
+  const PICKED = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+
+  it("gives the browser a short-lived token only with Drive access and when configured", async () => {
+    expect((await owner("/account/google/picker")).status).toBe(503);
+    env = { ...env, PICKER_API_KEY: "AIza-test", GOOGLE_PROJECT_NUMBER: "123" };
+    expect(await (await owner("/account/google/picker")).json()).toEqual({
+      error: "google_access_required",
+    });
+    await env.DB.prepare(
+      "UPDATE google_connections SET scopes = 'openid https://www.googleapis.com/auth/drive.file'",
+    ).run();
+    const res = await owner("/account/google/picker");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = await res.json<Record<string, unknown>>();
+    expect(body).toMatchObject({ accessToken: "ya29.fake", apiKey: "AIza-test", appId: "123" });
+    expect(JSON.stringify(body)).not.toContain("1//refresh");
+  });
+
+  it("adds a responses tab to a picked spreadsheet and delivers there", async () => {
+    google.sheets.set(PICKED, {
+      sheetId: 0,
+      columnCount: 5,
+      rows: [["the owner's own data"]],
+      meta: [],
+    });
+    const created = await owner("/forms", { method: "POST", body: { title: "Signup" } });
+    const { id } = await created.json<{ id: string }>();
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: { schemaVersion: 1, id, title: "Signup", fields },
+    });
+    const attached = await owner(`/forms/${id}/destination`, {
+      method: "POST",
+      body: { spreadsheetId: PICKED },
+    });
+    expect(attached.status).toBe(200);
+    expect(
+      (await owner(`/forms/${id}/destination`, { method: "POST", body: { spreadsheetId: PICKED } }))
+        .status,
+    ).toBe(409);
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    expect(google.sheets.size).toBe(1); // publishing did not create another spreadsheet
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    await deliver();
+    const sheet = google.sheets.get(PICKED);
+    expect(sheet?.rows[0]?.slice(0, 4)).toEqual([
+      "_submission_id",
+      "_submitted_at",
+      "_form_version",
+      "Name",
+    ]);
+    expect(sheet?.rows[1]?.slice(3, 5)).toEqual(["Ada", "ada@example.com"]);
+  });
+
+  it("explains when a spreadsheet was not picked through the app", async () => {
+    const created = await owner("/forms", { method: "POST", body: { title: "X" } });
+    const { id } = await created.json<{ id: string }>();
+    const res = await owner(`/forms/${id}/destination`, {
+      method: "POST",
+      body: { spreadsheetId: "1NotPickedNotPickedNotPicked00" },
+    });
+    expect(await res.json()).toEqual({ error: "sheet_not_accessible" });
+    expect(
+      (await owner(`/forms/${id}/destination`, { method: "POST", body: { spreadsheetId: "../x" } }))
+        .status,
+    ).toBe(422);
+  });
+});
+
 describe("account", () => {
   it("disconnects Google: revokes the grant, deletes the token, and holds new responses", async () => {
     const id = await publishedForm();

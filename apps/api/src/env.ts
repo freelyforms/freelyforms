@@ -29,6 +29,13 @@ export interface Env {
   APP_ORIGIN?: string;
   /** Where abuse reports go; every public form links to it (ADR 0010). */
   ABUSE_EMAIL?: string;
+  /**
+   * Google Picker (ADR 0006): a browser API key restricted to the Picker API and our origins, and
+   * the Google Cloud project number (the Picker's app ID, which grants `drive.file` access to the
+   * picked file). Both are public. Without them, attaching an existing sheet is unavailable.
+   */
+  PICKER_API_KEY?: string;
+  GOOGLE_PROJECT_NUMBER?: string;
   /** Cloudflare Turnstile keys. When both are set, every public form requires a passed challenge. */
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;

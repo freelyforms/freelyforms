@@ -1,10 +1,12 @@
 import { decryptText, type Envelope } from "@freelyforms/crypto";
-import { revokeToken } from "@freelyforms/google";
+import { GoogleApiError, revokeToken } from "@freelyforms/google";
 import { Hono, type Context } from "hono";
 import { deleteCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "./auth/session.js";
 import type { Deps } from "./env.js";
+import { DRIVE_FILE_SCOPE } from "./auth/google.js";
 import { holdKey } from "./delivery/hold.js";
+import { accessTokenFor } from "./google-access.js";
 import { keyringFor } from "./keys.js";
 import { requireUser, type OwnerEnv } from "./require-user.js";
 
@@ -54,6 +56,40 @@ export function accountRoutes(deps: Deps): Hono<OwnerEnv> {
       .bind(c.var.user.id)
       .run();
     return c.json({ disconnected: true, revokedAtGoogle: await revoke(deps, token) });
+  });
+
+  /**
+   * What the browser needs to open Google Picker: a short-lived access token (never the refresh
+   * token), the public API key and the app ID.
+   */
+  account.get("/google/picker", async (c) => {
+    if (!c.env.PICKER_API_KEY || !c.env.GOOGLE_PROJECT_NUMBER) {
+      return c.json({ error: "picker_unavailable" }, 503);
+    }
+    const connection = await c.env.DB.prepare(
+      "SELECT scopes FROM google_connections WHERE user_id = ? AND status = 'active'",
+    )
+      .bind(c.var.user.id)
+      .first<{ scopes: string }>();
+    if (!connection?.scopes.split(" ").includes(DRIVE_FILE_SCOPE)) {
+      return c.json({ error: "google_access_required" }, 409);
+    }
+    try {
+      const access = await accessTokenFor(c.env, deps, c.var.user.id);
+      c.header("Cache-Control", "no-store");
+      return c.json({
+        accessToken: access.token,
+        expiresAt: access.expiresAt,
+        apiKey: c.env.PICKER_API_KEY,
+        appId: c.env.GOOGLE_PROJECT_NUMBER,
+      });
+    } catch (err) {
+      if (err instanceof GoogleApiError && err.kind === "ACCESS_REVOKED") {
+        return c.json({ error: "google_access_required" }, 409);
+      }
+      if (err instanceof GoogleApiError) return c.json({ error: "google_unavailable" }, 503);
+      throw err;
+    }
   });
 
   /**

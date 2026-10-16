@@ -127,6 +127,73 @@ export async function createResponseSpreadsheet(
   return { spreadsheetId: created.spreadsheetId, sheetId, url: created.spreadsheetUrl };
 }
 
+/** Header row cells: bold, system columns first. */
+const headerRow = (form: Pick<Form, "fields">) => ({
+  values: [...SYSTEM_COLUMNS, ...headerLabels(form)].map((h) => ({
+    ...text(h),
+    userEnteredFormat: { textFormat: { bold: true } },
+  })),
+});
+
+/**
+ * Adds a responses tab to a spreadsheet the owner picked (ADR 0006): the owner's existing tabs are
+ * never touched. The tab gets the same header row and column metadata as a created spreadsheet. A
+ * taken tab name gets a numeric suffix.
+ */
+export async function addResponseTab(
+  client: SheetsClient,
+  spreadsheetId: string,
+  args: { title: string; form: Pick<Form, "fields"> },
+): Promise<Destination> {
+  const columnCount = SYSTEM_COLUMNS.length + args.form.fields.length;
+  const base = args.title.slice(0, 90);
+  let sheetId: number | undefined;
+  for (let attempt = 1; sheetId === undefined; attempt++) {
+    const title = attempt === 1 ? base : `${base} (${String(attempt)})`;
+    try {
+      const reply = await client.call<{
+        replies: { addSheet?: { properties: { sheetId: number } } }[];
+      }>(`/${spreadsheetId}:batchUpdate`, {
+        method: "POST",
+        body: {
+          requests: [
+            {
+              addSheet: {
+                properties: { title, gridProperties: { frozenRowCount: 1, columnCount } },
+              },
+            },
+          ],
+        },
+      });
+      sheetId = reply.replies[0]?.addSheet?.properties.sheetId;
+      if (sheetId === undefined) throw new GoogleApiError("INVALID_REQUEST", 200, "no_sheet_added");
+    } catch (err) {
+      const taken =
+        err instanceof GoogleApiError &&
+        err.kind === "INVALID_REQUEST" &&
+        /already exists/i.test(err.detail ?? "");
+      if (!taken || attempt >= 5) throw err;
+    }
+  }
+  const keys = [...SYSTEM_COLUMNS, ...args.form.fields.map((f) => f.id)];
+  await client.call(`/${spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: {
+      requests: [
+        {
+          updateCells: {
+            start: { sheetId, rowIndex: 0, columnIndex: 0 },
+            rows: [headerRow(args.form)],
+            fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+          },
+        },
+        ...keys.map((key, i) => columnMetadata(sheetId, key, i)),
+      ],
+    },
+  });
+  return { spreadsheetId, sheetId };
+}
+
 /** Reads `key → column index` for one tab from developer metadata (ADR 0004). */
 export async function resolveColumns(
   client: SheetsClient,

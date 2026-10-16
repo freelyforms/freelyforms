@@ -106,8 +106,8 @@ function SignIn() {
       )}
       <GoogleSignInButton href={SIGN_IN_URL} />
       <p className="muted small">
-        We ask only for your name, email and access to the files Freely Forms creates in your Drive.
-        We never see the rest of your Drive.
+        We ask only for your name, email and access to the files Freely Forms creates or that you
+        choose for it. We never see the rest of your Drive.
       </p>
       <p className="small">
         <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>

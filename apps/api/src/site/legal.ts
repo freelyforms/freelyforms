@@ -82,7 +82,7 @@ export const privacyBody = html`
     </li>
     <li>
       We ask Google only for your name, email address and access to the files Freely Forms creates
-      in your Drive. We cannot see the rest of your Drive.
+      or that you choose for it. We cannot see the rest of your Drive.
     </li>
     <li>
       No advertising, no selling of data, no tracking cookies, and no use of responses to train AI
@@ -121,8 +121,11 @@ export const privacyBody = html`
       <strong>drive.file</strong> — to create a response spreadsheet in your Drive, add a row for
       each response, add columns for new questions, attach hidden labels that tell Freely Forms
       which column belongs to which question, and read the response-ID column so a response is never
-      written twice. It works only on spreadsheets Freely Forms created and gives no access to any
-      other file.
+      written twice. If you choose one of your existing spreadsheets in Google's file picker, Freely
+      Forms adds its own responses tab to it and does not change your other tabs. The permission
+      works only on spreadsheets Freely Forms created or that you chose, and gives no access to any
+      other file. While the picker is open, your browser receives a short-lived Google access token
+      so the picker can list your spreadsheets.
     </li>
   </ul>
   <p>

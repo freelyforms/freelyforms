@@ -85,6 +85,10 @@ export const api = {
       method: "POST",
     }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
+  pickerConfig: () =>
+    request<{ accessToken: string; apiKey: string; appId: string }>("/account/google/picker"),
+  attachSpreadsheet: (id: string, spreadsheetId: string) =>
+    request<FormView>(`/forms/${id}/destination`, { method: "POST", body: { spreadsheetId } }),
   disconnectGoogle: () =>
     request<{ disconnected: true; revokedAtGoogle: boolean }>("/account/google/disconnect", {
       method: "POST",
