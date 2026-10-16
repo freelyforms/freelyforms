@@ -59,9 +59,13 @@
   "env": {
     "production": {
       "name": "freelyforms",
+      // Only the custom domains: no workers.dev or preview origin with its own session cookie.
+      "workers_dev": false,
+      "preview_urls": false,
       "routes": [
         { "pattern": "freelyforms.com", "custom_domain": true },
         { "pattern": "freelyforms.link", "custom_domain": true },
+        { "pattern": "www.freelyforms.com", "custom_domain": true },
       ],
       "d1_databases": [
         {

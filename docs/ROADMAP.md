@@ -4,7 +4,7 @@ This is a capability roadmap, not a deadline commitment.
 
 ## Phase 0 — Foundation
 
-Status: done, except the production deployment. The builder's CSS tokens are the start of the design system.
+Status: done (deployed to Cloudflare on 2026-10-16). The builder's CSS tokens are the start of the design system.
 
 - repository and monorepo setup;
 - CI;
@@ -17,7 +17,7 @@ Status: done, except the production deployment. The builder's CSS tokens are the
 
 ## Phase 1 — End-to-end MVP
 
-Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Done in the web app: builder with live preview, basic theme, publish flow, embed code, delivery status. Missing: attaching an existing sheet, account disconnect/deletion, production deployment. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
+Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Done in the web app: builder with live preview, basic theme, publish flow, embed code, delivery status. Done for owners: account disconnect/deletion, privacy policy and terms, production deployment (early preview). Missing: attaching an existing sheet; for a public launch, Google's verification of the app. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
 
 - Google sign-in;
 - create/edit/delete form;

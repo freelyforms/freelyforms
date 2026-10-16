@@ -7,6 +7,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const connected = me.google.status === "active";
 
   const disconnect = async () => {
@@ -19,6 +20,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
           ? "Google is disconnected. Freely Forms can no longer reach your Drive."
           : "We deleted our copy of your Google access, but Google did not confirm the revocation. You can also remove Freely Forms at myaccount.google.com/permissions.",
       );
+      setConfirmDisconnect(false);
       onChange();
     } catch {
       setError("Google could not be disconnected. Please try again.");
@@ -31,8 +33,8 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.deleteAccount(confirm);
-      window.location.assign("/app/");
+      const r = await api.deleteAccount(confirm);
+      window.location.assign(`/app/?deleted=${r.revokedAtGoogle ? "1" : "unconfirmed"}`);
     } catch (err) {
       setError(
         err instanceof ApiError && err.code === "confirmation_required"
@@ -69,12 +71,39 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
             )}
             <p className="muted small">
               Disconnecting revokes our access at Google. Your published forms keep accepting
-              responses; they wait, encrypted, for up to 7 days until you sign in again, and are
-              deleted after that.
+              responses; they wait, encrypted, for up to 7 days. Sign in again within that time and
+              they are delivered within the hour; after that they are deleted.
             </p>
-            <button type="button" disabled={busy} onClick={() => void disconnect()}>
-              Disconnect Google
-            </button>
+            {confirmDisconnect ? (
+              <p>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={busy}
+                  onClick={() => void disconnect()}
+                >
+                  Yes, disconnect
+                </button>{" "}
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setConfirmDisconnect(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDisconnect(true);
+                }}
+              >
+                Disconnect Google…
+              </button>
+            )}
           </>
         ) : (
           <>

@@ -16,18 +16,31 @@ const STYLE = `
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,sans-serif}
 main{max-width:720px;margin:0 auto;padding:32px 16px 64px}a{color:var(--accent)}
 h1{font-size:1.8rem;line-height:1.25}h2{font-size:1.2rem;margin-top:2em}.muted{color:var(--muted)}
-nav{display:flex;gap:16px;font-size:.95rem}
+nav{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.95rem}
+.cta{display:inline-block;background:var(--accent);color:var(--bg);padding:12px 20px;border-radius:8px;font-weight:600;text-decoration:none}
+.lead{font-size:1.2rem}ol.steps li,ul.list li{margin:6px 0}
 `;
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 
-export function legalPage(title: string, body: Html, nonce: string): Html {
+/** A plain website page with the shared header. `noindex` keeps pre-launch pages out of search. */
+export function sitePage(
+  title: string,
+  body: Html,
+  nonce: string,
+  opts: { noindex?: boolean } = {},
+): Html {
   return html`<!doctype html>
     <html lang="en">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>${title} · Freely Forms</title>
+        ${opts.noindex ? raw('<meta name="robots" content="noindex" />') : ""}
+        <title>${title}</title>
+        <meta
+          name="description"
+          content="Free, open-source forms whose responses go to your own Google Sheet."
+        />
         <style nonce="${nonce}">
           ${raw(STYLE)}
         </style>
@@ -35,15 +48,23 @@ export function legalPage(title: string, body: Html, nonce: string): Html {
       <body>
         <main>
           <nav>
-            <a href="/app/">Freely Forms</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a>
+            <a href="/">Freely Forms</a><a href="/app/">Open the app</a
+            ><a href="/privacy">Privacy</a><a href="/terms">Terms</a>
           </nav>
-          <h1>${title}</h1>
-          <p class="muted">Last updated ${LEGAL_UPDATED}</p>
           ${body}
         </main>
       </body>
     </html>`;
 }
+
+export const legalPage = (title: string, body: Html, nonce: string): Html =>
+  sitePage(
+    `${title} · Freely Forms`,
+    html`<h1>${title}</h1>
+      <p class="muted">Last updated ${LEGAL_UPDATED}</p>
+      ${body}`,
+    nonce,
+  );
 
 export const privacyBody = html`
   <p>
@@ -61,7 +82,7 @@ export const privacyBody = html`
     </li>
     <li>
       We ask Google only for your name, email address and access to the files Freely Forms creates
-      (or that you pick) in your Drive. We cannot see the rest of your Drive.
+      in your Drive. We cannot see the rest of your Drive.
     </li>
     <li>
       No advertising, no selling of data, no tracking cookies, and no use of responses to train AI
@@ -80,10 +101,14 @@ export const privacyBody = html`
     <li>
       your form definitions (titles, questions, options, settings) and their published versions;
     </li>
-    <li>the ID of each response spreadsheet we created for you, and its connection state;</li>
     <li>
-      delivery records for each response: an ID, the form, timestamps, the delivery state, attempt
-      counts and error codes. They contain no answers and are deleted after 30 days;
+      the ID of each response spreadsheet we created for you, its tab, which column belongs to which
+      question, and its connection state;
+    </li>
+    <li>
+      delivery records for each response: an ID, the form and its version, the spreadsheet,
+      timestamps, the delivery state, attempt counts and error codes. They contain no answers and
+      are deleted after 30 days;
     </li>
     <li>a session record that holds only a hash of your session token, for at most 30 days.</li>
   </ul>
@@ -93,9 +118,11 @@ export const privacyBody = html`
   <ul>
     <li><strong>openid, email, profile</strong> — to sign you in and show who is signed in.</li>
     <li>
-      <strong>drive.file</strong> — to create a response spreadsheet in your Drive and add rows,
-      columns and column labels to the spreadsheets Freely Forms created or that you choose. It does
-      not give access to any other file.
+      <strong>drive.file</strong> — to create a response spreadsheet in your Drive, add a row for
+      each response, add columns for new questions, attach hidden labels that tell Freely Forms
+      which column belongs to which question, and read the response-ID column so a response is never
+      written twice. It works only on spreadsheets Freely Forms created and gives no access to any
+      other file.
     </li>
   </ul>
   <p>
@@ -124,8 +151,9 @@ export const privacyBody = html`
       deleted, delivered or not.
     </li>
     <li>
-      After delivery we delete our copy immediately. We keep only a delivery record without your
-      answers (see above).
+      After delivery we delete our copy right away; in rare cases a leftover encrypted copy expires
+      on its own within the same 7 days. We keep only a delivery record without your answers (see
+      above).
     </li>
   </ul>
   <p>
@@ -163,8 +191,9 @@ export const privacyBody = html`
   <ul>
     <li>
       On the Account page you can disconnect Google or delete your account. Deleting it removes your
-      forms, their history and all records above, revokes our Google access and discards responses
-      still waiting for delivery. Your spreadsheets stay in your Drive.
+      forms, their history and all records above, asks Google to revoke our access (we tell you if
+      Google does not confirm it), and discards responses still waiting for delivery; any encrypted
+      copy left in temporary storage expires within 7 days. Your spreadsheets stay in your Drive.
     </li>
     <li>
       You can also remove Freely Forms' access at

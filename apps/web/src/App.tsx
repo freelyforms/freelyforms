@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } fro
 import { Account } from "./Account.js";
 import { api, ApiError, GRANT_DRIVE_URL, SIGN_IN_URL, type Me } from "./api.js";
 import { Editor } from "./Editor.js";
+import { GoogleSignInButton } from "./GoogleButton.js";
 import { FormList } from "./FormList.js";
 import { href, navigate, useRoute } from "./router.js";
 
@@ -84,19 +85,26 @@ export function App() {
 }
 
 function SignIn() {
-  const error = new URLSearchParams(window.location.search).get("auth_error");
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get("auth_error");
+  const deleted = params.get("deleted");
   return (
     <main className="signin">
       <h1>Freely Forms</h1>
       <p className="lead">Free forms whose responses go straight to your own Google Sheet.</p>
+      {deleted && (
+        <p className="muted" role="status">
+          Your account was deleted.
+          {deleted === "unconfirmed" &&
+            " Google did not confirm that our access was revoked; you can remove Freely Forms at myaccount.google.com/permissions."}
+        </p>
+      )}
       {error && (
         <p className="alert" role="alert">
           {AUTH_ERRORS[error] ?? "Sign-in failed. Please try again."}
         </p>
       )}
-      <a className="button primary" href={SIGN_IN_URL}>
-        Sign in with Google
-      </a>
+      <GoogleSignInButton href={SIGN_IN_URL} />
       <p className="muted small">
         We ask only for your name, email and access to the files Freely Forms creates in your Drive.
         We never see the rest of your Drive.

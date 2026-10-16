@@ -94,7 +94,7 @@ POST /f/:formId (freelyforms.link/<formId> in production)
  -> load the published version; validate (form-engine); honeypot
  -> deliveries row (accepted → queued), encrypted payload → DELIVERY_QUEUE
  -> success page (or 201 JSON)
-Queue consumer (same Worker, ADR 0012; batches of up to 50):
+Queue consumer (same Worker, ADR 0012; batches of up to 10 on Workers Free, ADR 0014):
  -> group by form; refresh the owner's access token
  -> resolve columns by developer metadata, add columns for new fields
  -> on a retry, reconcile by _submission_id first (ADR 0013)
@@ -104,7 +104,7 @@ Queue consumer (same Worker, ADR 0012; batches of up to 50):
  -> at most GOOGLE_CALL_BUDGET Google calls per invocation; the rest go back to the queue
 POST /forms/:id/deliveries/resume re-queues held deliveries after the owner fixes the sheet.
 Hourly cron enforces the 7-day deadline, deletes expired sessions, prunes delivery records and
-resumes held deliveries a lagging KV listing missed.
+resumes held deliveries (found by their `held_at` mark) of destinations that are OK again.
 ```
 
 ## Idempotency

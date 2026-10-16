@@ -102,10 +102,13 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 
 - [x] Run within Workers Free limits for the beta ([ADR 0014](adr/0014-run-on-workers-free.md)).
 - [x] Production environment on Workers Free: D1, KV, queue + DLQ, rate limits, secrets, custom domains `freelyforms.com` and `freelyforms.link`, real Turnstile widget (2026-10-16). Workers Paid before the public launch.
-- [ ] Production Google OAuth: today the hosted service uses the development project's client with the production redirect added; sign-in is limited to test users until a production project is verified.
+- [ ] Production Google Cloud project and OAuth client (today the hosted service uses the development project's client with the production redirect added).
+- [ ] Publish the OAuth app "In production": in Testing, refresh tokens with `drive.file` expire after 7 days, which would block every owner's delivery weekly, and only test users can sign in.
+- [ ] Brand verification: domain ownership in Search Console, app name, logo (120×120), support email, homepage and privacy policy links.
+- [x] Homepage at `/` that describes the app and links the privacy policy and terms (server-rendered, `noindex` until the website launches).
+- [x] "Sign in with Google" button following Google's branding guidelines.
+- [ ] App logo and favicon.
 - [ ] Measure consumer CPU time against the 10 ms Workers Free limit.
-- [ ] Production Google Cloud project, OAuth client and brand verification.
 - [x] Privacy policy (`/privacy`, includes the 7-day transient retention and Google's Limited Use statement) and terms (`/terms`), operator: the non-commercial Freely Forms project. Legal review before public launch.
-- [ ] OAuth verification checklist.
 - [ ] Status/health checks; periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)).
 - [ ] Minimal public docs.

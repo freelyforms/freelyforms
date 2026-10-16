@@ -488,6 +488,15 @@ describe("public form", () => {
     expect((await app().request("http://forms.test/privacy", {}, formsEnv)).status).toBe(404);
   });
 
+  it("sends plain HTTP and the www host to the canonical HTTPS origin when hosted", async () => {
+    const hosted = { ...env, APP_ORIGIN: "https://app.test" };
+    const http = await app().request("http://app.test/app/?x=1", {}, hosted);
+    expect([http.status, http.headers.get("location")]).toEqual([308, "https://app.test/app/?x=1"]);
+    const www = await app().request("https://www.app.test/privacy", {}, hosted);
+    expect(www.headers.get("location")).toBe("https://app.test/privacy");
+    expect((await app().request("http://localhost/health", {}, env)).status).toBe(200);
+  });
+
   it("redirects forms on the app domain to the forms domain", async () => {
     const id = await publishedForm();
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
@@ -502,7 +511,7 @@ describe("public form", () => {
     expect((await app().request(`http://forms.test/${id}`, {}, formsEnv)).status).toBe(200);
     expect((await app().request("http://forms.test/auth/me", {}, formsEnv)).status).toBe(404);
     const home = await app().request(
-      "http://forms.test/",
+      "https://forms.test/",
       {},
       { ...formsEnv, APP_ORIGIN: "https://app.test" },
     );
@@ -771,6 +780,32 @@ describe("account", () => {
     expect(kv.store.size).toBe(1);
   });
 
+  it("reports when Google could not confirm the revocation, and still deletes the token", async () => {
+    await publishedForm();
+    const fetch = deps.fetch;
+    deps.fetch = (input, init) =>
+      String(input instanceof Request ? input.url : input).includes("/revoke")
+        ? Promise.resolve(new Response("down", { status: 503 }))
+        : fetch(input, init);
+    const res = await owner("/account/google/disconnect", { method: "POST" });
+    expect(await res.json()).toEqual({ disconnected: true, revokedAtGoogle: false });
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM google_connections").first("n")).toBe(0);
+  });
+
+  it("deletes the account even when the hold store fails", async () => {
+    const id = await publishedForm();
+    google.sheets.delete("sheet1");
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    await deliver();
+    kv.kv.delete = () => Promise.reject(new Error("kv down"));
+    const res = await owner("/account", {
+      method: "DELETE",
+      body: { confirm: "owner@example.com" },
+    });
+    expect(res.status).toBe(200);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM users").first("n")).toBe(0);
+  });
+
   it("deletes the account with all metadata and held payloads, never the sheet", async () => {
     const id = await publishedForm();
     google.sheets.delete("sheet1");
@@ -788,6 +823,8 @@ describe("account", () => {
     expect(res.headers.get("set-cookie")).toContain("__Host-ff_session=;");
 
     for (const table of [
+      "column_map_cache",
+      "form_daily_stats",
       "users",
       "sessions",
       "google_connections",

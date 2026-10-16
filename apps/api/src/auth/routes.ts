@@ -161,6 +161,14 @@ export function authRoutes(deps: Deps): Hono<{ Bindings: Env }> {
         )
         .bind(newId("gc"), user.id, scopes, JSON.stringify(envelope), now, now)
         .run();
+      // Access is back: destinations blocked only for lack of it are OK again, and the hourly
+      // sweep resumes their held deliveries (ADR 0011).
+      await db
+        .prepare(
+          "UPDATE destinations SET state = 'OK', last_error_code = NULL, updated_at = ? WHERE state = 'ACCESS_REVOKED' AND form_id IN (SELECT id FROM forms WHERE owner_id = ?)",
+        )
+        .bind(now, user.id)
+        .run();
     } else {
       await db
         .prepare("UPDATE google_connections SET scopes = ?, updated_at = ? WHERE user_id = ?")

@@ -83,6 +83,8 @@ export interface PageOptions {
   turnstileSiteKey?: string | undefined;
   /** Address for abuse reports, shown in the footer of every form (ADR 0010). */
   abuseEmail?: string | undefined;
+  /** The service's privacy policy, linked from every form. */
+  privacyUrl?: string | undefined;
   /** Owner preview of a draft: shows a banner and disables submitting. */
   preview?: boolean;
 }
@@ -130,7 +132,7 @@ function page(
             <a href="https://freelyforms.com" target="_blank" rel="noopener">Freely Forms</a>.
             Responses go to the form owner's Google Sheet.</span
           >
-          <a href="https://freelyforms.com/privacy" target="_blank" rel="noopener">Privacy</a>
+          ${opts.privacyUrl ? html`<a href="${opts.privacyUrl}" target="_blank" rel="noopener">Privacy</a>` : ""}
           ${report}
         </footer>
         <script nonce="${opts.nonce}">

@@ -188,6 +188,23 @@ describe("GET /auth/google/callback", () => {
     expect(users).toBe(1);
   });
 
+  it("marks destinations blocked for lack of access OK again when the owner signs back in", async () => {
+    const h = harness({ sub: "back-again", refreshToken: REFRESH });
+    await h.signIn("?consent=1");
+    const userId = (await env.DB.prepare("SELECT id FROM users").first("id")) as string;
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES ('frm_back01', ?, 'T', 'draft', '{}', 1, 1)",
+      ).bind(userId),
+      env.DB.prepare(
+        "INSERT INTO destinations (id, form_id, type, spreadsheet_id, sheet_id, state, created_at, updated_at) VALUES ('dst_back01', 'frm_back01', 'google_sheet', 's', 0, 'ACCESS_REVOKED', 1, 1)",
+      ),
+      env.DB.prepare("DELETE FROM google_connections"),
+    ]);
+    await harness({ sub: "back-again", refreshToken: REFRESH }).signIn("?consent=1");
+    expect(await env.DB.prepare("SELECT state FROM destinations").first("state")).toBe("OK");
+  });
+
   it("records missing Drive access when the user unticks it", async () => {
     const h = harness({ sub: "no-drive", refreshToken: REFRESH, scope: "openid email profile" });
     await h.signIn("?consent=1");
@@ -280,9 +297,10 @@ describe("sessions", () => {
     expect((await h.send("/auth/me")).status).toBe(401);
   });
 
-  it("sends the browser to the web app, which needs a build when assets are missing", async () => {
+  it("serves a homepage linking the privacy policy; the app needs a build when assets are missing", async () => {
     const h = harness({ sub: "landing", refreshToken: REFRESH });
-    expect(location(await h.send("/"))).toBe("/app/");
+    const home = await h.send("/");
+    expect(await home.text()).toContain('href="/privacy"');
     const res = await h.send("/app/forms");
     expect(res.status).toBe(503);
   });

@@ -6,7 +6,8 @@ import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
-import { legalPage, privacyBody, termsBody } from "./site/legal.js";
+import { homeBody } from "./site/home.js";
+import { legalPage, privacyBody, sitePage, termsBody } from "./site/legal.js";
 import { randomToken } from "./util.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
@@ -56,6 +57,21 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
         "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
       );
     }
+  });
+
+  // Hosted domains: plain HTTP and the www host go to the canonical HTTPS origin. Local development
+  // (no APP_ORIGIN) is untouched.
+  app.use(async (c, next) => {
+    const url = new URL(c.req.url);
+    const canonical = c.env.APP_ORIGIN ? new URL(c.env.APP_ORIGIN) : null;
+    if (canonical && url.hostname === `www.${canonical.hostname}`) {
+      return c.redirect(`${canonical.origin}${url.pathname}${url.search}`, 301);
+    }
+    if (canonical && url.protocol === "http:") {
+      url.protocol = "https:";
+      return c.redirect(url.toString(), 308); // 308 keeps the method of a form POST
+    }
+    await next();
   });
 
   // ADR 0010: on the forms domain every path is a public form (`/<formId>` → `/f/<formId>`), and
@@ -113,7 +129,19 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
 
   // The builder (apps/web) is a static app under /app/, served from the same origin as the API so
   // the session cookie and the Origin check work without CORS. "/" is the website later.
-  app.get("/", (c) => c.redirect("/app/", 302));
+  // Homepage (noindex until the public website launches).
+  app.get("/", (c) => {
+    const nonce = randomToken(16);
+    c.header(
+      "Content-Security-Policy",
+      `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    );
+    return c.html(
+      sitePage("Freely Forms — free forms for your Google Sheets", homeBody, nonce, {
+        noindex: true,
+      }),
+    );
+  });
   for (const [path, title, body] of [
     ["/privacy", "Privacy policy", privacyBody],
     ["/terms", "Terms of use", termsBody],

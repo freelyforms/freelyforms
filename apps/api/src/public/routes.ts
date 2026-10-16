@@ -91,6 +91,8 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
       nonce,
       turnstileSiteKey: turnstile ? c.env.TURNSTILE_SITE_KEY : undefined,
       abuseEmail: c.env.ABUSE_EMAIL,
+      // Forms on the forms domain link the policy on the app domain; in development, same origin.
+      privacyUrl: `${c.env.APP_ORIGIN ?? ""}/privacy`,
     });
     await next();
     c.header("X-Robots-Tag", "noindex");

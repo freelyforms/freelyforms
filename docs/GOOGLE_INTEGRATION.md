@@ -29,8 +29,9 @@ One Google Cloud project per environment (no organisation is required):
 
 - APIs enabled: Google Sheets API, Google Drive API, Google Picker API;
 - Google Auth Platform: user type External, scopes `openid`, `email`, `profile`, `drive.file` (all non-sensitive);
-- OAuth client of type Web application per environment; local development uses origin `http://localhost:8787` and redirect URI `http://localhost:8787/auth/google/callback`;
-- the app stays in Testing mode (test users only) until brand verification for production.
+- OAuth client of type Web application per environment; local development uses origin `http://localhost:8787` and redirect URI `http://localhost:8787/auth/google/callback`; the hosted service uses `https://freelyforms.com` and `https://freelyforms.com/auth/google/callback`;
+- authorised domain `freelyforms.com`, verified in Google Search Console by a project owner; homepage `https://freelyforms.com/`, privacy policy `https://freelyforms.com/privacy`, terms `https://freelyforms.com/terms`;
+- publishing status: an app in **Testing** accepts only listed test users, and its refresh tokens for scopes beyond the basic profile (here `drive.file`) expire after 7 days, which would block delivery weekly. Development projects may stay in Testing; the hosted service must be **In production**. With only non-sensitive scopes, production needs no security assessment or demo video, only brand verification (name, logo, domains, support email) to show the app's name and logo on the consent screen.
 
 ## Sign-in flow
 

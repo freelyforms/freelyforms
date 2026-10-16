@@ -3,7 +3,7 @@ import type { DeliveryMessage, Env } from "../env.js";
 /** KV requires expirations at least 60 seconds in the future. */
 const MIN_TTL_MS = 60_000;
 
-const key = (destinationId: string, submissionId: string) =>
+export const holdKey = (destinationId: string, submissionId: string) =>
   `hold:${destinationId}:${submissionId}`;
 
 /**
@@ -19,12 +19,13 @@ export async function hold(
   now: number,
 ): Promise<boolean> {
   if (expiresAt - now < MIN_TTL_MS) return false;
-  await env.HOLD.put(key(destinationId, message.submissionId), JSON.stringify(message), {
-    expiration: Math.floor(expiresAt / 1000),
-  });
+  // Mark first: a resume running meanwhile then sees the new mark and keeps the key it finds.
   await env.DB.prepare("UPDATE deliveries SET held_at = ? WHERE submission_id = ?")
     .bind(now, message.submissionId)
     .run();
+  await env.HOLD.put(holdKey(destinationId, message.submissionId), JSON.stringify(message), {
+    expiration: Math.floor(expiresAt / 1000),
+  });
   return true;
 }
 
@@ -72,7 +73,16 @@ export async function resumeHeld(
       )
         .bind(message.submissionId, row.held_at)
         .run();
-      if (meta.changes > 0) await env.HOLD.delete(name);
+      if (meta.changes > 0) {
+        await env.HOLD.delete(name);
+      } else {
+        // Delivered or failed meanwhile (the consumer clears the mark): the key is a leftover.
+        const now = await env.DB.prepare("SELECT state FROM deliveries WHERE submission_id = ?")
+          .bind(message.submissionId)
+          .first<{ state: string }>();
+        if (!now || now.state === "delivered" || now.state === "permanently_failed")
+          await env.HOLD.delete(name);
+      }
       resumed.push(message.submissionId);
     }
     cursor = page.list_complete ? undefined : page.cursor;

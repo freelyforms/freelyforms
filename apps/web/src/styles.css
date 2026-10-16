@@ -564,3 +564,22 @@ button.small {
 .card.has-issues {
   border-color: var(--danger);
 }
+.gsi-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f1f1f;
+  font:
+    500 14px/20px Roboto,
+    Arial,
+    sans-serif;
+  text-decoration: none;
+}
+.gsi-button:hover {
+  background: #f8f8f8;
+}

@@ -3,54 +3,36 @@ import { revokeToken } from "@freelyforms/google";
 import { Hono, type Context } from "hono";
 import { deleteCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "./auth/session.js";
-import type { Deps, Env } from "./env.js";
+import type { Deps } from "./env.js";
+import { holdKey } from "./delivery/hold.js";
 import { keyringFor } from "./keys.js";
 import { requireUser, type OwnerEnv } from "./require-user.js";
 
 type Ctx = Context<OwnerEnv>;
 
-/** Revokes the user's Google grant (best effort) and deletes the stored token. */
-async function disconnectGoogle(c: Ctx, deps: Deps): Promise<{ revoked: boolean }> {
+/** The user's decrypted refresh token, or null when there is none or it cannot be decrypted. */
+async function refreshTokenOf(c: Ctx): Promise<string | null> {
   const userId = c.var.user.id;
   const row = await c.env.DB.prepare(
     "SELECT refresh_token FROM google_connections WHERE user_id = ?",
   )
     .bind(userId)
     .first<{ refresh_token: string }>();
-  if (!row) return { revoked: true };
-  let revoked: boolean;
+  if (!row) return null;
   try {
-    const token = await decryptText(
+    return await decryptText(
       await keyringFor(c.env),
       JSON.parse(row.refresh_token) as Envelope,
       `google-refresh:${userId}`,
     );
-    revoked = await revokeToken(deps.fetch, token);
   } catch {
-    // An undecryptable token cannot be used by anyone; deleting it below is enough.
-    revoked = true;
+    return null; // an undecryptable token cannot be used by anyone
   }
-  // The token is deleted even if Google could not be reached: we must not keep it.
-  await c.env.DB.prepare("DELETE FROM google_connections WHERE user_id = ?").bind(userId).run();
-  return { revoked };
 }
 
-/** Deletes every held (encrypted) delivery of the user's destinations from the hold store. */
-async function deleteHeld(env: Env, userId: string): Promise<void> {
-  const { results } = await env.DB.prepare(
-    "SELECT d.id FROM destinations d JOIN forms f ON f.id = d.form_id WHERE f.owner_id = ?",
-  )
-    .bind(userId)
-    .all<{ id: string }>();
-  for (const { id } of results) {
-    let cursor: string | undefined;
-    do {
-      const page = await env.HOLD.list({ prefix: `hold:${id}:`, ...(cursor ? { cursor } : {}) });
-      for (const { name } of page.keys) await env.HOLD.delete(name);
-      cursor = page.list_complete ? undefined : page.cursor;
-    } while (cursor);
-  }
-}
+/** Asks Google to revoke a token; no token means nothing to revoke. Never throws. */
+const revoke = async (deps: Deps, token: string | null): Promise<boolean> =>
+  token === null ? true : revokeToken(deps.fetch, token);
 
 /**
  * Account management (docs/SECURITY_PRIVACY.md, Data deletion). Nothing here touches the owner's
@@ -61,18 +43,25 @@ export function accountRoutes(deps: Deps): Hono<OwnerEnv> {
   account.use(requireUser(deps));
 
   /**
-   * Disconnects Google: revokes the grant and deletes the token. Published forms keep accepting
-   * responses, which wait (blocked, encrypted, at most 7 days) until the owner signs in again.
+   * Disconnects Google: deletes the stored token and asks Google to revoke the grant. Published
+   * forms keep accepting responses, which wait (blocked, encrypted, at most 7 days); signing in
+   * again resumes them.
    */
   account.post("/google/disconnect", async (c) => {
-    const { revoked } = await disconnectGoogle(c, deps);
-    return c.json({ disconnected: true, revokedAtGoogle: revoked });
+    const token = await refreshTokenOf(c);
+    // The token is deleted even if Google cannot be reached: we must not keep it.
+    await c.env.DB.prepare("DELETE FROM google_connections WHERE user_id = ?")
+      .bind(c.var.user.id)
+      .run();
+    return c.json({ disconnected: true, revokedAtGoogle: await revoke(deps, token) });
   });
 
   /**
-   * Deletes the account: revokes Google access, deletes held deliveries, and deletes the user with
-   * all metadata (sessions, forms, versions, destinations, delivery records) by cascade. The body
-   * must repeat the account email as confirmation.
+   * Deletes the account. The user and all metadata (sessions, connection, forms, versions,
+   * destinations, delivery records) go first, by cascade, so a later failure cannot leave the
+   * account behind. Then, best effort: Google revokes the grant, and held payloads are deleted from
+   * the hold store (anything missed expires there within 7 days). The body must repeat the account
+   * email as confirmation.
    */
   account.delete("/", async (c) => {
     const body = await c.req.json<{ confirm?: unknown }>().catch(() => ({ confirm: undefined }));
@@ -82,10 +71,21 @@ export function accountRoutes(deps: Deps): Hono<OwnerEnv> {
     ) {
       return c.json({ error: "confirmation_required" }, 422);
     }
-    const { revoked } = await disconnectGoogle(c, deps);
-    await deleteHeld(c.env, c.var.user.id);
-    await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(c.var.user.id).run();
+    const userId = c.var.user.id;
+    const token = await refreshTokenOf(c);
+    const { results: held } = await c.env.DB.prepare(
+      `SELECT x.destination_id, x.submission_id FROM deliveries x JOIN forms f ON f.id = x.form_id
+       WHERE f.owner_id = ? AND x.held_at IS NOT NULL AND x.destination_id IS NOT NULL`,
+    )
+      .bind(userId)
+      .all<{ destination_id: string; submission_id: string }>();
+    await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
     deleteCookie(c, SESSION_COOKIE, { prefix: "host", path: "/", secure: true });
+
+    const revoked = await revoke(deps, token);
+    for (const { destination_id, submission_id } of held) {
+      await c.env.HOLD.delete(holdKey(destination_id, submission_id)).catch(() => undefined);
+    }
     return c.json({ deleted: true, revokedAtGoogle: revoked });
   });
 

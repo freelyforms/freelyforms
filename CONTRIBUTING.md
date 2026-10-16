@@ -10,11 +10,11 @@ Thanks for your interest in improving Freely Forms.
 
 ## Contributor License Agreement
 
-External contributions require signing the [Contributor License Agreement](CLA.md). A bot will ask you to sign on your first pull request; it takes one click. You keep the copyright in your work. See [ADR 0009](docs/adr/0009-license-apache-2-and-cla.md) for why.
+External contributions require signing the [Contributor License Agreement](CLA.md). When the repository is published on GitHub, a bot (CLA Assistant) will ask you to sign on your first pull request; it takes one click. Until then, contributions are not accepted. You keep the copyright in your work. See [ADR 0009](docs/adr/0009-license-apache-2-and-cla.md) for why.
 
 ## Ground rules
 
-- Never commit secrets, credentials, real user data or production identifiers.
+- Never commit secrets, credentials, real user data, or identifiers that grant access by themselves. Resource IDs in `wrangler.jsonc` and the public Turnstile site key are fine: they are useless without account credentials.
 - Do not log OAuth tokens or form answers, even in tests or debug output.
 - Respondent data is always written to Google Sheets as typed cells that Sheets never parses as formulas ([ADR 0002](docs/adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](docs/adr/0013-delivery-refinements.md)).
 - New Google OAuth scopes require an ADR ([ADR 0006](docs/adr/0006-oauth-scopes-drive-file-picker.md)).

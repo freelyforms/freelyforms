@@ -90,7 +90,10 @@ export const api = {
       method: "POST",
     }),
   deleteAccount: (confirm: string) =>
-    request<{ deleted: true }>("/account", { method: "DELETE", body: { confirm } }),
+    request<{ deleted: true; revokedAtGoogle: boolean }>("/account", {
+      method: "DELETE",
+      body: { confirm },
+    }),
 };
 
 export const SIGN_IN_URL = "/auth/google/start";
