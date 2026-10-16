@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "frm_contact01",
+  "title": "Contact us",
+  "settings": {
+    "submitLabel": "Send",
+    "success": { "type": "message", "message": "Thanks — your message was received." }
+  },
+  "fields": [
+    { "id": "fld_name", "type": "text", "label": "Name", "required": true, "maxLength": 200 },
+    { "id": "fld_email", "type": "email", "label": "Email", "required": true },
+    {
+      "id": "fld_message",
+      "type": "textarea",
+      "label": "Message",
+      "required": true,
+      "minLength": 10
+    }
+  ]
+}

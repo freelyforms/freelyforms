@@ -12,11 +12,11 @@
 ## Schema
 
 - [x] Create `packages/form-schema`.
-- [ ] Define schema versioning.
-- [ ] Define MVP field types.
-- [ ] Define validation model.
+- [x] Define schema versioning.
+- [x] Define MVP field types.
+- [x] Define validation model (`validateSubmission` in `packages/form-engine`).
 - [ ] Define conditional-logic model placeholder.
-- [ ] Add JSON schema/export representation.
+- [x] Add JSON schema/export representation.
 
 ## Auth
 

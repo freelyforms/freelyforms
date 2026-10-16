@@ -3,3 +3,4 @@ LICENSE
 private/
 dist/
 coverage/
+packages/form-schema/form-v1.schema.json
