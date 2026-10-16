@@ -14,6 +14,8 @@ The product may eventually market itself around not centrally storing submission
 - minimise scopes;
 - document data use clearly for OAuth verification.
 
+Implementation: `packages/crypto` provides envelope encryption (AES-256-GCM via Web Crypto) with a fresh data key per value, a master key held as a deployment secret, associated data that binds each ciphertext to its owner (user ID for tokens, submission ID for queued payloads), and key rotation through a keyring and `rewrap`.
+
 ## Submission data
 
 Transient handling is allowed only where operationally necessary for reliable delivery.

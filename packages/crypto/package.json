@@ -1,0 +1,11 @@
+{
+  "name": "@freelyforms/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Envelope encryption (AES-256-GCM, Web Crypto) for OAuth tokens and queued submissions.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
