@@ -30,6 +30,7 @@ pnpm check   # format, lint, typecheck, tests, private-file guard
 pnpm test:watch
 
 # API on a local Worker with a local D1 database
+cp apps/api/.dev.vars.example apps/api/.dev.vars   # then fill in your own Google OAuth client
 pnpm --filter @freelyforms/api db:migrate:local
 pnpm --filter @freelyforms/api dev
 ```

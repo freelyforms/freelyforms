@@ -23,6 +23,15 @@ Prefer file-scoped access patterns such as `drive.file` where they satisfy the f
 
 MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets are attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md)). Respondent values are written with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 
+## Google Cloud setup
+
+One Google Cloud project per environment (no organisation is required):
+
+- APIs enabled: Google Sheets API, Google Drive API, Google Picker API;
+- Google Auth Platform: user type External, scopes `openid`, `email`, `profile`, `drive.file` (all non-sensitive);
+- OAuth client of type Web application per environment; local development uses origin `http://localhost:8787` and redirect URI `http://localhost:8787/auth/google/callback`;
+- the app stays in Testing mode (test users only) until brand verification for production.
+
 ## Spreadsheet ownership
 
 A form may support two destinations:
