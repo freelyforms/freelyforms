@@ -249,6 +249,15 @@ describe("sessions", () => {
     expect((await harness({ sub: "anon" }).send("/auth/me")).status).toBe(401);
   });
 
+  it("replaces the previous session when the same browser signs in again", async () => {
+    const h = harness({ sub: "rotate", refreshToken: REFRESH });
+    await h.signIn("?consent=1");
+    const first = h.jar.get("__Host-ff_session");
+    await h.signIn("?consent=1");
+    expect(h.jar.get("__Host-ff_session")).not.toBe(first);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM sessions").first("n")).toBe(1);
+  });
+
   it("signs out only with a same-origin POST", async () => {
     const h = harness({ sub: "logout", refreshToken: REFRESH });
     await h.signIn("?consent=1");

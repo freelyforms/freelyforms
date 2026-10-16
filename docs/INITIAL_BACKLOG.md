@@ -25,6 +25,7 @@
 - [x] Google connection model separate from app session.
 - [x] Encrypted token storage (refresh token as an envelope bound to the user ID).
 - [ ] Disconnect/revoke flow.
+- [ ] Scheduled cleanup of expired sessions and pruned delivery records.
 
 ## Builder
 

@@ -167,6 +167,8 @@ export function authRoutes(deps: Deps): Hono<{ Bindings: Env }> {
         .run();
     }
 
+    // Rotate: a new sign-in always replaces the browser's previous session.
+    await endSession(c);
     await startSession(c, user.id, now);
     return c.redirect("/", 302);
   });
