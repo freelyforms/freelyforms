@@ -1,0 +1,317 @@
+import { useCallback, useEffect, useState } from "react";
+import {
+  api,
+  ApiError,
+  GRANT_DRIVE_URL,
+  type Deliveries,
+  type DestinationState,
+  type FormView,
+} from "./api.js";
+
+const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
+  ACCESS_REVOKED:
+    "Freely Forms lost access to your Google account. Sign in again and allow Drive access, then resume delivery.",
+  SHEET_DELETED:
+    "The response sheet was deleted or moved to the bin. Restore it from the bin in Google Drive, then resume delivery.",
+  TAB_MISSING:
+    "The responses tab was deleted from the sheet. Restore it with the sheet's version history, then resume delivery.",
+  COLUMN_MISSING:
+    "A system column (_submission_id, _submitted_at or _form_version) was deleted. Restore it with the sheet's version history, then resume delivery.",
+  QUOTA: "Google is limiting requests right now. Delivery continues automatically.",
+};
+
+const PUBLISH_ERRORS: Record<string, string> = {
+  no_fields: "Add at least one field before publishing.",
+  invalid_form: "Fix the highlighted problems before publishing.",
+  google_access_required:
+    "Freely Forms needs access to your Google Drive to create the response sheet.",
+  destination_missing:
+    "The response sheet is missing. Restore it in Google Drive, then publish again.",
+  publish_conflict: "The form was published from another tab at the same time. Reload the page.",
+  google_unavailable: "Google is not responding right now. Please try again in a minute.",
+};
+
+const STATE_LABELS: Record<string, string> = {
+  delivered: "delivered",
+  queued: "waiting",
+  accepted: "waiting",
+  delivering: "being written",
+  retrying: "retrying",
+  unknown: "being checked",
+  blocked: "on hold",
+  permanently_failed: "failed",
+};
+
+interface Props {
+  view: FormView;
+  fieldCount: number;
+  saveState: string;
+  flush: () => Promise<boolean>;
+  onPublished: (view: FormView) => void;
+}
+
+export function SharePanel({ view, fieldCount, saveState, flush, onPublished }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<Deliveries | null>(null);
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
+
+  const loadDeliveries = useCallback(() => {
+    api.deliveries(view.id).then(setDeliveries, () => {
+      setDeliveries(null);
+    });
+  }, [view.id]);
+
+  useEffect(() => {
+    if (view.status === "published") loadDeliveries();
+  }, [view.status, loadDeliveries]);
+
+  const publish = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (saveState !== "saved" && !(await flush())) {
+        setError(PUBLISH_ERRORS.invalid_form ?? null);
+        return;
+      }
+      onPublished(await api.publish(view.id));
+      loadDeliveries();
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : "network";
+      setError(PUBLISH_ERRORS[code] ?? "Publishing failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resume = async () => {
+    setBusy(true);
+    try {
+      const r = await api.resume(view.id);
+      setResumeNote(
+        r.resumed === 0
+          ? "Delivery resumed. Nothing was waiting."
+          : `${String(r.resumed)} response(s) sent to your sheet again.${r.more ? " More are on their way." : ""}`,
+      );
+      loadDeliveries();
+    } catch {
+      setResumeNote("Could not resume delivery. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const published = view.status === "published" && view.public;
+  const needsPublish = !published || view.hasUnpublishedChanges || saveState !== "saved";
+  const destinationState = deliveries?.destination?.state ?? view.destination?.state;
+  const problem =
+    destinationState && destinationState !== "OK" ? DESTINATION_PROBLEMS[destinationState] : null;
+  const held = (deliveries?.counts.blocked ?? 0) > 0;
+
+  return (
+    <div className="share">
+      <div className="card">
+        <h2 className="small-heading">{published ? "Published" : "Not published yet"}</h2>
+        <p className="muted">
+          {published
+            ? view.hasUnpublishedChanges || saveState !== "saved"
+              ? "You have changes that respondents do not see yet."
+              : "Respondents see the latest version."
+            : "Publishing creates a Google Sheet for responses in your Drive and gives you a public link."}
+        </p>
+        <button
+          type="button"
+          className="primary"
+          disabled={busy || fieldCount === 0 || !needsPublish}
+          onClick={() => void publish()}
+        >
+          {busy ? "Publishing…" : published ? "Publish changes" : "Publish form"}
+        </button>
+        {fieldCount === 0 && <p className="muted small">Add at least one field first.</p>}
+        {error && (
+          <p className="alert" role="alert">
+            {error}{" "}
+            {error === PUBLISH_ERRORS.google_access_required && (
+              <a href={GRANT_DRIVE_URL}>Grant access</a>
+            )}
+          </p>
+        )}
+      </div>
+
+      {published && view.public && (
+        <>
+          <div className="card">
+            <h2 className="small-heading">Link</h2>
+            <CopyField label="Public link" value={view.public.url} />
+            <p>
+              <a href={view.public.url} target="_blank" rel="noopener">
+                Open the form
+              </a>
+            </p>
+          </div>
+          <div className="card">
+            <h2 className="small-heading">Embed on a website</h2>
+            <p className="muted small">
+              Paste this where the form should appear. It adjusts its height to the form.
+            </p>
+            <CopyField label="Embed code" value={view.public.embedCode} multiline />
+          </div>
+        </>
+      )}
+
+      {view.destination && (
+        <div className="card">
+          <h2 className="small-heading">Responses</h2>
+          <p>
+            Responses are written to{" "}
+            <a href={view.destination.url} target="_blank" rel="noopener">
+              your Google Sheet
+            </a>
+            , usually within seconds.
+          </p>
+          {problem && (
+            <p className="alert" role="alert">
+              {problem}
+              {destinationState === "ACCESS_REVOKED" && (
+                <>
+                  {" "}
+                  <a href={GRANT_DRIVE_URL}>Sign in again</a>
+                </>
+              )}
+            </p>
+          )}
+          {deliveries && Object.keys(deliveries.counts).length > 0 && (
+            <ul className="counts">
+              {Object.entries(deliveries.counts).map(([state, n]) => (
+                <li key={state}>
+                  <strong>{n}</strong> {STATE_LABELS[state] ?? state}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted small">Last 30 days. Responses are never stored by Freely Forms.</p>
+          {(problem || held) && (
+            <button type="button" disabled={busy} onClick={() => void resume()}>
+              I fixed it — resume delivery
+            </button>
+          )}
+          {resumeNote && (
+            <p className="muted" role="status">
+              {resumeNote}
+            </p>
+          )}
+          <button type="button" className="link" onClick={loadDeliveries}>
+            Refresh
+          </button>
+        </div>
+      )}
+
+      <DeleteForm id={view.id} />
+    </div>
+  );
+}
+
+function CopyField({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="copy">
+      <label className="visually-hidden" htmlFor={`copy-${label}`}>
+        {label}
+      </label>
+      {multiline ? (
+        <textarea
+          id={`copy-${label}`}
+          readOnly
+          rows={4}
+          value={value}
+          onFocus={(e) => {
+            e.target.select();
+          }}
+        />
+      ) : (
+        <input
+          id={`copy-${label}`}
+          readOnly
+          value={value}
+          onFocus={(e) => {
+            e.target.select();
+          }}
+        />
+      )}
+      <button type="button" onClick={() => void copy()}>
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+function DeleteForm({ id }: { id: string }) {
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState(false);
+  const remove = async () => {
+    try {
+      await api.deleteForm(id);
+      window.location.assign("/app/");
+    } catch {
+      setError(true);
+    }
+  };
+  return (
+    <div className="card danger-zone">
+      <h2 className="small-heading">Delete form</h2>
+      <p className="muted small">
+        The form stops accepting responses. Your Google Sheet and its responses stay in your Drive.
+      </p>
+      {confirm ? (
+        <>
+          <button type="button" className="danger" onClick={() => void remove()}>
+            Yes, delete this form
+          </button>{" "}
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setConfirm(false);
+            }}
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => {
+            setConfirm(true);
+          }}
+        >
+          Delete form…
+        </button>
+      )}
+      {error && (
+        <p className="alert" role="alert">
+          The form could not be deleted. Please try again.
+        </p>
+      )}
+    </div>
+  );
+}

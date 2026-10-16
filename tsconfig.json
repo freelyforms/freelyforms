@@ -18,6 +18,9 @@
     },
     {
       "path": "packages/google"
+    },
+    {
+      "path": "apps/web"
     }
   ]
 }

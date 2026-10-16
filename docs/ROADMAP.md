@@ -17,7 +17,7 @@ Status: done, except the deployment skeleton (no production environment yet) and
 
 ## Phase 1 — End-to-end MVP
 
-Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Missing: the builder UI, attaching an existing sheet, theme, embed, owner-facing delivery status, account disconnect/deletion, production deployment. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
+Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Done in the web app: builder with live preview, basic theme, publish flow, embed code, delivery status. Missing: attaching an existing sheet, account disconnect/deletion, production deployment. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
 
 - Google sign-in;
 - create/edit/delete form;

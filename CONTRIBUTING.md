@@ -29,13 +29,15 @@ pnpm install
 pnpm check   # format, lint, typecheck, tests, private-file guard
 pnpm test:watch
 
-# API on a local Worker with a local D1 database
+# API and builder on a local Worker with a local D1 database
 cp apps/api/.dev.vars.example apps/api/.dev.vars   # then fill in your own Google OAuth client
 pnpm --filter @freelyforms/api db:migrate:local
-pnpm --filter @freelyforms/api dev
+pnpm dev   # builds apps/web, then rebuilds it on change while the Worker runs
 ```
 
-To check delivery against real Google Sheets with your own account, sign in at http://localhost:8787 with Drive access, then run `FREELYFORMS_LIVE_GOOGLE=1 pnpm exec vitest run apps/api/test/sheets.live.test.ts`. It creates a spreadsheet named "Freely Forms test responses" in your Drive; it is skipped in normal test runs and CI.
+Open http://localhost:8787/app/. The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change.
+
+To check delivery against real Google Sheets with your own account, sign in at http://localhost:8787/app/ with Drive access, then run `FREELYFORMS_LIVE_GOOGLE=1 pnpm exec vitest run apps/api/test/sheets.live.test.ts`. It creates a spreadsheet named "Freely Forms test responses" in your Drive; it is skipped in normal test runs and CI.
 
 The API tests apply the real migrations to a local D1 database (workerd) through Wrangler; no Cloudflare account is needed.
 

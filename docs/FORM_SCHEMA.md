@@ -16,7 +16,8 @@ The form schema is one of the project's most important assets. All clients and r
     "success": {
       "type": "message",
       "message": "Thanks — your response was received."
-    }
+    },
+    "theme": { "accent": "#1f5fd6", "colorScheme": "auto" }
   },
   "fields": [
     {
@@ -45,6 +46,7 @@ Rules:
 - form IDs match `frm_[A-Za-z0-9]{6,32}`, field IDs `fld_[a-z0-9_]{1,48}`, option IDs `opt_[a-z0-9_]{1,48}`;
 - at most 200 fields per form and 500 options per choice field;
 - text limits never exceed 50,000 characters (the Google Sheets cell limit); defaults are 1,000 for `text` and 10,000 for `textarea`.
+- `settings` (all optional): `submitLabel`, `success` message, and `theme` with `accent` (a `#rrggbb` colour) and `colorScheme` (`auto`, `light` or `dark`).
 
 | Type          | Answer value                     | Type-specific properties                            |
 | ------------- | -------------------------------- | --------------------------------------------------- |

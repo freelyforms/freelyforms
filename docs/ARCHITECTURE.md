@@ -83,6 +83,10 @@ A submission payload may have to exist temporarily in a durable queue to guarant
 
 Delivery states, the `blocked` and `unknown` states and reconciliation of ambiguous writes are defined in [ADR 0003](adr/0003-delivery-states-and-reconciliation.md). Deliveries blocked by an owner-fixable problem wait in a key-value store with automatic expiry, not in the queue ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md)).
 
+## Implemented web app
+
+`apps/web` is a React single-page app built with Vite and served by the API Worker under `/app/` (Workers static assets, [ADR 0012](adr/0012-single-worker-for-mvp.md)). It edits the draft as schema JSON with pure, tested functions (`apps/web/src/draft.ts`), validates it in the browser with the same `parseForm` the server uses, autosaves, and shows a live preview rendered by the real public renderer (`GET /forms/:id/preview`). Its CSP allows only same-origin scripts and styles.
+
 ## Implemented delivery path
 
 ```text

@@ -20,16 +20,17 @@ Conventions:
 
 ## Forms (owner)
 
-| Method and path                     | Body / result                                                                                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /forms`                        | `{ forms: [{ id, title, status, publishedVersion, updatedAt }] }`, newest first; archived forms are omitted.                                      |
-| `POST /forms`                       | Body `{ title? }`. Creates an empty draft. `201` with the form view.                                                                              |
-| `GET /forms/:id`                    | Form view: `{ id, title, status, publishedVersion, updatedAt, draft, destination: { state, url } \| null }`.                                      |
-| `PUT /forms/:id/draft`              | Body: a full form document ([FORM_SCHEMA.md](FORM_SCHEMA.md)), at most 256 KB, with the same `id`. `422 invalid_form` lists path-tagged `issues`. |
-| `POST /forms/:id/publish`           | Publishes the draft as a new immutable version. The first publish creates the response spreadsheet in the owner's Drive. See errors below.        |
-| `GET /forms/:id/deliveries`         | `{ destination: { state } \| null, counts: { <deliveryState>: n } }` for delivery records of the last 30 days.                                    |
-| `POST /forms/:id/deliveries/resume` | After the owner fixes the sheet: re-queues held deliveries, up to 100 per call. `{ resumed: n, more: boolean }`; call again while `more` is true. |
-| `DELETE /forms/:id`                 | Archives the form (it stops accepting responses). `204`. The spreadsheet is never touched.                                                        |
+| Method and path                     | Body / result                                                                                                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /forms`                        | `{ forms: [{ id, title, status, publishedVersion, updatedAt }] }`, newest first; archived forms are omitted.                                                            |
+| `POST /forms`                       | Body `{ title? }`. Creates an empty draft. `201` with the form view.                                                                                                    |
+| `GET /forms/:id`                    | Form view: `{ id, title, status, publishedVersion, updatedAt, draft, hasUnpublishedChanges, public: { url, embedCode } \| null, destination: { state, url } \| null }`. |
+| `GET /forms/:id/preview`            | The draft rendered by the public renderer as HTML, for the builder's preview frame. Never submits; can be framed only by the app.                                       |
+| `PUT /forms/:id/draft`              | Body: a full form document ([FORM_SCHEMA.md](FORM_SCHEMA.md)), at most 256 KB, with the same `id`. `422 invalid_form` lists path-tagged `issues`.                       |
+| `POST /forms/:id/publish`           | Publishes the draft as a new immutable version. The first publish creates the response spreadsheet in the owner's Drive. See errors below.                              |
+| `GET /forms/:id/deliveries`         | `{ destination: { state } \| null, counts: { <deliveryState>: n } }` for delivery records of the last 30 days.                                                          |
+| `POST /forms/:id/deliveries/resume` | After the owner fixes the sheet: re-queues held deliveries, up to 100 per call. `{ resumed: n, more: boolean }`; call again while `more` is true.                       |
+| `DELETE /forms/:id`                 | Archives the form (it stops accepting responses). `204`. The spreadsheet is never touched.                                                                              |
 
 Publish errors: `422 no_fields`, `422 invalid_form`, `409 google_access_required` (sign in again with Drive access), `409 destination_missing` (the sheet or tab is gone), `409 publish_conflict` (another publish of the same form won), `503 google_unavailable` (retry later).
 
@@ -42,6 +43,7 @@ Served at `https://freelyforms.link/<formId>` in production and at `/f/<formId>`
 | Method and path   | Purpose                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
 | `GET /f/:formId`  | The published form as accessible HTML (`noindex`, nonce CSP, embeddable).                                |
+| `GET /embed.js`   | Embed script (`/f/embed.js` in development); sizes `<iframe data-freelyforms>` to the form's height.     |
 | `POST /f/:formId` | A submission. Accepts `application/x-www-form-urlencoded`, `multipart/form-data` (no files yet) or JSON. |
 
 Submissions:
@@ -53,6 +55,27 @@ Submissions:
 - Clients that send `Accept: application/json` get `201 { ok: true, submissionId }`, `422 { error: "invalid", errors: [{ fieldId, code, params? }] }`, `403 challenge_failed`, `429 rate_limited` (with `Retry-After`), `413 too_large`, `400 invalid_body` or `404 not_found`.
 
 A `201` means the response was accepted and queued, not that it is already in the sheet: delivery is asynchronous and usually takes seconds ([ARCHITECTURE.md](ARCHITECTURE.md)).
+
+## Embedding
+
+```html
+<iframe
+  data-freelyforms
+  src="https://freelyforms.link/<formId>"
+  title="Contact us"
+  width="100%"
+  height="600"
+  style="border:0;width:100%"
+  loading="lazy"
+></iframe>
+<script src="https://freelyforms.link/embed.js" async></script>
+```
+
+The form page posts its height to the parent window (`{ type: "freelyforms:height", height }`); the script accepts these messages only from its own origin and asks again when it loads late. Without the script the iframe keeps its fixed height.
+
+## Web app
+
+The builder is served at `/app/` by the same Worker (static assets from `apps/web/dist`), so it uses the session cookie and the Origin check without CORS. `/` redirects to `/app/` until the public website exists.
 
 ## Operations
 

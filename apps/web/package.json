@@ -1,0 +1,23 @@
+{
+  "name": "@freelyforms/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builder and dashboard: a static app served by the API Worker under /app/.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch --mode development"
+  },
+  "dependencies": {
+    "@freelyforms/form-schema": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.2"
+  }
+}

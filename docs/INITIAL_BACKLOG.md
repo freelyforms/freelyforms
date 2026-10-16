@@ -34,12 +34,13 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 
 - [x] Forms API: list, create, save draft, publish, soft delete ([API.md](API.md)).
 - [x] Draft/published version model.
-- [ ] Web app `apps/web`: sign-in, form list/dashboard.
-- [ ] Add/edit/remove fields, field settings, options.
-- [ ] Reorder fields.
-- [ ] Preview with the real renderer.
-- [ ] Publish flow with the public link, the sheet link and the embed code.
-- [ ] Delivery status panel: destination state, counts by delivery state, "Resume" after a fix.
+- [x] Web app `apps/web`: sign-in, form list/dashboard.
+- [x] Add/edit/remove/duplicate fields, field settings, options.
+- [x] Reorder fields (buttons and drag and drop).
+- [x] Preview with the real renderer.
+- [x] Publish flow with the public link, the sheet link and the embed code.
+- [x] Delivery status panel: destination state, counts by delivery state, "Resume" after a fix.
+- [ ] Browser tests of the builder (Playwright) once the UI settles.
 
 ## Google Sheets
 
@@ -67,9 +68,10 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [x] Success and error states.
 - [ ] Client-side validation enhancement (same `form-engine` in the browser).
-- [ ] Basic appearance: theme settings in the schema (accent colour, font, light/dark), applied by the renderer.
-- [ ] Embed: iframe snippet and a small script that resizes the iframe; documented.
-- [ ] "Report abuse" link on every form page ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
+- [x] Basic appearance: theme settings in the schema (accent colour, light/dark), applied by the renderer.
+- [ ] Appearance, later: font, logo, background.
+- [x] Embed: iframe snippet and a small script that resizes the iframe ([API.md](API.md#embedding)).
+- [x] "Report abuse" link on every form page ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [ ] Owner notification of blocked and soon-to-expire deliveries (dashboard first, email later).
 
 ## Abuse/security

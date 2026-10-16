@@ -59,7 +59,7 @@ If the local `private/` directory exists, also read all Markdown files in it. Th
 
 Use a TypeScript monorepo. Prefer current stable versions at implementation time.
 
-Target layout (packages are added only when code needs them; `apps/api` and the packages `form-schema`, `form-engine`, `crypto`, `db` and `google` exist today). Per ADR 0012 the queue consumer and the public renderer live inside `apps/api` until they need to be split:
+Target layout (packages are added only when code needs them; `apps/api`, `apps/web` and the packages `form-schema`, `form-engine`, `crypto`, `db` and `google` exist today). Per ADR 0012 the queue consumer and the public renderer live inside `apps/api` until they need to be split:
 
 ```text
 apps/
