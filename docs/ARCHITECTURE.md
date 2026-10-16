@@ -81,7 +81,7 @@ The implementation must define a reliable failure strategy. Suggested states:
 
 A submission payload may have to exist temporarily in a durable queue to guarantee delivery. It is encrypted at the application level and kept for at most 7 days ([ADR 0008](adr/0008-queue-retention-and-encryption.md)). Do not silently turn the queue into permanent storage.
 
-Delivery states, the `blocked` and `unknown` states and reconciliation of ambiguous writes are defined in [ADR 0003](adr/0003-delivery-states-and-reconciliation.md).
+Delivery states, the `blocked` and `unknown` states and reconciliation of ambiguous writes are defined in [ADR 0003](adr/0003-delivery-states-and-reconciliation.md). Deliveries blocked by an owner-fixable problem wait in a key-value store with automatic expiry, not in the queue ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md)).
 
 ## Idempotency
 

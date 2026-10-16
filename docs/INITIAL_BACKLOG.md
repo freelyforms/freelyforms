@@ -51,7 +51,7 @@
 - [ ] Client + server validation.
 - [ ] Submit endpoint.
 - [x] Metadata schema without answer storage (`packages/db/migrations`, tested on SQLite; verify on D1 when `apps/api` exists).
-- [ ] Decide where blocked payloads are held for up to 7 days (queue redelivery limits vs a TTL store) — new ADR.
+- [x] Decide where blocked payloads are held for up to 7 days ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md): Workers KV with expiration).
 - [ ] Durable queue with 7-day encrypted retention ([ADR 0008](adr/0008-queue-retention-and-encryption.md)).
 - [ ] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [ ] Success and error states.
