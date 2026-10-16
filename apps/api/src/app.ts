@@ -6,6 +6,8 @@ import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
+import { legalPage, privacyBody, termsBody } from "./site/legal.js";
+import { randomToken } from "./util.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
 export type { Env } from "./env.js";
@@ -110,6 +112,19 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   // The builder (apps/web) is a static app under /app/, served from the same origin as the API so
   // the session cookie and the Origin check work without CORS. "/" is the website later.
   app.get("/", (c) => c.redirect("/app/", 302));
+  for (const [path, title, body] of [
+    ["/privacy", "Privacy policy", privacyBody],
+    ["/terms", "Terms of use", termsBody],
+  ] as const) {
+    app.get(path, (c) => {
+      const nonce = randomToken(16);
+      c.header(
+        "Content-Security-Policy",
+        `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+      );
+      return c.html(legalPage(title, body, nonce));
+    });
+  }
   app.get("/app", (c) => c.redirect("/app/", 301));
   app.get("/app/*", async (c) => {
     if (!c.env.ASSETS)

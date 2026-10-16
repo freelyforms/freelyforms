@@ -125,6 +125,9 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
           {error}
         </p>
       )}
+      <p className="small muted">
+        <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of use</a>
+      </p>
     </main>
   );
 }

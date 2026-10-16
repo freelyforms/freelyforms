@@ -130,6 +130,7 @@ function page(
             <a href="https://freelyforms.com" target="_blank" rel="noopener">Freely Forms</a>.
             Responses go to the form owner's Google Sheet.</span
           >
+          <a href="https://freelyforms.com/privacy" target="_blank" rel="noopener">Privacy</a>
           ${report}
         </footer>
         <script nonce="${opts.nonce}">

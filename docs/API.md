@@ -85,6 +85,10 @@ The form page posts its height to the parent window (`{ type: "freelyforms:heigh
 
 The builder is served at `/app/` by the same Worker (static assets from `apps/web/dist`), so it uses the session cookie and the Origin check without CORS. `/` redirects to `/app/` until the public website exists.
 
+## Website pages
+
+`GET /privacy` and `GET /terms` serve the privacy policy and terms of use (app domain only).
+
 ## Operations
 
 `GET /health` → `{ ok, schemaVersion, db }`.

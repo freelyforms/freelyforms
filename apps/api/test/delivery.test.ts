@@ -476,6 +476,18 @@ describe("public form", () => {
     expect((await app().request("/app/assets/missing.js", {}, appEnv)).status).toBe(404);
   });
 
+  it("publishes a privacy policy with Google's Limited Use statement, and terms", async () => {
+    const privacy = await app().request("/privacy", {}, env);
+    expect(privacy.status).toBe(200);
+    const text = await privacy.text();
+    expect(text).toContain("Limited Use requirements");
+    expect(text).toContain("no later than 7 days");
+    expect(privacy.headers.get("content-security-policy")).toContain("style-src 'nonce-");
+    expect((await app().request("/terms", {}, env)).status).toBe(200);
+    const formsEnv = { ...env, FORMS_HOST: "forms.test" };
+    expect((await app().request("http://forms.test/privacy", {}, formsEnv)).status).toBe(404);
+  });
+
   it("redirects forms on the app domain to the forms domain", async () => {
     const id = await publishedForm();
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };

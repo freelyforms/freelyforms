@@ -104,8 +104,7 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [ ] Production environment: D1, KV, queue + DLQ, rate-limit namespaces; secrets; domains `freelyforms.com` and `freelyforms.link`; real Turnstile keys. Workers Paid before the public launch.
 - [ ] Measure consumer CPU time against the 10 ms Workers Free limit.
 - [ ] Production Google Cloud project, OAuth client and brand verification.
-- [ ] Privacy policy draft (includes the 7-day transient retention, ADR 0008).
-- [ ] Terms draft.
+- [x] Privacy policy (`/privacy`, includes the 7-day transient retention and Google's Limited Use statement) and terms (`/terms`), operator: the non-commercial Freely Forms project. Legal review before public launch.
 - [ ] OAuth verification checklist.
 - [ ] Status/health checks; periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)).
 - [ ] Minimal public docs.

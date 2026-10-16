@@ -101,6 +101,9 @@ function SignIn() {
         We ask only for your name, email and access to the files Freely Forms creates in your Drive.
         We never see the rest of your Drive.
       </p>
+      <p className="small">
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
+      </p>
     </main>
   );
 }
