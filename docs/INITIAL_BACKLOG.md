@@ -91,9 +91,10 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 
 See `docs/SEO_PUBLIC_SURFACES.md`.
 
-- [ ] Content model for template/feature/integration pages (template schema JSON + page content).
-- [ ] Template preview rendered by the real form renderer.
-- [ ] Sitemaps partitioned by page family; canonical URLs; robots.txt.
+- [x] Website v1 (server-rendered in the Worker, `noindex` until review): home, how it works, why free, security, Google Sheets, embed, templates hub and five templates with live previews and "Use this template".
+- [ ] Content model for template/feature/integration pages beyond the first five (template schema JSON + page content).
+- [x] Template preview rendered by the real form renderer.
+- [x] Sitemap, canonical URLs, robots.txt, Open Graph (one sitemap for now; partition when families grow).
 - [x] `noindex` for public user forms, app, editor and preview routes.
 - [x] Decide public form host domain: `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 - [ ] Facts/feature-status data source with expiry check in CI, so public pages never show stale or unshipped claims.

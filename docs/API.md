@@ -89,7 +89,7 @@ The builder is served at `/app/` by the same Worker (static assets from `apps/we
 
 ## Website pages
 
-`GET /privacy` and `GET /terms` serve the privacy policy and terms of use (app domain only).
+Server-rendered website on the app domain only (`apps/api/src/site`): `/`, `/how-it-works/`, `/why-free/`, `/security/`, `/integrations/google-sheets/`, `/features/embed/`, `/templates/` and `/templates/<slug>/` (with `/templates/<slug>/preview`, the template rendered by the public renderer), `/privacy`, `/terms`, `/sitemap.xml`, `/robots.txt`. Pages send `noindex` unless `SITE_INDEXABLE=1`. `POST /forms` with `{ template: "<slug>" }` copies a website template into a new draft (`422 unknown_template`).
 
 ## Operations
 
