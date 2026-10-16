@@ -73,7 +73,9 @@ The implementation must define a reliable failure strategy. Suggested states:
 - retrying;
 - permanently_failed.
 
-A submission payload may have to exist temporarily in a durable queue to guarantee delivery. It must have a short retention policy and should be encrypted where the queue implementation permits. Do not silently turn the queue into permanent storage.
+A submission payload may have to exist temporarily in a durable queue to guarantee delivery. It is encrypted at the application level and kept for at most 7 days ([ADR 0008](adr/0008-queue-retention-and-encryption.md)). Do not silently turn the queue into permanent storage.
+
+Delivery states, the `blocked` and `unknown` states and reconciliation of ambiguous writes are defined in [ADR 0003](adr/0003-delivery-states-and-reconciliation.md).
 
 ## Idempotency
 Each accepted submission gets a globally unique submission ID. Google delivery must be idempotent or deduplicatable.
@@ -87,13 +89,13 @@ Recommended sheet columns maintained by the platform:
 - optional UTM/hidden fields configured by owner
 
 ## Scaling rule
-Optimise first for correctness and delivery reliability. Batch writes only when traffic makes it necessary.
+Optimise first for correctness and delivery reliability. Google Sheets writes are batched per spreadsheet from the first release, because Sheets API per-user quotas are reachable by a single popular form ([ADR 0001](adr/0001-batched-sheets-writes.md)).
 
 ## Multi-tenancy
 Every resource must be scoped by account/workspace ownership. Avoid relying only on client-provided IDs.
 
 ## Public rendering
-Public renderer should be highly cacheable except for dynamic form state. Static form definition/version can be cached at the edge.
+Public renderer should be highly cacheable except for dynamic form state. Static form definition/version can be cached at the edge. Published forms are served from a separate domain, `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 
 ## Custom domains
 Design routing so custom domains can be added later without restructuring form identity.

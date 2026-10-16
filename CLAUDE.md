@@ -9,7 +9,7 @@ Build a globally useful, open-source, free-forever form and workflow platform wh
 - hosted usage should remain free for normal users, with no artificial form/submission limits;
 - the product must be credible as a serious open-source platform, not a hobby demo.
 
-Working product name is **TBD**. Do not hard-code a brand into architecture or package names unless a name is explicitly selected later.
+Product name: **Freely Forms** (primary domain `freelyforms.com`). Keep the brand out of core architecture identifiers; use it in UI, docs, marketing site and the package scope only.
 
 ## Primary product thesis
 > We build the interface. Google stores the data.

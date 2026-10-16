@@ -10,15 +10,17 @@ Primary:
 
 Future optional integrations:
 
+- Google Picker (required for attaching existing sheets);
 - Google Docs API;
 - Gmail API;
-- Google Picker;
 - Google Workspace Marketplace.
 
 ## OAuth philosophy
 Request the minimum scopes needed for the user's selected workflow.
 
 Prefer file-scoped access patterns such as `drive.file` where they satisfy the feature. Do not request broad Drive access merely for convenience.
+
+MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets are attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md)). Respondent values are written with `RAW` value input ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 
 ## Spreadsheet ownership
 A form may support two destinations:
@@ -70,4 +72,4 @@ The UI must detect and explain:
 - Google API quota/error;
 - destination schema manually altered.
 
-Never lose submissions silently. Failed delivery should be observable to the form owner.
+Never lose submissions silently. Failed delivery should be observable to the form owner. Destination states and owner-visible errors are defined in [ADR 0005](adr/0005-sheet-is-externally-mutable.md).

@@ -1,6 +1,6 @@
-# Google-native Forms Platform — Working Repository
+# Freely Forms
 
-Working name: **TBD**.
+Open-source, free-forever forms whose responses go to your own Google Sheets. Website: [freelyforms.com](https://freelyforms.com) (coming soon).
 
 An open-source form platform designed around one simple principle:
 
@@ -38,6 +38,12 @@ A modern alternative to traditional hosted form builders, with:
 
 ## Documentation
 
-Start with `CLAUDE.md`, then read the documents under `docs/`.
+Start with `CLAUDE.md`, then read the documents under `docs/` and the architecture decision records in [`docs/adr/`](docs/adr/).
 
 Internal strategy may exist locally under `private/`. That directory is intentionally ignored by Git and must never be published.
+
+## Contributing, security and licence
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute; external contributions require the [CLA](CLA.md).
+- [SECURITY.md](SECURITY.md) — report vulnerabilities privately to hello@freelyforms.com.
+- Licensed under the [Apache License 2.0](LICENSE).

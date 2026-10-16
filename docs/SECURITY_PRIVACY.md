@@ -18,11 +18,11 @@ Transient handling is allowed only where operationally necessary for reliable de
 
 Requirements:
 
-- short-lived queue retention;
+- queue retention of at most 7 days with application-level envelope encryption ([ADR 0008](adr/0008-queue-retention-and-encryption.md));
 - no analytics derived from answer content by default;
 - no application logs containing answers;
 - scrub exception/error reporting;
-- define maximum retry/retention window;
+- automatic retries for transient Google errors for up to 72 hours;
 - delete failed payloads after the retention policy and report failure state to owner.
 
 ## Uploaded files
