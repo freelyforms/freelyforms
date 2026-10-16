@@ -1,0 +1,266 @@
+import { decryptText } from "@freelyforms/crypto";
+import type { AnswerValue } from "@freelyforms/form-engine";
+import { parseForm, type Form } from "@freelyforms/form-schema";
+import {
+  addMissingColumns,
+  appendRows,
+  buildRow,
+  existingSubmissionIds,
+  GoogleApiError,
+  resolveColumns,
+  SYSTEM_COLUMNS,
+  type Destination,
+} from "@freelyforms/google";
+import type { DeliveryMessage, Deps, Env } from "../env.js";
+import { sheetsFor } from "../google-access.js";
+import { keyringFor } from "../keys.js";
+import { hold } from "./hold.js";
+
+/** ADR 0008: transient errors are retried for up to 72 hours. */
+export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
+const MAX_DELAY_S = 6 * 60 * 60;
+
+/** Exponential backoff with jitter: 30 s, 60 s, 120 s … capped at 6 hours. */
+export function backoffSeconds(attempts: number, random = Math.random): number {
+  const base = Math.min(30 * 2 ** Math.max(0, attempts - 1), MAX_DELAY_S);
+  return Math.round(base * (0.8 + 0.4 * random()));
+}
+
+interface Target {
+  destinationId: string;
+  ownerId: string;
+  dest: Destination;
+}
+
+type Msg = Message<DeliveryMessage>;
+
+async function setState(
+  env: Env,
+  ids: string[],
+  state: string,
+  extra: { error?: string; now?: number } = {},
+) {
+  if (ids.length === 0) return;
+  const db = env.DB;
+  await db.batch(
+    ids.map((id) =>
+      state === "delivered"
+        ? db
+            .prepare(
+              "UPDATE deliveries SET state = 'delivered', delivered_at = ?, last_error_code = NULL WHERE submission_id = ?",
+            )
+            .bind(extra.now ?? 0, id)
+        : db
+            .prepare(
+              "UPDATE deliveries SET state = ?, last_error_code = COALESCE(?, last_error_code) WHERE submission_id = ? AND state != 'delivered'",
+            )
+            .bind(state, extra.error ?? null, id),
+    ),
+  );
+}
+
+async function loadTarget(env: Env, formId: string): Promise<Target | null> {
+  const row = await env.DB.prepare(
+    `SELECT d.id, d.spreadsheet_id, d.sheet_id, f.owner_id FROM destinations d
+     JOIN forms f ON f.id = d.form_id WHERE d.form_id = ?`,
+  )
+    .bind(formId)
+    .first<{ id: string; spreadsheet_id: string; sheet_id: number; owner_id: string }>();
+  return (
+    row && {
+      destinationId: row.id,
+      ownerId: row.owner_id,
+      dest: { spreadsheetId: row.spreadsheet_id, sheetId: row.sheet_id },
+    }
+  );
+}
+
+async function loadVersions(
+  env: Env,
+  formId: string,
+  versions: Set<number>,
+): Promise<Map<number, Form>> {
+  const forms = new Map<number, Form>();
+  for (const version of versions) {
+    const row = await env.DB.prepare(
+      "SELECT schema_json FROM form_versions WHERE form_id = ? AND version = ?",
+    )
+      .bind(formId, version)
+      .first<{ schema_json: string }>();
+    const parsed = row && parseForm(JSON.parse(row.schema_json));
+    if (parsed?.success) forms.set(version, parsed.form);
+  }
+  return forms;
+}
+
+/** Delivers one form's messages from a batch: one append for all of them (ADR 0001). */
+async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[]): Promise<void> {
+  const now = deps.now();
+  const ids = messages.map((m) => m.body.submissionId);
+  const states = new Map<string, { state: string; expires_at: number }>();
+  for (const id of ids) {
+    const row = await env.DB.prepare(
+      "SELECT state, expires_at FROM deliveries WHERE submission_id = ?",
+    )
+      .bind(id)
+      .first<{ state: string; expires_at: number }>();
+    if (row) states.set(id, row);
+  }
+  // Already delivered or unknown to us (pruned): nothing to do.
+  const pending = messages.filter((m) => {
+    const s = states.get(m.body.submissionId);
+    if (!s || s.state === "delivered" || s.state === "permanently_failed") {
+      m.ack();
+      return false;
+    }
+    return true;
+  });
+  if (pending.length === 0) return;
+
+  const target = await loadTarget(env, formId);
+  if (!target) {
+    await setState(
+      env,
+      pending.map((m) => m.body.submissionId),
+      "permanently_failed",
+      { error: "NO_DESTINATION" },
+    );
+    for (const m of pending) m.ack();
+    return;
+  }
+
+  const pendingIds = pending.map((m) => m.body.submissionId);
+  await env.DB.batch(
+    pendingIds.map((id) =>
+      env.DB.prepare(
+        "UPDATE deliveries SET state = 'delivering', attempts = attempts + 1, destination_id = ? WHERE submission_id = ?",
+      ).bind(target.destinationId, id),
+    ),
+  );
+
+  let appending = false;
+  try {
+    const sheets = await sheetsFor(env, deps, target.ownerId);
+    const forms = await loadVersions(env, formId, new Set(pending.map((m) => m.body.formVersion)));
+    let columns = await resolveColumns(sheets, target.dest);
+    if (!SYSTEM_COLUMNS.every((key) => columns.has(key))) {
+      throw new GoogleApiError(
+        columns.size === 0 ? "TAB_MISSING" : "COLUMN_MISSING",
+        0,
+        "system_column_missing",
+      );
+    }
+    for (const form of forms.values())
+      columns = await addMissingColumns(sheets, target.dest, form, columns);
+
+    // ADR 0003: only an ambiguous earlier write triggers a read of the sheet.
+    let toWrite = pending;
+    if (pending.some((m) => states.get(m.body.submissionId)?.state === "unknown")) {
+      const present = await existingSubmissionIds(sheets, target.dest);
+      const already = pending.filter((m) => present.has(m.body.submissionId));
+      await setState(
+        env,
+        already.map((m) => m.body.submissionId),
+        "delivered",
+        { now },
+      );
+      for (const m of already) m.ack();
+      toWrite = pending.filter((m) => !present.has(m.body.submissionId));
+    }
+
+    const keyring = await keyringFor(env);
+    const rows = [];
+    for (const m of toWrite) {
+      const form = forms.get(m.body.formVersion);
+      if (!form) throw new GoogleApiError("INVALID_REQUEST", 0, "form_version_missing");
+      const { values } = JSON.parse(
+        await decryptText(keyring, m.body.payload, `submission:${m.body.submissionId}`),
+      ) as { values: Record<string, AnswerValue> };
+      rows.push(buildRow(form, columns, { ...m.body, values }));
+    }
+    appending = true;
+    await appendRows(sheets, target.dest, rows);
+
+    await setState(
+      env,
+      toWrite.map((m) => m.body.submissionId),
+      "delivered",
+      { now },
+    );
+    await env.DB.prepare(
+      "UPDATE destinations SET state = 'OK', last_error_code = NULL, last_ok_at = ?, updated_at = ? WHERE id = ?",
+    )
+      .bind(now, now, target.destinationId)
+      .run();
+    for (const m of toWrite) m.ack();
+  } catch (err) {
+    const kind = err instanceof GoogleApiError ? err.kind : "INTERNAL";
+    const retryable = !(err instanceof GoogleApiError) || err.retryable;
+    if (retryable) {
+      // A failed append may still have written the rows: reconcile before writing again.
+      const state = appending ? "unknown" : "retrying";
+      for (const m of pending) {
+        if (now - m.body.submittedAt > TRANSIENT_RETRY_WINDOW_MS) {
+          await setState(env, [m.body.submissionId], "permanently_failed", { error: kind });
+          m.ack();
+        } else {
+          await setState(env, [m.body.submissionId], state, { error: kind });
+          m.retry({ delaySeconds: backoffSeconds(m.attempts) });
+        }
+      }
+      if (!(err instanceof GoogleApiError))
+        console.error("delivery_error", err instanceof Error ? err.name : "unknown");
+      return;
+    }
+    // Owner-actionable (ADR 0005): park the payloads and surface the destination state.
+    const destinationState = kind === "INVALID_REQUEST" ? null : kind;
+    await env.DB.prepare(
+      "UPDATE destinations SET state = COALESCE(?, state), last_error_code = ?, updated_at = ? WHERE id = ?",
+    )
+      .bind(destinationState, kind, now, target.destinationId)
+      .run();
+    for (const m of pending) {
+      const expiresAt = states.get(m.body.submissionId)?.expires_at ?? 0;
+      if (await hold(env, target.destinationId, m.body, expiresAt, now)) {
+        await setState(env, [m.body.submissionId], "blocked", { error: kind });
+      } else {
+        await setState(env, [m.body.submissionId], "permanently_failed", { error: kind });
+      }
+      m.ack();
+    }
+  }
+}
+
+/** Queue consumer: groups the batch by form and delivers each group. */
+export async function processBatch(
+  batch: MessageBatch<DeliveryMessage>,
+  env: Env,
+  deps: Deps,
+): Promise<void> {
+  const groups = new Map<string, Msg[]>();
+  for (const m of batch.messages) {
+    const list = groups.get(m.body.formId) ?? [];
+    list.push(m);
+    groups.set(m.body.formId, list);
+  }
+  for (const [formId, messages] of groups) await deliverGroup(env, deps, formId, messages);
+}
+
+/**
+ * Hourly maintenance: enforce the 7-day deadline in the database (KV expires held payloads by
+ * itself), drop expired sessions and prune old delivery records (metadata only).
+ */
+export async function maintenance(env: Env, now: number): Promise<void> {
+  const db = env.DB;
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE deliveries SET state = 'permanently_failed', last_error_code = COALESCE(last_error_code, 'EXPIRED') WHERE state NOT IN ('delivered', 'permanently_failed') AND expires_at <= ?",
+      )
+      .bind(now),
+    db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now),
+    db
+      .prepare("DELETE FROM deliveries WHERE accepted_at <= ?")
+      .bind(now - 30 * 24 * 60 * 60 * 1000),
+  ]);
+}

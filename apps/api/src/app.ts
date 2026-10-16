@@ -4,6 +4,8 @@ import { secureHeaders } from "hono/secure-headers";
 import { FORM_SCHEMA_VERSION } from "@freelyforms/form-schema/limits";
 import { DRIVE_FILE_SCOPE } from "./auth/google.js";
 import { authRoutes } from "./auth/routes.js";
+import { formRoutes } from "./forms/routes.js";
+import { publicRoutes } from "./public/routes.js";
 import { currentUser } from "./auth/session.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
@@ -18,9 +20,24 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   // form posts, which the origin check below would reject.
   app.use(secureHeaders({ referrerPolicy: "strict-origin-when-cross-origin" }));
 
-  // CSRF baseline: state-changing requests must come from our own origin.
+  // ADR 0010: on the forms domain every path is a public form (`/<formId>` → `/f/<formId>`), and
+  // nothing else from this app is reachable there.
   app.use(async (c, next) => {
-    if (!SAFE_METHODS.has(c.req.method)) {
+    const host = new URL(c.req.url).hostname;
+    if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
+      const url = new URL(c.req.url);
+      if (!/^\/frm_[A-Za-z0-9]{6,32}$/.test(url.pathname)) return c.text("Not found", 404);
+      url.pathname = `/f${url.pathname}`;
+      // No waitUntil is needed on this path, so the execution context is not forwarded.
+      return app.fetch(new Request(url, c.req.raw), c.env);
+    }
+    await next();
+  });
+
+  // CSRF baseline: state-changing requests must come from our own origin. Public form
+  // submissions are cross-origin by design (embeds) and rely on no cookies.
+  app.use(async (c, next) => {
+    if (!SAFE_METHODS.has(c.req.method) && !c.req.path.startsWith("/f/")) {
       const origin = c.req.header("origin");
       if (origin !== new URL(c.req.url).origin) return c.json({ error: "forbidden_origin" }, 403);
     }
@@ -35,6 +52,8 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   });
 
   app.route("/auth", authRoutes(deps));
+  app.route("/forms", formRoutes(deps));
+  app.route("/f", publicRoutes(deps));
 
   // Temporary landing page until apps/web exists: lets developers try sign-in end to end.
   app.get("/", async (c) => {

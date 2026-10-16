@@ -273,3 +273,37 @@ export async function appendRows(
     },
   });
 }
+
+/**
+ * Submission IDs already present in the `_submission_id` column, found by developer metadata
+ * (no tab name needed). Used only to reconcile ambiguous writes (ADR 0003).
+ */
+export async function existingSubmissionIds(
+  client: SheetsClient,
+  dest: Destination,
+): Promise<Set<string>> {
+  const res = await client.call<{
+    valueRanges?: { valueRange?: { values?: unknown[][] } }[];
+  }>(`/${dest.spreadsheetId}/values:batchGetByDataFilter`, {
+    method: "POST",
+    body: {
+      majorDimension: "COLUMNS",
+      dataFilters: [
+        {
+          developerMetadataLookup: {
+            metadataKey: FIELD_METADATA_KEY,
+            metadataValue: "_submission_id",
+            locationType: "COLUMN",
+          },
+        },
+      ],
+    },
+  });
+  const ids = new Set<string>();
+  for (const range of res.valueRanges ?? []) {
+    for (const column of range.valueRange?.values ?? []) {
+      for (const value of column) if (typeof value === "string") ids.add(value);
+    }
+  }
+  return ids;
+}

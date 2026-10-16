@@ -13,4 +13,21 @@
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
+  // ADR 0011: held deliveries; KV deletes each one at its 7-day deadline.
+  "kv_namespaces": [{ "binding": "HOLD", "id": "00000000000000000000000000000000" }],
+  "queues": {
+    "producers": [{ "binding": "DELIVERY_QUEUE", "queue": "freelyforms-delivery" }],
+    "consumers": [
+      {
+        "queue": "freelyforms-delivery",
+        // ADR 0001: deliver in batches.
+        "max_batch_size": 50,
+        "max_batch_timeout": 1,
+        "max_retries": 100,
+        "dead_letter_queue": "freelyforms-delivery-dlq",
+      },
+    ],
+  },
+  // Hourly maintenance: deadlines, expired sessions, pruning.
+  "triggers": { "crons": ["17 * * * *"] },
 }

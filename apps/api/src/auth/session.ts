@@ -6,10 +6,12 @@ import { randomToken, sha256Base64Url } from "../util.js";
 export const SESSION_COOKIE = "ff_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-type Ctx = Context<{ Bindings: Env }>;
-
 /** Creates a session; only the SHA-256 of the token is stored. */
-export async function startSession(c: Ctx, userId: string, now: number): Promise<void> {
+export async function startSession<E extends { Bindings: Env }>(
+  c: Context<E>,
+  userId: string,
+  now: number,
+): Promise<void> {
   const token = randomToken();
   await c.env.DB.prepare(
     "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
@@ -32,7 +34,10 @@ export interface SessionUser {
   name: string | null;
 }
 
-export async function currentUser(c: Ctx, now: number): Promise<SessionUser | null> {
+export async function currentUser<E extends { Bindings: Env }>(
+  c: Context<E>,
+  now: number,
+): Promise<SessionUser | null> {
   const token = getCookie(c, SESSION_COOKIE, "host");
   if (token === undefined) return null;
   return c.env.DB.prepare(
@@ -43,7 +48,7 @@ export async function currentUser(c: Ctx, now: number): Promise<SessionUser | nu
     .first<SessionUser>();
 }
 
-export async function endSession(c: Ctx): Promise<void> {
+export async function endSession<E extends { Bindings: Env }>(c: Context<E>): Promise<void> {
   const token = getCookie(c, SESSION_COOKIE, "host");
   if (token !== undefined) {
     await c.env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?")

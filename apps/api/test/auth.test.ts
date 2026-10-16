@@ -5,6 +5,7 @@ import { createApp, type Env } from "../src/app.js";
 import type { Deps } from "../src/env.js";
 import { base64Url } from "../src/util.js";
 import { localD1 } from "./d1.js";
+import { fakeKv, fakeQueue } from "./fakes.js";
 
 const CLIENT_ID = "test-client.apps.googleusercontent.com";
 const ORIGIN = "http://localhost";
@@ -18,6 +19,8 @@ beforeAll(async () => {
   d1 = await localD1();
   env = {
     DB: d1.db,
+    DELIVERY_QUEUE: fakeQueue().queue,
+    HOLD: fakeKv(() => NOW).kv,
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: "test-secret",
     MASTER_KEY_K1: generateMasterKeySecret(),

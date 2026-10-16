@@ -83,6 +83,23 @@ A submission payload may have to exist temporarily in a durable queue to guarant
 
 Delivery states, the `blocked` and `unknown` states and reconciliation of ambiguous writes are defined in [ADR 0003](adr/0003-delivery-states-and-reconciliation.md). Deliveries blocked by an owner-fixable problem wait in a key-value store with automatic expiry, not in the queue ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md)).
 
+## Implemented delivery path
+
+```text
+POST /f/:formId (freelyforms.link/<formId> in production)
+ -> load the published version; validate (form-engine); honeypot
+ -> deliveries row (accepted → queued), encrypted payload → DELIVERY_QUEUE
+ -> success page (or 201 JSON)
+Queue consumer (apps/api, batches of up to 50):
+ -> group by form; refresh the owner's access token
+ -> resolve columns by developer metadata, add columns for new fields
+ -> reconcile only if a previous write was ambiguous
+ -> one AppendCells request per group → delivered
+ -> retryable error: retry with backoff (≤ 72 h); owner-actionable: hold in KV → blocked
+POST /forms/:id/deliveries/resume re-queues held deliveries after the owner fixes the sheet.
+Hourly cron enforces the 7-day deadline, deletes expired sessions and prunes delivery records.
+```
+
 ## Idempotency
 
 Each accepted submission gets a globally unique submission ID. Google delivery must be idempotent or deduplicatable.

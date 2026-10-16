@@ -1,13 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { app, type Env } from "../src/app.js";
 import { localD1 } from "./d1.js";
+import { fakeKv, fakeQueue } from "./fakes.js";
 
 let d1: Awaited<ReturnType<typeof localD1>>;
 let env: Env;
 
 beforeAll(async () => {
   d1 = await localD1();
-  env = { DB: d1.db, GOOGLE_CLIENT_ID: "x", GOOGLE_CLIENT_SECRET: "x", MASTER_KEY_K1: "x" };
+  env = {
+    DB: d1.db,
+    DELIVERY_QUEUE: fakeQueue().queue,
+    HOLD: fakeKv(() => 0).kv,
+    GOOGLE_CLIENT_ID: "x",
+    GOOGLE_CLIENT_SECRET: "x",
+    MASTER_KEY_K1: "x",
+  };
 }, 60_000);
 
 afterAll(async () => {

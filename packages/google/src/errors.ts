@@ -9,6 +9,8 @@ export type GoogleErrorKind =
   | "SHEET_DELETED"
   /** Target tab no longer exists. Owner must act. */
   | "TAB_MISSING"
+  /** A required column (with its developer metadata) was deleted. Owner must act. */
+  | "COLUMN_MISSING"
   /** Rate limit: retry with backoff. */
   | "QUOTA"
   /** Server error or network failure: retry with backoff. */
