@@ -55,7 +55,7 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Append responses as typed, never-parsed cells ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md)).
 - [x] Stable field-to-column mapping via developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 - [x] New and deleted fields (new fields get new columns after all existing ones; deleted fields keep their column; columns the owner deletes are recreated, [ADR 0013](adr/0013-delivery-refinements.md)).
-- [ ] Renamed fields: update the header text on publish.
+- [x] Renamed fields: the header text is updated on publish.
 - [ ] Column cache to save read quota ([ADR 0013](adr/0013-delivery-refinements.md)).
 - [ ] Per-owner concurrency cap on writes ([ADR 0001](adr/0001-batched-sheets-writes.md)).
 

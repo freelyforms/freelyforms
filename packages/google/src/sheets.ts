@@ -194,6 +194,37 @@ export async function addResponseTab(
   return { spreadsheetId, sheetId };
 }
 
+/**
+ * Writes the current question labels into the header row of each field's column, so renaming a
+ * question renames its column. Columns are found by metadata, never by header text, so this is
+ * safe after the owner reorders columns. System columns and columns of removed fields are left as
+ * they are.
+ */
+export async function syncHeaders(
+  client: SheetsClient,
+  dest: Destination,
+  form: Pick<Form, "fields">,
+  columns: Map<string, number>,
+): Promise<void> {
+  const labels = headerLabels(form);
+  const requests = form.fields.flatMap((field, i) => {
+    const column = columns.get(field.id);
+    return column === undefined
+      ? []
+      : [
+          {
+            updateCells: {
+              start: { sheetId: dest.sheetId, rowIndex: 0, columnIndex: column },
+              rows: [{ values: [text(labels[i] ?? field.label)] }],
+              fields: "userEnteredValue",
+            },
+          },
+        ];
+  });
+  if (requests.length === 0) return;
+  await client.call(`/${dest.spreadsheetId}:batchUpdate`, { method: "POST", body: { requests } });
+}
+
 /** Reads `key → column index` for one tab from developer metadata (ADR 0004). */
 export async function resolveColumns(
   client: SheetsClient,

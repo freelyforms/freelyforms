@@ -606,6 +606,25 @@ describe("delivery", () => {
     expect(onlySheet().rows).toHaveLength(2);
   });
 
+  it("renames a column when its question is renamed, wherever the column now is", async () => {
+    const id = await publishedForm();
+    const sheet = onlySheet();
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: "Contact",
+        fields: fields.map((f) => (f.id === "fld_email" ? { ...f, label: "Work email" } : f)),
+      },
+    });
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    const col = sheet.meta.find((m) => m.metadataValue === "fld_email")?.location.dimensionRange
+      .startIndex;
+    expect(sheet.rows[0]?.[col ?? -1]).toBe("Work email");
+    expect(sheet.rows[0]?.[0]).toBe("_submission_id");
+  });
+
   it("adds columns for new fields after the owner's own columns", async () => {
     const id = await publishedForm();
     const sheet = onlySheet();

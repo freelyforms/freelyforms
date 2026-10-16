@@ -70,7 +70,7 @@ Changing a form after responses already exist must be safe.
 Rules (status as of the MVP):
 
 - new field -> append new column on publish (implemented);
-- renamed field -> rename human header without changing field identity (not yet: headers keep the label from the first publish);
+- renamed field -> its column header is updated on the next publish, found by metadata, without changing field identity (implemented);
 - deleted field -> retain historical column (implemented);
 - column deleted by the owner -> recreated at the end on the next delivery ([ADR 0013](adr/0013-delivery-refinements.md));
 - reordered field or column -> mapping follows developer metadata (implemented);

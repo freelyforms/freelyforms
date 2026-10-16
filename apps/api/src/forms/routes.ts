@@ -5,6 +5,7 @@ import {
   createResponseSpreadsheet,
   GoogleApiError,
   resolveColumns,
+  syncHeaders,
 } from "@freelyforms/google";
 import { Hono, type Context } from "hono";
 import type { Deps } from "../env.js";
@@ -192,7 +193,13 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       const sheets = await sheetsFor(c.env, deps, c.var.user.id);
       if (destination) {
         const dest = { spreadsheetId: destination.spreadsheet_id, sheetId: destination.sheet_id };
-        await addMissingColumns(sheets, dest, parsed.form, await resolveColumns(sheets, dest));
+        const columns = await addMissingColumns(
+          sheets,
+          dest,
+          parsed.form,
+          await resolveColumns(sheets, dest),
+        );
+        await syncHeaders(sheets, dest, parsed.form, columns);
       } else {
         created = await createResponseSpreadsheet(sheets, {
           title: `${parsed.form.title} (responses)`,
