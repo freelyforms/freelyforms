@@ -71,8 +71,8 @@ export const home: Page = {
           <p class="eyebrow">Free form builder</p>
           <h1>Free forms that write to your Google Sheet</h1>
           <p class="lead">
-            Build and publish online forms without a separate response database. Every submission is
-            delivered as a new row in a Google Sheet you own.
+            Build and publish online forms without a separate response database. Responses are
+            delivered as new rows in a Google Sheet you own.
           </p>
           <div class="actions">
             <a class="btn primary" href="/app/">Create a free form</a>
@@ -81,7 +81,7 @@ export const home: Page = {
           <ul class="ticks">
             <li>No caps on forms or responses</li>
             <li>Respondents don't need a Google account</li>
-            <li>Sign in with Google</li>
+            <li>Use a new or existing Google Sheet</li>
           </ul>
         </div>
         ${previewFrame("contact-form", "Contact form")}
@@ -266,7 +266,10 @@ export const howItWorks: Page = {
       <h2>What it doesn't</h2>
       <ul>
         <li>A permanent copy of your responses: once delivered, they live only in your sheet.</li>
-        <li>The rest of your Google Drive: the permission it uses covers only its own files.</li>
+        <li>
+          The rest of your Google Drive: the permission it uses covers only files Freely Forms
+          creates or that you explicitly select.
+        </li>
       </ul>
       <h2>Google permissions</h2>
       <p>
@@ -316,14 +319,13 @@ export const whyFree: Page = {
       </p>
       <h2>Where the cost of a form builder usually goes</h2>
       <p>
-        Most form builders store every response on their own servers, forever, and charge more as
-        that storage and traffic grow. That's why free plans cap forms, responses or uploads.
+        Many form builders store responses in their own databases and meter usage by forms,
+        responses or storage, which is why their free plans have caps.
       </p>
       <h2>What we do instead</h2>
       <p>
-        Freely Forms only carries each response to your Google Sheet and then lets it go. There is
-        no growing response database to pay for, so a busy form costs us little more than a quiet
-        one.
+        Freely Forms carries each response to your Google Sheet and then lets it go. Because we
+        don't maintain a permanent response database for every user, our storage costs stay low.
       </p>
       <h2>What "no limits" means</h2>
       <ul>
@@ -334,10 +336,7 @@ export const whyFree: Page = {
         <li>Google's own limits apply to your sheet, such as its maximum number of cells.</li>
       </ul>
       <h2>Who runs it</h2>
-      <p>
-        Freely Forms is an independent, non-commercial project. The code is licensed under the
-        Apache License 2.0.
-      </p>
+      <p>Freely Forms is an independent project.</p>
       <div class="actions"><a class="btn primary" href="/app/">Create a free form</a></div>
     </div>
   </section>`,
@@ -519,7 +518,7 @@ export const embed: Page = {
         height.
       </p>
       <h2>Prefer a link?</h2>
-      <p>Every form also has its own page you can share by link or QR code.</p>
+      <p>Every form also has its own page you can share as a link.</p>
       <div class="actions"><a class="btn primary" href="/app/">Create a form</a></div>
     </div>
   </section>`,

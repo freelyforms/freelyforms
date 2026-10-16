@@ -77,9 +77,9 @@ export const TEMPLATES: Template[] = [
     },
     extras: ["Phone (if you call people back)", "Company name", "How did you hear about us?"],
     pitfalls: [
-      "Asking for too much: every extra required field costs you messages.",
+      "Asking for too much: each extra required field can reduce how many people finish the form.",
       "No topic field: you end up reading every message to decide who should answer it.",
-      "Publishing your email address instead of a form: it gets harvested by spam bots.",
+      "Publishing your email address instead of a form: it can be collected by spam harvesters.",
     ],
   },
   {
@@ -156,7 +156,7 @@ export const TEMPLATES: Template[] = [
     },
     extras: ["Organisation or company", "Session choices", "T-shirt size", "Emergency contact"],
     pitfalls: [
-      "No guest count: your headcount is wrong on the day.",
+      "No guest count: your headcount can be off on the day.",
       "Free-text dietary answers: you can't count them; use choices plus a notes field.",
       "Forgetting accessibility questions until someone can't get in.",
     ],
@@ -210,9 +210,9 @@ export const TEMPLATES: Template[] = [
     },
     extras: ["Which product, event or visit is this about?", "Would you recommend us?"],
     pitfalls: [
-      "Long surveys: completion drops with every question.",
+      "Long surveys: completion tends to drop as questions are added.",
       "Only a rating: you learn that something is wrong but not what.",
-      "Making email required: you get less honest feedback.",
+      "Making email required: some people give less candid feedback when they can be identified.",
     ],
   },
   {
@@ -298,7 +298,7 @@ export const TEMPLATES: Template[] = [
       "ABN or company number (AU/NZ)",
     ],
     pitfalls: [
-      "Asking for an exact budget: people skip it; ranges get answered.",
+      "Asking for an exact budget: many people skip it; ranges are easier to answer.",
       "No goals question: the first call is spent on basics.",
       "Collecting sensitive details (health, IDs) in a general intake: keep those out unless you must.",
     ],
@@ -378,8 +378,8 @@ export const TEMPLATES: Template[] = [
     extras: ["Property type", "Budget", "Access notes (gates, parking, pets)"],
     pitfalls: [
       "No location field: you quote jobs you can't travel to.",
-      "Too few details: every request needs a phone call before you can price it.",
-      "No preferred contact method: calls go unanswered.",
+      "Too few details: requests need a phone call before you can price them.",
+      "No preferred contact method: calls may go unanswered.",
     ],
   },
 ];
