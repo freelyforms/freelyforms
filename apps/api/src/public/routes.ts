@@ -5,13 +5,21 @@ import { PAYLOAD_RETENTION_MS } from "@freelyforms/db";
 import { Hono, type Context } from "hono";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { keyringFor } from "../keys.js";
-import { ulid } from "../util.js";
-import { renderForm, renderMessage } from "./render.js";
+import { randomToken, ulid } from "../util.js";
+import {
+  formPageCsp,
+  TURNSTILE_FIELD,
+  turnstileEnabled,
+  verifyTurnstile,
+  withinRateLimits,
+} from "./protect.js";
+import { renderForm, renderMessage, type PageOptions } from "./render.js";
 
 /** Cloudflare Queues rejects messages over 128 KB; keep a margin for metadata and encryption. */
 const MAX_BODY_BYTES = 64 * 1024;
 
-type Ctx = Context<{ Bindings: Env }>;
+type PublicEnv = { Bindings: Env; Variables: { page: PageOptions } };
+type Ctx = Context<PublicEnv>;
 
 interface Published {
   form: Form;
@@ -55,40 +63,75 @@ async function readAnswers(c: Ctx): Promise<Record<string, unknown> | null> {
 
 const wantsJson = (c: Ctx) => (c.req.header("accept") ?? "").includes("application/json");
 
-export function publicRoutes(deps: Deps): Hono<{ Bindings: Env }> {
-  const pub = new Hono<{ Bindings: Env }>();
+export function publicRoutes(deps: Deps): Hono<PublicEnv> {
+  const pub = new Hono<PublicEnv>();
 
   pub.use(async (c, next) => {
+    const nonce = randomToken(16);
+    const turnstile = turnstileEnabled(c.env);
+    c.set("page", { nonce, turnstileSiteKey: turnstile ? c.env.TURNSTILE_SITE_KEY : undefined });
     await next();
     c.header("X-Robots-Tag", "noindex");
     c.header("Cache-Control", "no-store");
+    c.header("Content-Security-Policy", formPageCsp(nonce, turnstile));
   });
 
   pub.get("/:formId", async (c) => {
     const found = await published(c, c.req.param("formId"));
-    if (!found)
+    if (!found) {
       return c.html(
-        renderMessage("Form not found", "This form does not exist or is not accepting responses."),
+        renderMessage(
+          "Form not found",
+          "This form does not exist or is not accepting responses.",
+          c.var.page,
+        ),
         404,
       );
-    return c.html(renderForm(found.form, c.req.path));
+    }
+    return c.html(renderForm(found.form, c.req.path, c.var.page));
   });
 
   pub.post("/:formId", async (c) => {
     const found = await published(c, c.req.param("formId"));
     if (!found) return c.json({ error: "not_found" }, 404);
+    const ip = c.req.header("cf-connecting-ip");
+    if (!(await withinRateLimits(c.env, found.form.id, ip))) {
+      c.header("Retry-After", "60");
+      if (wantsJson(c)) return c.json({ error: "rate_limited" }, 429);
+      return c.html(
+        renderMessage(
+          found.form.title,
+          "Too many submissions from your network. Please try again in a minute.",
+          c.var.page,
+        ),
+        429,
+      );
+    }
     const length = Number(c.req.header("content-length") ?? "0");
     if (length > MAX_BODY_BYTES) return c.json({ error: "too_large" }, 413);
     const answers = await readAnswers(c);
     if (!answers) return c.json({ error: "invalid_body" }, 400);
 
     const { form, version } = found;
+    if (!(await verifyTurnstile(c.env, deps, answers[TURNSTILE_FIELD], ip))) {
+      if (wantsJson(c)) return c.json({ error: "challenge_failed" }, 403);
+      return c.html(
+        renderForm(form, c.req.path, c.var.page, {
+          values: answers,
+          notice: "Please complete the verification and submit again.",
+        }),
+        403,
+      );
+    }
     // Honeypot: bots fill every field. Pretend success so they learn nothing.
     const bot = typeof answers._hp === "string" && answers._hp !== "";
     const result = validateSubmission(form, answers);
     if (!result.ok && !bot) {
       if (wantsJson(c)) return c.json({ error: "invalid", errors: result.errors }, 422);
-      return c.html(renderForm(form, c.req.path, { values: answers, errors: result.errors }), 422);
+      return c.html(
+        renderForm(form, c.req.path, c.var.page, { values: answers, errors: result.errors }),
+        422,
+      );
     }
 
     if (!bot && result.ok) {
@@ -123,7 +166,7 @@ export function publicRoutes(deps: Deps): Hono<{ Bindings: Env }> {
     }
     if (wantsJson(c)) return c.json({ ok: true }, 201);
     const success = form.settings?.success?.message ?? "Thanks — your response was received.";
-    return c.html(renderMessage(form.title, success));
+    return c.html(renderMessage(form.title, success, c.var.page));
   });
 
   return pub;

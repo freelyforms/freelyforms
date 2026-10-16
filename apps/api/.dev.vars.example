@@ -5,3 +5,5 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 # 32 random bytes, base64url: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 MASTER_KEY_K1=
+# Turnstile test secret that always passes (pairs with the test site key in wrangler.jsonc).
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA

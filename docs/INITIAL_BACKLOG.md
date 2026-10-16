@@ -61,11 +61,11 @@
 
 ## Abuse/security
 
-- [ ] Request limits.
-- [ ] Turnstile integration.
+- [x] Request limits (Workers Rate Limiting: 20/min per IP, 5/min per IP and form).
+- [x] Turnstile integration (server-side verification; test keys in development).
 - [ ] Logging redaction.
-- [ ] Security headers.
-- [ ] CSP.
+- [x] Security headers.
+- [x] CSP (nonce-based on form pages; `frame-ancestors 'none'` on app pages, `*` on forms for embedding).
 
 ## Public site surfaces
 

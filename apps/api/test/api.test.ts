@@ -34,7 +34,8 @@ describe("api", () => {
   it("sends security headers", async () => {
     const res = await request("/health");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    // Framing is controlled by CSP: app pages forbid it, public forms allow it for embeds.
+    expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(res.headers.get("strict-transport-security")).toMatch(/max-age=/);
     // `no-referrer` would make browsers send `Origin: null` on form posts and break the CSRF check.
     expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");

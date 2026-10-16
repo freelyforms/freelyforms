@@ -42,6 +42,13 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - owner-configurable duplicate protection later;
 - honeypot support is acceptable but not sufficient by itself.
 
+## Implemented intake protection
+
+- Cloudflare Turnstile on every public form when the deployment sets `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`; the token is verified server-side and never stored.
+- Workers Rate Limiting per IP and per IP and form; over the limit returns 429 with `Retry-After`.
+- Honeypot field, 64 KB body limit, schema validation before anything is queued.
+- Form pages: nonce-based CSP, no third-party scripts except the Turnstile widget, `noindex`, `no-store`; framing allowed for embeds. App pages: `frame-ancestors 'none'`.
+
 ## Web security baseline
 
 - CSP;

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "freelyforms-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
@@ -27,6 +27,40 @@
         "dead_letter_queue": "freelyforms-delivery-dlq",
       },
     ],
+  },
+  // Submission rate limits (approximate, per Cloudflare location).
+  "ratelimits": [
+    {
+      "name": "SUBMIT_IP_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 20, "period": 60 },
+    },
+    {
+      "name": "SUBMIT_FORM_IP_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 },
+    },
+  ],
+  "vars": {
+    // Turnstile test keys that always pass; production sets real keys as secrets.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+  },
+  // Submission rate limits (approximate, per Cloudflare location).
+  "ratelimits": [
+    {
+      "name": "SUBMIT_IP_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 20, "period": 60 },
+    },
+    {
+      "name": "SUBMIT_FORM_IP_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 },
+    },
+  ],
+  "vars": {
+    // Turnstile test site key that always passes; production overrides it per environment.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
   },
   // Hourly maintenance: deadlines, expired sessions, pruning.
   "triggers": { "crons": ["17 * * * *"] },

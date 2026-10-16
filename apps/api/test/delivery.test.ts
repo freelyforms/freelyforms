@@ -451,3 +451,90 @@ describe("maintenance", () => {
     expect(await env.DB.prepare("SELECT count(*) AS n FROM sessions").first("n")).toBe(0);
   });
 });
+
+describe("intake protection", () => {
+  const PASS_SECRET = "1x0000000000000000000000000000000AA";
+
+  function limiter(allow: boolean) {
+    const keys: string[] = [];
+    const binding = {
+      limit: ({ key }: { key: string }) => {
+        keys.push(key);
+        return Promise.resolve({ success: allow });
+      },
+    };
+    return { binding, keys };
+  }
+
+  it("rate-limits per IP and per IP and form", async () => {
+    const id = await publishedForm();
+    const ip = limiter(true);
+    const formIp = limiter(false);
+    env = { ...env, SUBMIT_IP_LIMITER: ip.binding, SUBMIT_FORM_IP_LIMITER: formIp.binding };
+    const res = await submit(
+      id,
+      { fld_name: "Ada", fld_email: "ada@example.com" },
+      { "cf-connecting-ip": "203.0.113.9" },
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBe("60");
+    expect(ip.keys).toEqual(["203.0.113.9"]);
+    expect(formIp.keys).toEqual([`${id}:203.0.113.9`]);
+    expect(queue.sent).toHaveLength(0);
+  });
+
+  it("requires a passed Turnstile challenge when keys are configured", async () => {
+    const id = await publishedForm();
+    env = {
+      ...env,
+      TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+      TURNSTILE_SECRET_KEY: PASS_SECRET,
+    };
+    const verified: URLSearchParams[] = [];
+    const googleFetch = deps.fetch;
+    deps = {
+      ...deps,
+      fetch: (input, init) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.startsWith("https://challenges.cloudflare.com/")) {
+          const body = new URLSearchParams(init?.body as URLSearchParams);
+          verified.push(body);
+          return Promise.resolve(Response.json({ success: body.get("response") === "good-token" }));
+        }
+        return googleFetch(input, init);
+      },
+    };
+
+    const page = await app().request(`/f/${id}`, {}, env);
+    const html = await page.text();
+    expect(html).toContain('class="field cf-turnstile" data-sitekey="1x00000000000000000000AA"');
+    const csp = page.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("script-src 'nonce-");
+    expect(csp).toContain("https://challenges.cloudflare.com");
+    expect(csp).toContain("frame-ancestors *");
+
+    const missing = await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    expect(missing.status).toBe(403);
+    expect(await missing.text()).toContain("Please complete the verification");
+
+    const ok = await submit(
+      id,
+      { fld_name: "Ada", fld_email: "ada@example.com", "cf-turnstile-response": "good-token" },
+      { "cf-connecting-ip": "203.0.113.9" },
+    );
+    expect(ok.status).toBe(200);
+    expect(verified.at(-1)?.get("remoteip")).toBe("203.0.113.9");
+    expect(queue.sent).toHaveLength(1);
+    expect(JSON.stringify(queue.sent[0])).not.toContain("good-token");
+  });
+
+  it("serves form pages with a nonce-based CSP and no scripts without Turnstile", async () => {
+    const id = await publishedForm();
+    const page = await app().request(`/f/${id}`, {}, env);
+    const csp = page.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("script-src 'none'");
+    const nonce = /style-src 'nonce-([^']+)'/.exec(csp)?.[1];
+    expect(await page.text()).toContain(`<style nonce="${nonce ?? "missing"}">`);
+  });
+});

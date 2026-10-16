@@ -23,6 +23,12 @@ export interface Env {
   MASTER_KEY_K1: string;
   /** Host that serves public forms (ADR 0010), e.g. `freelyforms.link`. Unset in development. */
   FORMS_HOST?: string;
+  /** Cloudflare Turnstile keys. When both are set, every public form requires a passed challenge. */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  /** Submission rate limits (Workers Rate Limiting). Optional so self-hosted setups can omit them. */
+  SUBMIT_IP_LIMITER?: RateLimit;
+  SUBMIT_FORM_IP_LIMITER?: RateLimit;
 }
 
 /** External effects, injectable for tests. */

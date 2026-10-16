@@ -18,7 +18,20 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
 
   // Not `no-referrer` (the Hono default): with it, browsers send `Origin: null` on same-origin
   // form posts, which the origin check below would reject.
-  app.use(secureHeaders({ referrerPolicy: "strict-origin-when-cross-origin" }));
+  // X-Frame-Options is replaced by CSP frame-ancestors: app pages forbid framing, public forms allow
+  // it so owners can embed them.
+  app.use(
+    secureHeaders({ referrerPolicy: "strict-origin-when-cross-origin", xFrameOptions: false }),
+  );
+  app.use(async (c, next) => {
+    await next();
+    if (!c.res.headers.has("Content-Security-Policy")) {
+      c.header(
+        "Content-Security-Policy",
+        "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      );
+    }
+  });
 
   // ADR 0010: on the forms domain every path is a public form (`/<formId>` → `/f/<formId>`), and
   // nothing else from this app is reachable there.

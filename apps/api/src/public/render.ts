@@ -39,7 +39,14 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.req{color:var(--err)}
 `;
 
-function page(title: string, body: Html): Html {
+export interface PageOptions {
+  /** CSP nonce for the inline style and scripts. */
+  nonce: string;
+  /** Turnstile site key; renders the challenge widget when set. */
+  turnstileSiteKey?: string | undefined;
+}
+
+function page(title: string, body: Html, opts: PageOptions): Html {
   return html`<!doctype html>
     <html lang="en">
       <head>
@@ -47,9 +54,19 @@ function page(title: string, body: Html): Html {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="noindex" />
         <title>${title}</title>
-        <style>
+        <style nonce="${opts.nonce}">
           ${raw(STYLE)}
         </style>
+        ${
+          opts.turnstileSiteKey
+            ? html`<script
+                nonce="${opts.nonce}"
+                src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                async
+                defer
+              ></script>`
+            : ""
+        }
       </head>
       <body>
         <main>${body}</main>
@@ -163,7 +180,8 @@ function fieldBlock(field: Field, value: unknown, error: FieldError | undefined)
 export function renderForm(
   form: Form,
   action: string,
-  state: { values?: Record<string, unknown>; errors?: readonly FieldError[] } = {},
+  opts: PageOptions,
+  state: { values?: Record<string, unknown>; errors?: readonly FieldError[]; notice?: string } = {},
 ): Html {
   const errors = new Map((state.errors ?? []).map((e) => [e.fieldId, e]));
   return page(
@@ -171,20 +189,24 @@ export function renderForm(
     html`<h1>${form.title}</h1>
       ${form.description ? html`<p class="desc">${form.description}</p>` : ""}
       ${errors.size ? html`<p class="error" role="alert">Please correct the highlighted fields.</p>` : ""}
+      ${state.notice ? html`<p class="error" role="alert">${state.notice}</p>` : ""}
       <form method="post" action="${action}" novalidate>
         ${form.fields.map((f) => fieldBlock(f, state.values?.[f.id], errors.get(f.id)))}
+        ${opts.turnstileSiteKey ? html`<div class="field cf-turnstile" data-sitekey="${opts.turnstileSiteKey}"></div>` : ""}
         <div class="hp" aria-hidden="true">
           <label>Leave empty<input name="_hp" tabindex="-1" autocomplete="off" /></label>
         </div>
         <button type="submit">${form.settings?.submitLabel ?? "Submit"}</button>
       </form>`,
+    opts,
   );
 }
 
-export function renderMessage(title: string, message: string): Html {
+export function renderMessage(title: string, message: string, opts: PageOptions): Html {
   return page(
     title,
     html`<h1>${title}</h1>
       <p class="desc" role="status">${message}</p>`,
+    opts,
   );
 }
