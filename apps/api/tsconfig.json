@@ -16,6 +16,12 @@
     },
     {
       "path": "../../packages/crypto"
+    },
+    {
+      "path": "../../packages/google"
+    },
+    {
+      "path": "../../packages/form-engine"
     }
   ]
 }
