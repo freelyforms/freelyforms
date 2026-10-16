@@ -5,7 +5,7 @@
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
   // The builder (apps/web) is served by this Worker under /app/ (see src/app.ts).
-  "assets": { "directory": "../web/dist", "binding": "ASSETS", "run_worker_first": true },
+  "assets": { "directory": "../web/dist/app", "binding": "ASSETS", "run_worker_first": true },
   "d1_databases": [
     {
       "binding": "DB",
@@ -22,8 +22,9 @@
     "consumers": [
       {
         "queue": "freelyforms-delivery",
-        // ADR 0001: deliver in batches.
-        "max_batch_size": 50,
+        // ADR 0001: deliver in batches. 10 keeps one invocation inside the Workers Free limits on
+        // Google calls and D1 queries (ADR 0014); raise it on Workers Paid.
+        "max_batch_size": 10,
         "max_batch_timeout": 1,
         "max_retries": 100,
         "dead_letter_queue": "freelyforms-delivery-dlq",

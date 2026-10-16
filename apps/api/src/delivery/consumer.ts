@@ -55,7 +55,7 @@ async function setState(
       state === "delivered"
         ? db
             .prepare(
-              "UPDATE deliveries SET state = 'delivered', delivered_at = ?, last_error_code = NULL WHERE submission_id = ?",
+              "UPDATE deliveries SET state = 'delivered', delivered_at = ?, held_at = NULL, last_error_code = NULL WHERE submission_id = ?",
             )
             .bind(extra.now ?? 0, id)
         : db
@@ -104,15 +104,13 @@ async function loadVersions(
 /** Delivers one form's messages from a batch: one append for all of them (ADR 0001). */
 async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[]): Promise<void> {
   const now = deps.now();
-  const states = new Map<string, { state: string; expires_at: number; attempts: number }>();
-  for (const m of messages) {
-    const row = await env.DB.prepare(
-      "SELECT state, expires_at, attempts FROM deliveries WHERE submission_id = ?",
-    )
-      .bind(m.body.submissionId)
-      .first<{ state: string; expires_at: number; attempts: number }>();
-    if (row) states.set(m.body.submissionId, row);
-  }
+  // One query for the whole group (D1 limits queries per invocation).
+  const { results: rows } = await env.DB.prepare(
+    "SELECT submission_id, state, expires_at, attempts FROM deliveries WHERE submission_id IN (SELECT value FROM json_each(?))",
+  )
+    .bind(JSON.stringify(messages.map((m) => m.body.submissionId)))
+    .all<{ submission_id: string; state: string; expires_at: number; attempts: number }>();
+  const states = new Map(rows.map((r) => [r.submission_id, r]));
   // Already delivered, unknown to us (pruned) or a duplicate copy in this batch (Queues delivers
   // at least once; a resume can re-send): nothing to do.
   const seen = new Set<string>();
@@ -216,7 +214,9 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
       // hold store instead; the hourly sweep sends it back.
       const retentionMs = (numberVar(env.QUEUE_RETENTION_HOURS, 24) - 1) * HOUR_MS;
       for (const m of toWrite) {
-        const delaySeconds = backoffSeconds(m.attempts);
+        // Backoff follows real delivery attempts (the row), not queue redeliveries, which also
+        // count budget requeues.
+        const delaySeconds = backoffSeconds((states.get(m.body.submissionId)?.attempts ?? 0) + 1);
         if (now - m.body.submittedAt > TRANSIENT_RETRY_WINDOW_MS) {
           await setState(env, [m.body.submissionId], "permanently_failed", { error: kind });
           m.ack();
@@ -297,7 +297,7 @@ export async function maintenance(env: Env, now: number): Promise<void> {
   await db.batch([
     db
       .prepare(
-        "UPDATE deliveries SET state = 'permanently_failed', last_error_code = COALESCE(last_error_code, 'EXPIRED') WHERE state NOT IN ('delivered', 'permanently_failed') AND expires_at <= ?",
+        "UPDATE deliveries SET state = 'permanently_failed', held_at = NULL, last_error_code = COALESCE(last_error_code, 'EXPIRED') WHERE state NOT IN ('delivered', 'permanently_failed') AND expires_at <= ?",
       )
       .bind(now),
     db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now),

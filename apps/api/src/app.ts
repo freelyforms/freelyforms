@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { FORM_SCHEMA_VERSION } from "@freelyforms/form-schema/limits";
+import { accountRoutes } from "./account.js";
 import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
@@ -95,6 +96,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   });
 
   app.route("/auth", authRoutes(deps));
+  app.route("/account", accountRoutes(deps));
   app.route("/forms", formRoutes(deps));
   app.get("/f/embed.js", (c) => {
     c.header("Content-Type", "text/javascript; charset=utf-8");
@@ -112,11 +114,17 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   app.get("/app/*", async (c) => {
     if (!c.env.ASSETS)
       return c.text("The web app is not built. Run: pnpm --filter @freelyforms/web build", 503);
-    let res = await c.env.ASSETS.fetch(c.req.raw);
+    // Assets are uploaded from apps/web/dist/app, so /app/x is the asset /x.
+    const asset = (path: string) => {
+      const url = new URL(c.req.url);
+      url.pathname = path;
+      return (
+        c.env.ASSETS?.fetch(new Request(url, c.req.raw)) ?? Promise.reject(new Error("no assets"))
+      );
+    };
+    let res = await asset(c.req.path.slice("/app".length) || "/");
     // Client-side routes (no file extension) all load the app shell.
-    if (res.status === 404 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
-      res = await c.env.ASSETS.fetch(new Request(new URL("/app/", c.req.url), c.req.raw));
-    }
+    if (res.status === 404 && !/\.[a-z0-9]+$/i.test(c.req.path)) res = await asset("/");
     const out = new Response(res.body, res);
     if (out.headers.get("content-type")?.includes("text/html")) {
       out.headers.set("Content-Security-Policy", appCsp(c.env));

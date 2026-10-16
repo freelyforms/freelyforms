@@ -7,8 +7,9 @@ const key = (destinationId: string, submissionId: string) =>
   `hold:${destinationId}:${submissionId}`;
 
 /**
- * Parks an encrypted delivery until the owner fixes the destination (ADR 0011). KV deletes it at
- * `expiresAt` even if nothing else runs. Returns false when the deadline is too close to hold.
+ * Parks an encrypted delivery in the hold store (ADR 0011, ADR 0014) and marks the row `held_at`.
+ * KV deletes it at `expiresAt` even if nothing else runs. Returns false when the deadline is too
+ * close to hold.
  */
 export async function hold(
   env: Env,
@@ -21,16 +22,22 @@ export async function hold(
   await env.HOLD.put(key(destinationId, message.submissionId), JSON.stringify(message), {
     expiration: Math.floor(expiresAt / 1000),
   });
+  await env.DB.prepare("UPDATE deliveries SET held_at = ? WHERE submission_id = ?")
+    .bind(now, message.submissionId)
+    .run();
   return true;
 }
 
-/** Held deliveries resumed per call, to stay well inside the per-invocation subrequest limit. */
+/** Held deliveries resumed per call, to stay well inside the per-invocation limits. */
 export const RESUME_CHUNK = 100;
 
 /**
- * Moves held deliveries of a destination back to the queue, at most `limit` per call. The
- * delivery row is marked `queued` before the message is sent, so the consumer can never overwrite
- * a newer state with ours; if sending fails the row goes back to `blocked` and the key stays.
+ * Moves held deliveries of a destination back to the queue, at most `limit` per call.
+ *
+ * Order per key: send, then clear the row's mark (only if it is still the hold we read), then
+ * delete the key. A crash after sending leaves the key and the mark, so the delivery is sent
+ * again later; the consumer reconciles retries, so a second copy never writes a second row. If
+ * the consumer parked the delivery again meanwhile (a newer `held_at`), the newer key is kept.
  * `more` is true when keys may remain (call again; the hourly sweep also does).
  */
 export async function resumeHeld(
@@ -50,24 +57,22 @@ export async function resumeHeld(
       const value = await env.HOLD.get(name);
       if (value === null) continue; // expired between list and get
       const message = JSON.parse(value) as DeliveryMessage;
-      // Held deliveries are `blocked` (owner had to act) or `retrying`/`unknown` (a transient
-      // retry that would have outlived the queue's retention, ADR 0014).
-      await env.DB.prepare(
-        "UPDATE deliveries SET state = 'queued' WHERE submission_id = ? AND state IN ('blocked', 'retrying', 'unknown')",
-      )
+      const row = await env.DB.prepare("SELECT held_at FROM deliveries WHERE submission_id = ?")
         .bind(message.submissionId)
-        .run();
-      try {
-        await env.DELIVERY_QUEUE.send(message, { contentType: "json" });
-      } catch (err) {
-        await env.DB.prepare(
-          "UPDATE deliveries SET state = 'retrying' WHERE submission_id = ? AND state = 'queued'",
-        )
-          .bind(message.submissionId)
-          .run();
-        throw err;
+        .first<{ held_at: number | null }>();
+      // No row: pruned or the account was deleted. No mark: an earlier resume already sent it
+      // and stopped before deleting the key. Either way the key is only a leftover copy.
+      if (row?.held_at == null) {
+        await env.HOLD.delete(name);
+        continue;
       }
-      await env.HOLD.delete(name);
+      await env.DELIVERY_QUEUE.send(message, { contentType: "json" });
+      const { meta } = await env.DB.prepare(
+        "UPDATE deliveries SET state = 'queued', held_at = NULL WHERE submission_id = ? AND held_at = ? AND state IN ('blocked', 'retrying', 'unknown', 'queued')",
+      )
+        .bind(message.submissionId, row.held_at)
+        .run();
+      if (meta.changes > 0) await env.HOLD.delete(name);
       resumed.push(message.submissionId);
     }
     cursor = page.list_complete ? undefined : page.cursor;
@@ -75,16 +80,25 @@ export async function resumeHeld(
   return { resumed, more: cursor !== undefined };
 }
 
+/** Held deliveries the hourly sweep resumes in one run, across all destinations. */
+export const SWEEP_LIMIT = 100;
+
 /**
- * Hourly sweep for destinations that are OK and may have held deliveries: blocked ones a resume
- * missed (KV listings can lag right after a fix, or a resume stopped at its chunk limit), and
- * transient retries parked because the queue would have dropped them (ADR 0014). Retrying rows
- * still in the queue simply have no key to find.
+ * Hourly sweep: resumes held deliveries of destinations that are OK, oldest hold first, so no
+ * destination starves. Covers resumes a lagging KV listing or a chunk limit left behind, and
+ * transient retries parked because the queue would have dropped them (ADR 0014).
  */
 export async function resumeStragglers(env: Env): Promise<void> {
   const { results } = await env.DB.prepare(
-    `SELECT DISTINCT d.id FROM destinations d JOIN deliveries x ON x.destination_id = d.id
-     WHERE d.state = 'OK' AND x.state IN ('blocked', 'retrying', 'unknown') LIMIT 20`,
+    `SELECT x.destination_id AS id, MIN(x.held_at) AS oldest FROM deliveries x
+     JOIN destinations d ON d.id = x.destination_id
+     WHERE x.held_at IS NOT NULL AND d.state = 'OK'
+     GROUP BY x.destination_id ORDER BY oldest LIMIT 10`,
   ).all<{ id: string }>();
-  for (const { id } of results) await resumeHeld(env, id);
+  let budget = SWEEP_LIMIT;
+  for (const { id } of results) {
+    if (budget <= 0) break;
+    const { resumed } = await resumeHeld(env, id, budget);
+    budget -= Math.max(resumed.length, 1);
+  }
 }
