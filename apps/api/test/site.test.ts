@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createApp, type Env } from "../src/app.js";
+import { TEMPLATE_GROUPS } from "../src/site/pages.js";
 import { TEMPLATES } from "../src/site/templates.js";
 
 const app = createApp({ fetch: () => Promise.reject(new Error("no network")), now: () => 0 });
 const env = { APP_ORIGIN: "https://site.test" } as unknown as Env;
+const escape = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/'/g, "&#39;");
 const get = (path: string, e: Env = env) => app.request(`https://site.test${path}`, {}, e);
 
 describe("website", () => {
@@ -35,7 +38,7 @@ describe("website", () => {
       const page = await (await get(`/templates/${t.slug}/`)).text();
       expect(page).toContain(`href="/app/?template=${t.slug}"`);
       expect(page).toContain("<th>_submission_id</th>");
-      for (const f of t.form.fields) expect(page).toContain(`<th>${f.label}</th>`);
+      for (const f of t.form.fields) expect(page).toContain(`<th>${escape(f.label)}</th>`);
       const preview = await get(`/templates/${t.slug}/preview`);
       expect(preview.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
       expect(await preview.text()).toContain('class="is-preview"');
@@ -47,6 +50,13 @@ describe("website", () => {
     expect((await get("/privacy")).status).toBe(200);
   });
 
+  it("lists every template once on the hub, grouped", async () => {
+    const grouped = TEMPLATE_GROUPS.flatMap((g) => g.slugs);
+    expect([...grouped].sort()).toEqual(TEMPLATES.map((t) => t.slug).sort());
+    const hub = await (await get("/templates/")).text();
+    for (const t of TEMPLATES) expect(hub).toContain(`href="/templates/${t.slug}/"`);
+  });
+
   it("redirects paths without a trailing slash and lists pages in the sitemap", async () => {
     const res = await get("/how-it-works");
     expect([res.status, res.headers.get("location")]).toEqual([301, "/how-it-works/"]);
@@ -56,8 +66,6 @@ describe("website", () => {
     expect(await (await get("/robots.txt", { ...env, SITE_INDEXABLE: "1" })).text()).toContain(
       "Sitemap: https://site.test/sitemap.xml",
     );
-  });
-});
     expect(await (await get("/robots.txt", { ...env, SITE_INDEXABLE: "1" })).text()).toContain(
       "Allow: /app/brand/",
     );
@@ -70,3 +78,5 @@ describe("website", () => {
     const home = await (await get("/")).text();
     expect(home).toContain('rel="icon" href="/app/brand/favicon.svg"');
     expect(home).toContain('og:image" content="https://site.test/app/brand/og.png"');
+  });
+});

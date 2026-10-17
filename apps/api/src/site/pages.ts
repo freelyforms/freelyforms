@@ -186,7 +186,7 @@ export const home: Page = {
       <div class="wrap">
         <h2>Start from a template</h2>
         <p class="lead">Each template is a real form you can copy and change.</p>
-        ${templateCards(TEMPLATES)}
+        ${templateCards(TEMPLATES.slice(0, 6))}
         <p><a href="/templates/">All templates</a></p>
       </div>
     </section>
@@ -538,11 +538,61 @@ export const embed: Page = {
   </section>`,
 };
 
+/** Hub sections, in display order. Every template belongs to exactly one (checked in tests). */
+export const TEMPLATE_GROUPS: { heading: string; slugs: string[] }[] = [
+  {
+    heading: "Customers and sales",
+    slugs: [
+      "contact-form",
+      "lead-generation-form",
+      "quote-request-form",
+      "order-form",
+      "client-intake-form",
+    ],
+  },
+  {
+    heading: "Events and sign-ups",
+    slugs: ["event-registration-form", "registration-form", "rsvp-form", "volunteer-form"],
+  },
+  {
+    heading: "Feedback and evaluations",
+    slugs: [
+      "feedback-form",
+      "customer-satisfaction-survey",
+      "complaint-form",
+      "anonymous-feedback-form",
+      "course-evaluation-form",
+      "employee-evaluation-form",
+    ],
+  },
+  {
+    heading: "People and HR",
+    slugs: ["job-application-form", "employee-onboarding-form", "time-off-request-form"],
+  },
+  {
+    heading: "Operations and internal requests",
+    slugs: [
+      "project-intake-form",
+      "it-request-form",
+      "purchase-order-form",
+      "work-order-form",
+      "incident-report-form",
+    ],
+  },
+  {
+    heading: "Property",
+    slugs: ["rental-application-form", "maintenance-request-form"],
+  },
+];
+
+const bySlugs = (slugs: string[]) =>
+  slugs.flatMap((slug) => TEMPLATES.filter((t) => t.slug === slug));
+
 export const templatesHub: Page = {
   meta: {
     title: "Free form templates that save to Google Sheets | Freely Forms",
     description:
-      "Contact, registration, feedback, client intake and quote request form templates. Preview each one, then copy it into your own account.",
+      "Forms for sales, events, feedback, HR, operations and rentals. Preview each one, see its sheet columns, then copy it into your own account.",
     path: "/templates/",
   },
   body: html`<section>
@@ -553,10 +603,23 @@ export const templatesHub: Page = {
         Real forms you can preview here and copy into your account. Each shows the exact columns
         you'll get in your Google Sheet.
       </p>
-      ${templateCards(TEMPLATES)}
+      ${TEMPLATE_GROUPS.map(
+        (g) =>
+          html`<h2 class="tpl-group">${g.heading}</h2>
+            ${templateCards(bySlugs(g.slugs))}`,
+      )}
     </div>
   </section>`,
 };
+
+/** Up to three templates from the same hub section, then from the rest. */
+function relatedTemplates(t: Template): Template[] {
+  const group = TEMPLATE_GROUPS.find((g) => g.slugs.includes(t.slug))?.slugs ?? [];
+  const start = group.indexOf(t.slug);
+  const sameGroup = [...group.slice(start + 1), ...group.slice(0, start)];
+  const others = TEMPLATES.map((x) => x.slug).filter((s) => !group.includes(s));
+  return bySlugs([...sameGroup, ...others].slice(0, 3));
+}
 
 export function templatePage(t: Template): Page {
   const columns = [...SYSTEM_COLUMNS, ...headerLabels(t.form)];
@@ -621,7 +684,7 @@ export function templatePage(t: Template): Page {
       <section>
         <div class="wrap">
           <h2>Other templates</h2>
-          ${templateCards(TEMPLATES.filter((x) => x.slug !== t.slug).slice(0, 3))}
+          ${templateCards(relatedTemplates(t))}
         </div>
       </section>`,
   };
