@@ -1,3 +1,4 @@
+import { Script } from "node:vm";
 import {
   createKeyring,
   encrypt,
@@ -570,6 +571,35 @@ describe("delivery", () => {
     const sheet = onlySheet();
     expect(sheet.rows[0]?.slice(3)).toEqual(["Name", "Email", "Topic", "UTM source"]);
     expect(sheet.rows[1]?.slice(3)).toEqual(["Ada", "ada@example.com", "", "newsletter"]);
+  });
+
+  it("sends respondents to the owner's page after submitting, standalone or embedded", async () => {
+    const created = await owner("/forms", { method: "POST", body: { title: "Redirect" } });
+    const { id } = await created.json<{ id: string }>();
+    const url = "https://example.com/thanks?a=1&b=</script>";
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: "Redirect",
+        fields,
+        settings: { success: { type: "redirect", url } },
+      },
+    });
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    const page = await (await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" })).text();
+    expect(page).toContain(
+      'href="https://example.com/thanks?a=1&amp;b=&lt;/script&gt;" target="_top"',
+    );
+    expect(page).toContain("freelyforms:redirect");
+    expect(page).not.toContain("b=</script>");
+    const json = await submit(
+      id,
+      { fld_name: "Ada", fld_email: "ada@example.com" },
+      { accept: "application/json" },
+    );
+    expect(await json.json()).toMatchObject({ ok: true, redirect: url });
   });
 
   it("does not deliver a message twice", async () => {
@@ -1147,7 +1177,9 @@ describe("intake protection", () => {
     const local = await app().request("/f/embed.js", {}, env);
     expect(local.headers.get("content-type")).toContain("javascript");
     expect(local.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
-    expect(await local.text()).toContain("iframe[data-freelyforms]");
+    const script = await local.text();
+    expect(script).toContain("iframe[data-freelyforms]");
+    expect(() => new Script(script)).not.toThrow(); // compiles, without running
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
     expect((await app().request("http://forms.test/embed.js", {}, formsEnv)).status).toBe(200);
     const view = await (

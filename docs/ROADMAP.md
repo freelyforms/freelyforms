@@ -46,7 +46,7 @@ Release publicly as soon as this is trustworthy.
 - URL prefilling (done);
 - richer layout/themes;
 - custom validation;
-- redirects;
+- redirects after submitting (done);
 - duplication/templates;
 - conversational rendering mode.
 

@@ -292,6 +292,32 @@ export function renderForm(
   );
 }
 
+/**
+ * After a submission with a redirect: a standalone form goes straight to the owner's page; an
+ * embedded one asks the embed script to take the whole host page there. Without either, the
+ * respondent follows the link.
+ */
+export function renderRedirect(
+  form: Pick<Form, "id" | "title" | "settings">,
+  url: string,
+  opts: PageOptions,
+): Html {
+  const target = JSON.stringify(url).replace(/</g, "\\u003c");
+  const go = `(function(u){if(window.parent===window)location.replace(u);else parent.postMessage({type:"freelyforms:redirect",url:u},"*")})(${target})`;
+  return page(
+    form.title,
+    html`<h1>${form.title}</h1>
+      <p class="desc" role="status">Thanks — your response was received.</p>
+      <p><a href="${url}" target="_top">Continue</a></p>
+      <script nonce="${opts.nonce}">
+        ${raw(go)};
+      </script>`,
+    opts,
+    form.settings?.theme,
+    form.id,
+  );
+}
+
 export function renderMessage(
   title: string,
   message: string,

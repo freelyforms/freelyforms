@@ -37,6 +37,19 @@ describe("parseForm", () => {
     expect(issuesOf(minimal([{ ...hidden, param: "utm source" }])).join()).toMatch(/param/);
   });
 
+  it("accepts an https redirect after submitting and nothing else", () => {
+    const withSuccess = (success: unknown) => ({
+      ...(minimal([]) as object),
+      settings: { success },
+    });
+    expect(issuesOf(withSuccess({ type: "redirect", url: "https://example.com/thanks" }))).toEqual(
+      [],
+    );
+    for (const url of ["http://example.com", "javascript:alert(1)", "example.com", ""]) {
+      expect(issuesOf(withSuccess({ type: "redirect", url })), url).not.toEqual([]);
+    }
+  });
+
   it("rejects an unknown schema version", () => {
     expect(issuesOf({ ...(minimal([]) as object), schemaVersion: 2 })).not.toEqual([]);
   });

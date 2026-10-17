@@ -1,8 +1,16 @@
 import type { Form } from "@freelyforms/form-schema";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { updateSettings } from "./draft.js";
 
 const DEFAULT_ACCENT = "#1f5fd6";
+
+const isHttpsUrl = (value: string) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 const SCHEMES = [
   ["auto", "Match device"],
   ["light", "Light"],
@@ -14,6 +22,9 @@ export function DesignPanel({ form, onChange }: { form: Form; onChange: (form: F
   const theme = form.settings?.theme ?? {};
   const accent = theme.accent ?? DEFAULT_ACCENT;
   const scheme = theme.colorScheme ?? "auto";
+  const success = form.settings?.success;
+  const [after, setAfter] = useState<"message" | "redirect">(success?.type ?? "message");
+  const [url, setUrl] = useState(success?.type === "redirect" ? success.url : "");
   const setTheme = (patch: Record<string, string | undefined>) => {
     onChange(updateSettings(form, { theme: { ...theme, ...patch } }));
   };
@@ -84,22 +95,87 @@ export function DesignPanel({ form, onChange }: { form: Form; onChange: (form: F
             onChange(updateSettings(form, { submitLabel: e.target.value }));
           }}
         />
-        <label className="field-label" htmlFor={`${uid}-success`}>
-          Success message
-        </label>
-        <textarea
-          id={`${uid}-success`}
-          rows={2}
-          placeholder="Thanks — your response was received."
-          value={form.settings?.success?.message ?? ""}
-          maxLength={2000}
-          onChange={(e) => {
-            const message = e.target.value;
-            onChange(
-              updateSettings(form, { success: message ? { type: "message", message } : undefined }),
-            );
-          }}
-        />
+        <span className="field-label" id={`${uid}-after-label`}>
+          After submitting
+        </span>
+        <div className="segmented" role="group" aria-labelledby={`${uid}-after-label`}>
+          {(
+            [
+              ["message", "Show a message"],
+              ["redirect", "Go to a web page"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={after === value}
+              className={after === value ? "selected" : undefined}
+              onClick={() => {
+                setAfter(value);
+                if (value === "message") {
+                  onChange(updateSettings(form, { success: undefined }));
+                } else if (isHttpsUrl(url)) {
+                  onChange(updateSettings(form, { success: { type: "redirect", url } }));
+                }
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {after === "message" ? (
+          <>
+            <label className="field-label" htmlFor={`${uid}-success`}>
+              Message
+            </label>
+            <textarea
+              id={`${uid}-success`}
+              rows={2}
+              placeholder="Thanks — your response was received."
+              value={success?.type === "message" ? success.message : ""}
+              maxLength={2000}
+              onChange={(e) => {
+                const message = e.target.value;
+                onChange(
+                  updateSettings(form, {
+                    success: message ? { type: "message", message } : undefined,
+                  }),
+                );
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <label className="field-label" htmlFor={`${uid}-url`}>
+              Web page address
+            </label>
+            <input
+              id={`${uid}-url`}
+              type="url"
+              inputMode="url"
+              placeholder="https://example.com/thank-you"
+              value={url}
+              maxLength={2000}
+              aria-invalid={url !== "" && !isHttpsUrl(url)}
+              aria-describedby={`${uid}-url-help`}
+              onChange={(e) => {
+                const next = e.target.value.trim();
+                setUrl(next);
+                // Only a complete https address is saved; until then the form keeps its message.
+                onChange(
+                  updateSettings(form, {
+                    success: isHttpsUrl(next) ? { type: "redirect", url: next } : undefined,
+                  }),
+                );
+              }}
+            />
+            <p className="helper" id={`${uid}-url-help`}>
+              {url !== "" && !isHttpsUrl(url)
+                ? "Use a full address starting with https://"
+                : "Respondents go there after their answers are accepted. An embedded form takes the whole page there."}
+            </p>
+          </>
+        )}
       </section>
     </div>
   );

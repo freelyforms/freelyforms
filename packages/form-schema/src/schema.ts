@@ -160,10 +160,25 @@ export const fieldSchema = z
     }
   });
 
-export const successSchema = z.strictObject({
-  type: z.literal("message"),
-  message: z.string().min(1).max(2_000).regex(nonBlank, "Must not be blank"),
-});
+const isHttpsUrl = (value: string) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+/** What respondents see after submitting: a message, or another page (https only). */
+export const successSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("message"),
+    message: z.string().min(1).max(2_000).regex(nonBlank, "Must not be blank"),
+  }),
+  z.strictObject({
+    type: z.literal("redirect"),
+    url: z.string().max(2_000).refine(isHttpsUrl, "Use a full web address starting with https://"),
+  }),
+]);
 
 /** Basic appearance. Colours are validated hex values, so renderers can use them in CSS as-is. */
 export const themeSchema = z.strictObject({

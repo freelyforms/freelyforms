@@ -32,24 +32,46 @@
           "pattern": "\\S"
         },
         "success": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "message"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "message"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "type",
+                "message"
+              ],
+              "additionalProperties": false
             },
-            "message": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 2000,
-              "pattern": "\\S"
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "redirect"
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "type",
+                "url"
+              ],
+              "additionalProperties": false
             }
-          },
-          "required": [
-            "type",
-            "message"
-          ],
-          "additionalProperties": false
+          ]
         },
         "theme": {
           "type": "object",

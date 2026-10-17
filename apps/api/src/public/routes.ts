@@ -14,7 +14,7 @@ import {
   withinRateLimits,
 } from "./protect.js";
 import { prefillValues } from "./prefill.js";
-import { renderForm, renderMessage, type PageOptions } from "./render.js";
+import { renderForm, renderMessage, renderRedirect, type PageOptions } from "./render.js";
 
 /** Cloudflare Queues rejects messages over 128 KB; keep a margin for metadata and encryption. */
 const MAX_BODY_BYTES = 64 * 1024;
@@ -139,6 +139,8 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
     if (answers === "invalid_body") return c.json({ error: "invalid_body" }, 400);
 
     const { form, version } = found;
+    const after = form.settings?.success;
+    const redirect = after?.type === "redirect" ? { redirect: after.url } : {};
     if (!(await verifyTurnstile(c.env, deps, answers[TURNSTILE_FIELD], ip))) {
       if (wantsJson(c)) return c.json({ error: "challenge_failed" }, 403);
       return c.html(
@@ -188,11 +190,13 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
       )
         .bind(submissionId)
         .run();
-      if (wantsJson(c)) return c.json({ ok: true, submissionId }, 201);
+      if (wantsJson(c)) return c.json({ ok: true, submissionId, ...redirect }, 201);
     }
     // Honeypot hits get a response indistinguishable from a real one.
-    if (wantsJson(c)) return c.json({ ok: true, submissionId: ulid(deps.now()) }, 201);
-    const success = form.settings?.success?.message ?? "Thanks — your response was received.";
+    if (wantsJson(c)) return c.json({ ok: true, submissionId: ulid(deps.now()), ...redirect }, 201);
+    if (after?.type === "redirect") return c.html(renderRedirect(form, after.url, c.var.page));
+    const success =
+      after?.type === "message" ? after.message : "Thanks — your response was received.";
     return c.html(renderMessage(form.title, success, c.var.page, form));
   });
 

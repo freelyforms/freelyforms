@@ -62,7 +62,7 @@ Submissions:
 - Body limit 64 KB. Rate limits: 20 per minute per IP, 5 per minute per IP and form.
 - A hidden honeypot field `_hp` must stay empty; when it is filled the response looks accepted but is dropped.
 - HTML clients get a success page, the form again with errors (`422`) or a challenge notice (`403`), or a "too many submissions" page (`429`). `404`, `413` and `400` are JSON for every client.
-- Clients that send `Accept: application/json` get `201 { ok: true, submissionId }`, `422 { error: "invalid", errors: [{ fieldId, code, params? }] }`, `403 challenge_failed`, `429 rate_limited` (with `Retry-After`), `413 too_large`, `400 invalid_body` or `404 not_found`.
+- Clients that send `Accept: application/json` get `201 { ok: true, submissionId, redirect? }` (`redirect` is the owner's after-submit page, when set), `422 { error: "invalid", errors: [{ fieldId, code, params? }] }`, `403 challenge_failed`, `429 rate_limited` (with `Retry-After`), `413 too_large`, `400 invalid_body` or `404 not_found`.
 
 A `201` means the response was accepted and queued, not that it is already in the sheet: delivery is asynchronous and usually takes seconds ([ARCHITECTURE.md](ARCHITECTURE.md)).
 

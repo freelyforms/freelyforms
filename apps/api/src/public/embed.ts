@@ -17,6 +17,9 @@ export const EMBED_JS = `(function(){
       if (data.type === "freelyforms:height") {
         var height = Math.min(Math.max(Number(data.height) || 0, 120), 20000);
         frames[i].style.height = height + "px";
+      } else if (data.type === "freelyforms:redirect" && String(data.url).indexOf("https://") === 0) {
+        // The form's owner set a page to show after submitting: take this whole page there.
+        location.assign(String(data.url));
       } else if (data.type === "freelyforms:params" && Array.isArray(data.names)) {
         var query = new URLSearchParams(location.search), values = {};
         data.names.slice(0, 50).forEach(function (name) {
