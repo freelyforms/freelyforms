@@ -246,9 +246,7 @@ export function FieldEditor(props: Props) {
         <div className="more">
           <p className="muted small">
             Not shown to respondents. Filled from <code>?{field.param ?? field.id}=…</code> in the
-            form link, or from the same parameter in the address of the page an embedded form sits
-            on. Respondents can change it, so use it for attribution, not for anything you need to
-            trust.
+            form link or in the address of the page it's embedded on. Respondents can change it.
           </p>
           <div className="minis">
             <div className="mini">
