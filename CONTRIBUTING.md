@@ -10,7 +10,7 @@ Thanks for your interest in improving Freely Forms.
 
 ## Contributor License Agreement
 
-External contributions require signing the [Contributor License Agreement](CLA.md). When the repository is published on GitHub, a bot (CLA Assistant) will ask you to sign on your first pull request; it takes one click. Until then, contributions are not accepted. You keep the copyright in your work. See [ADR 0009](docs/adr/0009-license-apache-2-and-cla.md) for why.
+External contributions require signing the [Contributor License Agreement](CLA.md). On your first pull request a bot asks you to sign by posting one comment: `I have read the CLA Document and I hereby sign the CLA`. Signatures are kept on the `cla-signatures` branch. You keep the copyright in your work. See [ADR 0009](docs/adr/0009-license-apache-2-and-cla.md) for why.
 
 ## Ground rules
 

@@ -61,7 +61,7 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - schema validation server-side;
 - no HTML injection from field labels/descriptions without sanitisation;
 - dependency scanning;
-- secret scanning (enable GitHub secret scanning and push protection when the repository is published);
+- secret scanning: GitHub secret scanning and push protection are enabled on the repository;
 - security headers.
 
 ## Operational data

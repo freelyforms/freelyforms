@@ -3,6 +3,8 @@ import { html } from "hono/html";
 import type { Html, PageMeta } from "./layout.js";
 import { TEMPLATES, type Template } from "./templates.js";
 
+const REPO_URL = "https://github.com/freelyforms/freelyforms";
+
 /**
  * Website pages. Every claim here describes what the product does today; keep it in step with
  * docs/ROADMAP.md, the privacy policy and docs/SECURITY_PRIVACY.md.
@@ -338,8 +340,77 @@ export const whyFree: Page = {
         <li>Google's own limits apply to your sheet, such as its maximum number of cells.</li>
       </ul>
       <h2>Who runs it</h2>
-      <p>Freely Forms is an independent project.</p>
+      <p>
+        Freely Forms is an independent, non-commercial project, and its code is
+        <a href="/open-source/">open source</a>.
+      </p>
       <div class="actions"><a class="btn primary" href="/app/">Create a free form</a></div>
+    </div>
+  </section>`,
+};
+
+export const openSource: Page = {
+  meta: {
+    title: "Open source: Freely Forms code, licence and contributing",
+    description:
+      "Freely Forms is open source under Apache-2.0. Read the code, check what it does with your data, report a vulnerability or contribute on GitHub.",
+    path: "/open-source/",
+  },
+  body: html`<section>
+    <div class="wrap prose">
+      <p class="eyebrow">Open source</p>
+      <h1>Freely Forms is open source</h1>
+      <p class="lead">
+        The builder, the public forms, the delivery to Google Sheets and this website are all in one
+        public repository:
+        <a href="${REPO_URL}">github.com/freelyforms/freelyforms</a>.
+      </p>
+      <h2>Why it matters for a form tool</h2>
+      <p>
+        A form builder sits between your respondents and your Google account. With the code public,
+        you don't have to take our word for what happens on that path: you can read which Google
+        permissions are requested, how responses are encrypted while they wait, and when they're
+        deleted.
+      </p>
+      <ul>
+        <li>
+          <a href="${REPO_URL}/blob/main/docs/SECURITY_PRIVACY.md">Security and privacy design</a>
+        </li>
+        <li><a href="${REPO_URL}/blob/main/docs/GOOGLE_INTEGRATION.md">Google integration</a></li>
+        <li><a href="${REPO_URL}/tree/main/docs/adr">Architecture decisions</a></li>
+        <li>
+          <a href="${REPO_URL}/blob/main/docs/FORM_SCHEMA.md">Form schema</a> (forms export as JSON)
+        </li>
+      </ul>
+      <h2>Licence</h2>
+      <p>
+        Apache License 2.0: you may use, modify and redistribute the code, including commercially,
+        under its terms. Contributors sign a short
+        <a href="${REPO_URL}/blob/main/CLA.md">contributor licence agreement</a>; it's a licence,
+        not a transfer of copyright.
+      </p>
+      <h2>Running it yourself</h2>
+      <p>
+        The hosted service runs on Cloudflare Workers with D1, Queues and KV. You can run the same
+        code locally by following the
+        <a href="${REPO_URL}/blob/main/CONTRIBUTING.md">contributing guide</a>. A step-by-step
+        self-hosting guide isn't written yet.
+      </p>
+      <h2>Report a vulnerability</h2>
+      <p>
+        Please report privately through
+        <a href="${REPO_URL}/security/advisories/new">GitHub's private vulnerability reporting</a>
+        or to hello@freelyforms.com with the subject <code>SECURITY</code>, not in a public issue.
+      </p>
+      <h2>Contribute</h2>
+      <p>
+        Bug reports and pull requests are welcome. Start with
+        <a href="${REPO_URL}/issues">the issues</a> and the contributing guide.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="${REPO_URL}">View on GitHub</a
+        ><a class="btn" href="/app/">Create a free form</a>
+      </div>
     </div>
   </section>`,
 };

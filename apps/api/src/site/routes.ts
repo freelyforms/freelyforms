@@ -15,13 +15,23 @@ import {
   templatePage,
   templatesHub,
   whyFree,
+  openSource,
   type Page,
 } from "./pages.js";
 import { templateBySlug, TEMPLATES } from "./templates.js";
 
 type Ctx = Context<{ Bindings: Env }>;
 
-const PAGES: Page[] = [home, howItWorks, whyFree, security, googleSheets, embed, templatesHub];
+const PAGES: Page[] = [
+  home,
+  howItWorks,
+  whyFree,
+  openSource,
+  security,
+  googleSheets,
+  embed,
+  templatesHub,
+];
 
 function context(c: Ctx): SiteContext {
   return {

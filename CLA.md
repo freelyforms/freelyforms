@@ -4,7 +4,7 @@ Version 1.0 — 2026-10-16
 
 Thank you for contributing to Freely Forms (the "Project"). This Agreement explains the rights you grant to the Project maintainer, Grigory Frolov, and any successor or entity to which this Agreement is assigned (the "Maintainer"). You keep the copyright in your contributions; this is a licence, not an assignment.
 
-You accept this Agreement by signing it through the CLA bot on your pull request. It applies to every Contribution you submit to the Project, past and future, unless you notify the Maintainer otherwise in writing for future Contributions.
+You accept this Agreement by signing it through the CLA bot on your pull request (by posting the comment the bot asks for). It applies to every Contribution you submit to the Project, past and future, unless you notify the Maintainer otherwise in writing for future Contributions.
 
 ## 1. Definitions
 

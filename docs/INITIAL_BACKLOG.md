@@ -9,7 +9,7 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Add linting/formatting.
 - [x] Add unit test framework.
 - [x] Add CI for format/lint/typecheck/test (`.github/workflows/ci.yml`).
-- [ ] Enable GitHub secret scanning and push protection when the repository is published.
+- [x] GitHub secret scanning, push protection, Dependabot alerts and private vulnerability reporting enabled.
 
 ## Schema
 

@@ -71,6 +71,12 @@ describe("website", () => {
     );
   });
 
+  it("links the public repository from the open-source page", async () => {
+    const res = await get("/open-source/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('href="https://github.com/freelyforms/freelyforms"');
+  });
+
   it("points the favicon and social image at the brand assets", async () => {
     const res = await get("/favicon.ico");
     expect(res.status).toBe(301);

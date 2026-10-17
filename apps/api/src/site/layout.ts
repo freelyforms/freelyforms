@@ -91,7 +91,14 @@ const FOOTER: [string, [string, string][]][] = [
       ["mailto:hello@freelyforms.com?subject=Abuse%20report", "Report abuse"],
     ],
   ],
-  ["Learn", [["/why-free/", "Why it's free"]]],
+  [
+    "Learn",
+    [
+      ["/why-free/", "Why it's free"],
+      ["/open-source/", "Open source"],
+      ["https://github.com/freelyforms/freelyforms", "GitHub"],
+    ],
+  ],
   [
     "App",
     [
