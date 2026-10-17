@@ -53,6 +53,7 @@ export function App() {
     <>
       <header className="topbar">
         <Link to="/" className="brand">
+          <img src={`${import.meta.env.BASE_URL}brand/logo.svg`} alt="" width={24} height={24} />
           Freely Forms
         </Link>
         <span className="spacer" />

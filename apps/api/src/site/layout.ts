@@ -29,7 +29,7 @@ const STYLE = `
 a{color:var(--accent)}img{max-width:100%}
 .wrap{max-width:1160px;margin:0 auto;padding:0 24px}.narrow>*,.prose>*{max-width:740px}
 header.site{border-bottom:1px solid var(--line)}header.site .wrap{display:flex;align-items:center;gap:24px;height:64px}
-.logo{font-weight:700;color:var(--fg);text-decoration:none;font-size:1.05rem}
+.logo{font-weight:700;color:var(--fg);text-decoration:none;font-size:1.05rem;display:inline-flex;align-items:center;gap:8px}
 nav.main{display:flex;gap:20px;flex:1}nav.main a{color:var(--muted);text-decoration:none;font-size:.95rem}nav.main a:hover,nav.main a[aria-current=page]{color:var(--fg)}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:8px;border:1px solid var(--line);color:var(--fg);text-decoration:none;font-weight:600;white-space:nowrap}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.btn:hover{filter:brightness(1.05)}
@@ -117,7 +117,12 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
         <meta property="og:title" content="${meta.title}" />
         <meta property="og:description" content="${meta.description}" />
         <meta property="og:url" content="${url}" />
-        <meta name="twitter:card" content="summary" />
+        <meta property="og:image" content="${ctx.origin}/app/brand/og.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <link rel="icon" href="/app/brand/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/app/brand/apple-touch-icon.png" />
         <style nonce="${ctx.nonce}">
           ${raw(STYLE)}
         </style>
@@ -125,7 +130,9 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
       <body>
         <header class="site">
           <div class="wrap">
-            <a class="logo" href="/">Freely Forms</a>
+            <a class="logo" href="/"
+              ><img src="/app/brand/logo.svg" alt="" width="24" height="24" />Freely Forms</a
+            >
             <nav class="main" aria-label="Main">
               ${NAV.map(
                 ([href, label]) =>

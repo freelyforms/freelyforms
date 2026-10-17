@@ -86,10 +86,14 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
     });
   }
 
+  // Brand files ship with the builder's static assets; robots.txt allows /app/brand/ so search
+  // engines can fetch the favicon.
+  site.get("/favicon.ico", (c) => c.redirect("/app/brand/favicon.svg", 301));
+
   site.get("/robots.txt", (c) => {
     const ctx = context(c);
     const body = ctx.indexable
-      ? `User-agent: *\nAllow: /\nDisallow: /app/\nDisallow: /auth/\nDisallow: /forms/\nDisallow: /account/\n\nSitemap: ${ctx.origin}/sitemap.xml\n`
+      ? `User-agent: *\nAllow: /\nAllow: /app/brand/\nDisallow: /app/\nDisallow: /auth/\nDisallow: /forms/\nDisallow: /account/\n\nSitemap: ${ctx.origin}/sitemap.xml\n`
       : "User-agent: *\nAllow: /\n";
     return c.text(body);
   });

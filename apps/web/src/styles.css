@@ -359,6 +359,9 @@ button.small {
   border-bottom: 1px solid var(--line);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
   font-weight: 700;
   color: var(--fg);
   text-decoration: none;

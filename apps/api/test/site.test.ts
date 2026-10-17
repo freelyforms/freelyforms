@@ -58,3 +58,15 @@ describe("website", () => {
     );
   });
 });
+    expect(await (await get("/robots.txt", { ...env, SITE_INDEXABLE: "1" })).text()).toContain(
+      "Allow: /app/brand/",
+    );
+  });
+
+  it("points the favicon and social image at the brand assets", async () => {
+    const res = await get("/favicon.ico");
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("/app/brand/favicon.svg");
+    const home = await (await get("/")).text();
+    expect(home).toContain('rel="icon" href="/app/brand/favicon.svg"');
+    expect(home).toContain('og:image" content="https://site.test/app/brand/og.png"');
