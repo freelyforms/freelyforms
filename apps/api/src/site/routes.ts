@@ -33,16 +33,23 @@ const PAGES: Page[] = [
   templatesHub,
 ];
 
-function context(c: Ctx): SiteContext {
+/**
+ * Pages search engines may index even while SITE_INDEXABLE is off: the homepage and the policies
+ * describe the app for Google's OAuth brand verification, whose checks treat a noindex homepage as
+ * unreachable.
+ */
+const ALWAYS_INDEXABLE = new Set(["/", "/security/", "/privacy", "/terms"]);
+
+function context(c: Ctx, path?: string): SiteContext {
   return {
     origin: c.env.APP_ORIGIN ?? new URL(c.req.url).origin,
-    indexable: c.env.SITE_INDEXABLE === "1",
+    indexable: c.env.SITE_INDEXABLE === "1" || (path !== undefined && ALWAYS_INDEXABLE.has(path)),
     nonce: randomToken(16),
   };
 }
 
 function send(c: Ctx, page: Page, status: 200 | 404 = 200) {
-  const ctx = context(c);
+  const ctx = context(c, status === 200 ? page.meta.path : undefined);
   c.header("Content-Security-Policy", siteCsp(ctx.nonce));
   c.header("Cache-Control", "public, max-age=300");
   if (!ctx.indexable) c.header("X-Robots-Tag", "noindex");
@@ -90,7 +97,7 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
     ["/terms", "Terms of use", termsBody],
   ] as const) {
     site.get(path, (c) => {
-      const ctx = context(c);
+      const ctx = context(c, path);
       c.header("Content-Security-Policy", siteCsp(ctx.nonce));
       return c.html(legalPage(ctx, path, title, body));
     });

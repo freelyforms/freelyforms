@@ -10,15 +10,15 @@ const escape = (s: string) =>
 const get = (path: string, e: Env = env) => app.request(`https://site.test${path}`, {}, e);
 
 describe("website", () => {
-  it("serves every page noindex until indexing is switched on, with canonical URLs", async () => {
+  it("serves pages noindex until indexing is switched on, with canonical URLs", async () => {
     for (const path of [
-      "/",
       "/how-it-works/",
       "/why-free/",
-      "/security/",
+      "/open-source/",
       "/integrations/google-sheets/",
       "/features/embed/",
       "/templates/",
+      "/templates/contact-form/",
     ]) {
       const res = await get(path);
       expect(res.status, path).toBe(200);
@@ -28,9 +28,19 @@ describe("website", () => {
       expect(page).toContain('name="robots" content="noindex"');
       expect(page).not.toContain("<script");
     }
-    const open = await get("/", { ...env, SITE_INDEXABLE: "1" });
+    const open = await get("/how-it-works/", { ...env, SITE_INDEXABLE: "1" });
     expect(open.headers.get("x-robots-tag")).toBeNull();
     expect(await open.text()).not.toContain("noindex");
+  });
+
+  it("keeps the homepage, security and legal pages indexable for Google's brand verification", async () => {
+    for (const path of ["/", "/security/", "/privacy", "/terms"]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("x-robots-tag"), path).toBeNull();
+      expect(await res.text(), path).not.toContain("noindex");
+    }
+    expect((await get("/templates/no-such-template/")).headers.get("x-robots-tag")).toBe("noindex");
   });
 
   it("renders template pages with the sheet columns, field reasons and a copy link", async () => {
