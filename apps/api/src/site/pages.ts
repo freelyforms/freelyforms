@@ -1,4 +1,4 @@
-import { SYSTEM_COLUMNS } from "@freelyforms/google";
+import { headerLabels, SYSTEM_COLUMNS } from "@freelyforms/google";
 import { html } from "hono/html";
 import type { Html, PageMeta } from "./layout.js";
 import { TEMPLATES, type Template } from "./templates.js";
@@ -100,7 +100,7 @@ export const home: Page = {
           [
             [
               "01JA…7K2Q",
-              "2026-10-16 09:14",
+              "2026-10-16T09:14:05.000Z",
               "1",
               "Sam Taylor",
               "sam@example.com",
@@ -109,7 +109,7 @@ export const home: Page = {
             ],
             [
               "01JA…9MPD",
-              "2026-10-16 11:02",
+              "2026-10-16T11:02:41.000Z",
               "1",
               "Priya Shah",
               "priya@example.com",
@@ -202,7 +202,8 @@ export const home: Page = {
           <p><a href="/features/embed/">Embedding a form</a></p>
         </div>
         <pre><code>&lt;iframe data-freelyforms src="https://freelyforms.link/frm_…"
-  title="Contact us" width="100%" height="600"&gt;&lt;/iframe&gt;
+  title="Contact us" width="100%" height="600" style="border:0;width:100%"
+  loading="lazy"&gt;&lt;/iframe&gt;
 &lt;script src="https://freelyforms.link/embed.js" async&gt;&lt;/script&gt;</code></pre>
       </div>
     </section>
@@ -252,9 +253,9 @@ export const howItWorks: Page = {
       <h2>3. The answer becomes a row in your sheet</h2>
       <p>
         Accepted answers are encrypted and queued, then written to your sheet, usually within
-        seconds. If Google is unavailable, delivery is retried automatically. If your sheet has been
-        deleted or access was removed, responses wait, encrypted, for up to 7 days for you to fix
-        it, and are deleted after that.
+        seconds. If Google is unavailable, delivery is retried automatically for up to 72 hours. If
+        your sheet has been deleted or access was removed, responses wait, encrypted, for up to 7
+        days for you to fix it, and are deleted after that.
       </p>
       <h2>What Freely Forms stores</h2>
       <ul>
@@ -287,8 +288,9 @@ export const howItWorks: Page = {
       </p>
       <h3>What if I rename or move columns?</h3>
       <p>
-        Columns are matched by a hidden ID, not by their header, so renaming or reordering them is
-        fine.
+        Columns are matched by a hidden ID, not by their header, so reordering them is fine, and a
+        header you rename yourself is kept. When you rename a question, its column header follows,
+        unless you've already changed that header by hand.
       </p>
       <h3>Can a response run a formula in my sheet?</h3>
       <p>
@@ -389,7 +391,10 @@ export const security: Page = {
       </ul>
       <h2>Public forms</h2>
       <ul>
-        <li>Forms are served from a separate domain, freelyforms.link, and set no cookies.</li>
+        <li>
+          Forms are served from a separate domain, freelyforms.link, where Freely Forms sets no
+          cookies.
+        </li>
         <li>Spam protection: Cloudflare Turnstile, rate limits and a hidden honeypot field.</li>
         <li>Every form has a "Report abuse" link.</li>
       </ul>
@@ -427,10 +432,18 @@ export const googleSheets: Page = {
         ${sheetMock(
           [...SYSTEM_COLUMNS, "Full name", "Email", "Ticket", "Additional guests"],
           [
-            ["01JA…3TQR", "2026-10-16 18:40", "2", "Alex Kim", "alex@example.com", "Student", "1"],
+            [
+              "01JA…3TQR",
+              "2026-10-16T18:40:12.000Z",
+              "2",
+              "Alex Kim",
+              "alex@example.com",
+              "Student",
+              "1",
+            ],
             [
               "01JA…5VBN",
-              "2026-10-16 19:05",
+              "2026-10-16T19:05:37.000Z",
               "2",
               "Jo Brown",
               "jo@example.com",
@@ -453,15 +466,16 @@ export const googleSheets: Page = {
         <ul>
           <li>New questions get new columns at the end, after any columns you added yourself.</li>
           <li>
-            Columns are matched by a hidden field ID, so you can rename headers and reorder columns.
+            Columns are matched by a hidden field ID, so you can reorder columns and rename headers;
+            renaming a question updates its header unless you've edited it by hand.
           </li>
           <li>Removed questions keep their column, so past answers stay where they were.</li>
         </ul>
         <h2>Reliable delivery</h2>
         <ul>
           <li>
-            Responses are batched and retried if Google is busy, and each carries a unique ID, so a
-            retry never writes the same response twice.
+            Responses are batched and retried if Google is busy, and each carries a unique ID, so
+            retries are designed not to write the same response twice.
           </li>
           <li>
             Choices are written as their labels, numbers as numbers and checkboxes as TRUE/FALSE.
@@ -545,7 +559,7 @@ export const templatesHub: Page = {
 };
 
 export function templatePage(t: Template): Page {
-  const columns = [...SYSTEM_COLUMNS, ...t.form.fields.map((f) => f.label)];
+  const columns = [...SYSTEM_COLUMNS, ...headerLabels(t.form)];
   const useUrl = `/app/?template=${encodeURIComponent(t.slug)}`;
   return {
     meta: { title: t.title, description: t.description, path: `/templates/${t.slug}/` },
@@ -612,3 +626,21 @@ export function templatePage(t: Template): Page {
       </section>`,
   };
 }
+
+export const notFound: Page = {
+  meta: {
+    title: "Page not found | Freely Forms",
+    description: "This page does not exist.",
+    path: "/404",
+  },
+  body: html`<section>
+    <div class="wrap prose">
+      <h1>Page not found</h1>
+      <p class="lead">This page doesn't exist or has moved.</p>
+      <div class="actions">
+        <a class="btn primary" href="/">Go to the homepage</a
+        ><a class="btn" href="/templates/">Browse templates</a>
+      </div>
+    </div>
+  </section>`,
+};

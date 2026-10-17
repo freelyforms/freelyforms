@@ -49,7 +49,8 @@ export function FieldEditor(props: Props) {
     setMenuOpen(false);
     setConfirmRemove(false);
   }, []);
-  useDismiss(menuRef, menuOpen, closeMenu);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useDismiss(menuRef, menuOpen, closeMenu, menuButtonRef);
   const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export function FieldEditor(props: Props) {
         <button
           type="button"
           className="handle"
+          data-handle={field.id}
           aria-label={`Reorder ${field.label}`}
           aria-describedby={id("handle-hint")}
           title="Drag to reorder (Alt+↑/↓ with the keyboard)"
@@ -127,7 +129,7 @@ export function FieldEditor(props: Props) {
           <button
             type="button"
             className="icon"
-            aria-haspopup="true"
+            ref={menuButtonRef}
             aria-expanded={menuOpen}
             aria-label={`More actions for ${field.label}`}
             onClick={() => {

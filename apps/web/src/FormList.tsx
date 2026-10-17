@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import { api, type FormSummary } from "./api.js";
+import { api, ApiError, type FormSummary } from "./api.js";
 import { Link } from "./App.js";
 import { clearPendingTemplate, pendingTemplate, templateName } from "./pendingTemplate.js";
 import { navigate } from "./router.js";
@@ -49,8 +49,14 @@ export function FormList() {
       const form = await api.createForm("", template);
       clearPendingTemplate();
       navigate(`/forms/${form.id}`);
-    } catch {
-      setError("That template could not be copied. Please try again.");
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "unknown_template") {
+        clearPendingTemplate();
+        setTemplate(null);
+        setError("That template doesn't exist (anymore). Start from a blank form instead.");
+      } else {
+        setError("That template could not be copied. Please try again.");
+      }
       setCreating(false);
     }
   };

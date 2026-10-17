@@ -19,10 +19,11 @@ function appCsp(env: Env): string {
     "default-src 'self'",
     // Google Picker (ADR 0006) loads its script from apis.google.com and opens in a docs.google.com frame.
     "script-src 'self' https://apis.google.com",
-    "style-src 'self'",
+    // Google Picker injects an inline <style> into the page; scripts stay strictly allow-listed.
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.googleusercontent.com https://ssl.gstatic.com",
-    "connect-src 'self' https://*.googleapis.com",
-    `frame-src 'self' https://docs.google.com https://drive.google.com${env.FORMS_HOST ? ` https://${env.FORMS_HOST}` : ""}`,
+    "connect-src 'self'",
+    `frame-src 'self' https://docs.google.com${env.FORMS_HOST ? ` https://${env.FORMS_HOST}` : ""}`,
     "form-action 'self'",
     "object-src 'none'",
     "base-uri 'none'",

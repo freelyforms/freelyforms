@@ -78,11 +78,12 @@ export const privacyBody = html`
       <strong>drive.file</strong> — to create a response spreadsheet in your Drive, add a row for
       each response, add columns for new questions, attach hidden labels that tell Freely Forms
       which column belongs to which question, and read the response-ID column so a response is never
-      written twice. If you choose one of your existing spreadsheets in Google's file picker, Freely
-      Forms adds its own responses tab to it and does not change your other tabs. The permission
-      works only on spreadsheets Freely Forms created or that you chose, and gives no access to any
-      other file. While the picker is open, your browser receives a short-lived Google access token
-      so the picker can list your spreadsheets.
+      written twice, and to update a column's header when you rename its question (unless you've
+      edited that header yourself). If you choose one of your existing spreadsheets in Google's file
+      picker, Freely Forms adds its own responses tab to it and does not change your other tabs. The
+      permission works only on spreadsheets Freely Forms created or that you chose, and gives no
+      access to any other file. While the picker is open, your browser receives a short-lived Google
+      access token so the picker can list your spreadsheets.
     </li>
   </ul>
   <p>
@@ -125,7 +126,8 @@ export const privacyBody = html`
   <p>
     Only form owners get cookies from us, and only essential ones: a session cookie (up to 30 days)
     and a short-lived cookie that protects the Google sign-in (10 minutes). We set no cookies on
-    forms, and we use no analytics or advertising cookies.
+    forms (the Cloudflare Turnstile challenge is a separate service), and we use no analytics or
+    advertising cookies.
   </p>
 
   <h2>Service providers</h2>

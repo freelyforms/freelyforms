@@ -43,15 +43,21 @@ function loadPicker(): Promise<PickerNamespace> {
     const script = document.createElement("script");
     script.src = "https://apis.google.com/js/api.js";
     script.async = true;
-    script.onerror = () => {
+    const fail = () => {
       loading = null;
       reject(new Error("picker_script"));
     };
+    const timer = setTimeout(fail, 20_000);
+    script.onerror = () => {
+      clearTimeout(timer);
+      fail();
+    };
     script.onload = () => {
       window.gapi?.load("picker", () => {
+        clearTimeout(timer);
         const picker = window.google?.picker;
         if (picker) resolve(picker);
-        else reject(new Error("picker_script"));
+        else fail();
       });
     };
     document.head.appendChild(script);
@@ -70,8 +76,9 @@ export async function pickSpreadsheet(): Promise<string | null> {
       .setAppId(config.appId)
       .setTitle("Choose a spreadsheet for responses")
       .setCallback((r) => {
+        // "loaded" is informational; any other outcome ends the picker without a choice.
         if (r.action === picker.Action.PICKED) resolve(r.docs?.[0]?.id ?? null);
-        else if (r.action === picker.Action.CANCEL) resolve(null);
+        else if (r.action !== "loaded") resolve(null);
       })
       .build()
       .setVisible(true);

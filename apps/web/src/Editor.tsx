@@ -1,6 +1,6 @@
 import { parseForm, type Form } from "@freelyforms/form-schema";
 import { FIELD_TYPES, MAX_FIELDS, type FieldType } from "@freelyforms/form-schema/limits";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiError, SIGN_IN_URL, type FormView, type SchemaIssue } from "./api.js";
 import { Link } from "./App.js";
 import { DesignPanel } from "./DesignPanel.js";
@@ -44,6 +44,13 @@ export function Editor({ id }: { id: string }) {
   const [showPreview, setShowPreview] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  /** A field whose handle should get focus back after the next render. */
+  const refocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!refocus.current) return;
+    document.querySelector<HTMLElement>(`[data-handle="${refocus.current}"]`)?.focus();
+    refocus.current = null;
+  });
   const formRef = useRef<Form | null>(null);
   /** Edits made so far, and the edit count the server has. Unsaved work = editSeq > savedSeq. */
   const editSeq = useRef(0);
@@ -88,6 +95,8 @@ export function Editor({ id }: { id: string }) {
       const next = moveFieldTo(current, fieldId, to);
       if (next === current) return;
       edit(next);
+      // Moving a field down re-inserts its element, which drops focus; put it back on the handle.
+      if (document.activeElement?.closest(`[data-field="${fieldId}"]`)) refocus.current = fieldId;
       const label = current.fields.find((f) => f.id === fieldId)?.label ?? "Field";
       setAnnouncement(
         `Moved "${label}" to position ${String(to + 1)} of ${String(current.fields.length)}`,
@@ -301,6 +310,7 @@ export function Editor({ id }: { id: string }) {
                 {form.fields.map((field, index) => (
                   <li
                     key={field.id}
+                    data-field={field.id}
                     ref={itemRef(field.id)}
                     className={
                       [

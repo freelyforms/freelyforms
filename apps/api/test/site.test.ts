@@ -40,7 +40,11 @@ describe("website", () => {
       expect(preview.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
       expect(await preview.text()).toContain('class="is-preview"');
     }
-    expect((await get("/templates/unknown/")).status).toBe(404);
+    const missing = await get("/templates/unknown/");
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).toContain("Page not found");
+    expect(await (await get("/robots.txt")).text()).not.toContain("Sitemap");
+    expect((await get("/privacy")).status).toBe(200);
   });
 
   it("redirects paths without a trailing slash and lists pages in the sitemap", async () => {

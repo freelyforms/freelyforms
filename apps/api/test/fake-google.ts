@@ -144,7 +144,11 @@ export function fakeGoogle() {
         matchedDeveloperMetadata: sheet.meta.map((developerMetadata) => ({ developerMetadata })),
       });
     }
-    // values:batchGetByDataFilter for _submission_id
+    // values:batchGetByDataFilter: the header row (gridRange) or the _submission_id column
+    const filters = (body.dataFilters ?? []) as { gridRange?: unknown }[];
+    if (filters[0]?.gridRange) {
+      return json({ valueRanges: [{ valueRange: { values: [sheet.rows[0] ?? []] } }] });
+    }
     const col = sheet.meta.find((x) => x.metadataValue === "_submission_id")?.location
       .dimensionRange.startIndex;
     return json({

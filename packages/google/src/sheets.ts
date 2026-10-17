@@ -176,50 +176,86 @@ export async function addResponseTab(
     }
   }
   const keys = [...SYSTEM_COLUMNS, ...args.form.fields.map((f) => f.id)];
-  await client.call(`/${spreadsheetId}:batchUpdate`, {
-    method: "POST",
-    body: {
-      requests: [
-        {
-          updateCells: {
-            start: { sheetId, rowIndex: 0, columnIndex: 0 },
-            rows: [headerRow(args.form)],
-            fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+  const dest = { spreadsheetId, sheetId };
+  try {
+    await client.call(`/${spreadsheetId}:batchUpdate`, {
+      method: "POST",
+      body: {
+        requests: [
+          {
+            updateCells: {
+              start: { sheetId, rowIndex: 0, columnIndex: 0 },
+              rows: [headerRow(args.form)],
+              fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+            },
           },
-        },
-        ...keys.map((key, i) => columnMetadata(sheetId, key, i)),
-      ],
-    },
-  });
-  return { spreadsheetId, sheetId };
+          ...keys.map((key, i) => columnMetadata(sheetId, key, i)),
+        ],
+      },
+    });
+  } catch (err) {
+    await deleteTab(client, dest); // never leave a half-made tab in the owner's spreadsheet
+    throw err;
+  }
+  return dest;
+}
+
+/** Removes a tab Freely Forms added (best effort; used when attaching fails half-way). */
+export async function deleteTab(client: SheetsClient, dest: Destination): Promise<void> {
+  await client
+    .call(`/${dest.spreadsheetId}:batchUpdate`, {
+      method: "POST",
+      body: { requests: [{ deleteSheet: { sheetId: dest.sheetId } }] },
+    })
+    .catch(() => undefined);
 }
 
 /**
- * Writes the current question labels into the header row of each field's column, so renaming a
- * question renames its column. Columns are found by metadata, never by header text, so this is
- * safe after the owner reorders columns. System columns and columns of removed fields are left as
- * they are.
+ * Renames the column of each renamed question. A header is changed only while it still shows the
+ * question's previous label (or is empty), so headers the owner edited by hand, and anything that
+ * is not our header row (rows inserted above it, a sorted range), are left alone. Columns are
+ * found by developer metadata, never by header text.
  */
 export async function syncHeaders(
   client: SheetsClient,
   dest: Destination,
   form: Pick<Form, "fields">,
+  previous: Pick<Form, "fields">,
   columns: Map<string, number>,
 ): Promise<void> {
   const labels = headerLabels(form);
-  const requests = form.fields.flatMap((field, i) => {
-    const column = columns.get(field.id);
-    return column === undefined
-      ? []
-      : [
-          {
-            updateCells: {
-              start: { sheetId: dest.sheetId, rowIndex: 0, columnIndex: column },
-              rows: [{ values: [text(labels[i] ?? field.label)] }],
-              fields: "userEnteredValue",
-            },
-          },
-        ];
+  const before = new Map(
+    previous.fields.map((f, i) => [f.id, headerLabels(previous)[i] ?? f.label]),
+  );
+  const renamed = form.fields
+    .map((field, i) => ({ field, label: labels[i] ?? field.label, old: before.get(field.id) }))
+    .filter((r) => r.old !== undefined && r.old !== r.label && columns.has(r.field.id));
+  if (renamed.length === 0) return;
+
+  const res = await client.call<{ valueRanges?: { valueRange?: { values?: unknown[][] } }[] }>(
+    `/${dest.spreadsheetId}/values:batchGetByDataFilter`,
+    {
+      method: "POST",
+      body: {
+        majorDimension: "ROWS",
+        dataFilters: [{ gridRange: { sheetId: dest.sheetId, startRowIndex: 0, endRowIndex: 1 } }],
+      },
+    },
+  );
+  const header = res.valueRanges?.[0]?.valueRange?.values?.[0] ?? [];
+  const requests = renamed.flatMap(({ field, label, old }) => {
+    const column = columns.get(field.id) ?? -1;
+    const current = header[column];
+    if (current !== undefined && current !== "" && current !== old) return [];
+    return [
+      {
+        updateCells: {
+          start: { sheetId: dest.sheetId, rowIndex: 0, columnIndex: column },
+          rows: [{ values: [text(label)] }],
+          fields: "userEnteredValue",
+        },
+      },
+    ];
   });
   if (requests.length === 0) return;
   await client.call(`/${dest.spreadsheetId}:batchUpdate`, { method: "POST", body: { requests } });

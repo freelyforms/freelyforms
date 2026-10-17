@@ -10,6 +10,7 @@ import {
   googleSheets,
   home,
   howItWorks,
+  notFound,
   security,
   templatePage,
   templatesHub,
@@ -30,12 +31,12 @@ function context(c: Ctx): SiteContext {
   };
 }
 
-function send(c: Ctx, page: Page) {
+function send(c: Ctx, page: Page, status: 200 | 404 = 200) {
   const ctx = context(c);
   c.header("Content-Security-Policy", siteCsp(ctx.nonce));
   c.header("Cache-Control", "public, max-age=300");
   if (!ctx.indexable) c.header("X-Robots-Tag", "noindex");
-  return c.html(sitePage(ctx, page.meta, page.body));
+  return c.html(sitePage(ctx, page.meta, page.body), status);
 }
 
 /** The public website on the app domain (not on the forms domain). */
@@ -52,12 +53,12 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
 
   site.get("/templates/:slug/", (c) => {
     const t = templateBySlug(c.req.param("slug"));
-    return t ? send(c, templatePage(t)) : c.notFound();
+    return t ? send(c, templatePage(t)) : send(c, notFound, 404);
   });
   site.get("/templates/:slug", (c) =>
     templateBySlug(c.req.param("slug"))
       ? c.redirect(`/templates/${c.req.param("slug")}/`, 301)
-      : c.notFound(),
+      : send(c, notFound, 404),
   );
 
   /** The template rendered by the real form renderer, framed by the template page. */

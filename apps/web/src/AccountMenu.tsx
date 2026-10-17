@@ -12,14 +12,15 @@ export function AccountMenu({ me }: { me: Me }) {
   }, []);
   const initial = (me.user.name ?? me.user.email).trim().charAt(0).toUpperCase() || "?";
 
-  useDismiss(root, open, close);
+  const button = useRef<HTMLButtonElement>(null);
+  useDismiss(root, open, close, button);
 
   return (
     <div className="menu" ref={root}>
       <button
         type="button"
+        ref={button}
         className="avatar"
-        aria-haspopup="true"
         aria-expanded={open}
         aria-label={`Account menu for ${me.user.email}`}
         onClick={() => {

@@ -30,7 +30,7 @@ export const TEMPLATES: Template[] = [
     name: "Contact form",
     title: "Contact form template that saves to Google Sheets",
     description:
-      "A free contact form for your website. Messages arrive as rows in your own Google Sheet, with spam protection and no account needed to reply.",
+      "A free contact form for your website. Messages arrive as rows in your own Google Sheet; people can write to you without a Google account.",
     intro:
       "The form most websites need first: a way for visitors to reach you without exposing your email address to scrapers. Each message becomes a row in a Google Sheet you own, so you can sort, filter and share it with your team.",
     form: {

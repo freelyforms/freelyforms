@@ -53,13 +53,12 @@ export function DesignPanel({ form, onChange }: { form: Form; onChange: (form: F
         <span className="field-label" id={`${uid}-theme-label`}>
           Theme
         </span>
-        <div className="segmented" role="radiogroup" aria-labelledby={`${uid}-theme-label`}>
+        <div className="segmented" role="group" aria-labelledby={`${uid}-theme-label`}>
           {SCHEMES.map(([value, label]) => (
             <button
               key={value}
               type="button"
-              role="radio"
-              aria-checked={scheme === value}
+              aria-pressed={scheme === value}
               className={scheme === value ? "selected" : undefined}
               onClick={() => {
                 setTheme({ colorScheme: value === "auto" ? undefined : value });

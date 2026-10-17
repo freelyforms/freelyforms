@@ -625,6 +625,26 @@ describe("delivery", () => {
     expect(sheet.rows[0]?.[0]).toBe("_submission_id");
   });
 
+  it("keeps headers the owner edited by hand", async () => {
+    const id = await publishedForm();
+    const sheet = onlySheet();
+    const col =
+      sheet.meta.find((m) => m.metadataValue === "fld_email")?.location.dimensionRange.startIndex ??
+      -1;
+    (sheet.rows[0] as unknown[])[col] = "E-mail (owner's name)";
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: {
+        schemaVersion: 1,
+        id,
+        title: "Contact",
+        fields: fields.map((f) => (f.id === "fld_email" ? { ...f, label: "Work email" } : f)),
+      },
+    });
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    expect(sheet.rows[0]?.[col]).toBe("E-mail (owner's name)");
+  });
+
   it("adds columns for new fields after the owner's own columns", async () => {
     const id = await publishedForm();
     const sheet = onlySheet();
@@ -710,6 +730,10 @@ describe("delivery", () => {
     expect(status).toEqual({ destination: { state: "SHEET_DELETED" }, counts: { blocked: 1 } });
     const list = await (await owner("/forms")).json<{ forms: { needsAttention: boolean }[] }>();
     expect(list.forms[0]?.needsAttention).toBe(true);
+    await env.DB.prepare("UPDATE destinations SET state = 'QUOTA'").run();
+    await env.DB.prepare("UPDATE deliveries SET state = 'retrying'").run();
+    const quota = await (await owner("/forms")).json<{ forms: { needsAttention: boolean }[] }>();
+    expect(quota.forms[0]?.needsAttention).toBe(false);
 
     google.sheets.set("sheet1", sheet); // the owner restores it from the bin
     const resumed = await (
@@ -858,6 +882,22 @@ describe("existing spreadsheets (Google Picker)", () => {
       "Name",
     ]);
     expect(sheet?.rows[1]?.slice(3, 5)).toEqual(["Ada", "ada@example.com"]);
+  });
+
+  it("hides another owner's form and reports a revoked grant to the picker", async () => {
+    const id = await publishedForm();
+    await env.DB.prepare("UPDATE forms SET owner_id = 'usr_someone_else' WHERE id = ?")
+      .bind(id)
+      .run()
+      .catch(() => undefined);
+    await env.DB.prepare(
+      "UPDATE google_connections SET scopes = 'openid https://www.googleapis.com/auth/drive.file'",
+    ).run();
+    env = { ...env, PICKER_API_KEY: "AIza-test", GOOGLE_PROJECT_NUMBER: "123" };
+    google.state.revoked = true;
+    expect(await (await owner("/account/google/picker")).json()).toEqual({
+      error: "google_access_required",
+    });
   });
 
   it("explains when a spreadsheet was not picked through the app", async () => {

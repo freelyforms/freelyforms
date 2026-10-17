@@ -2,6 +2,7 @@ import { parseForm, type Form } from "@freelyforms/form-schema";
 import {
   addMissingColumns,
   addResponseTab,
+  deleteTab,
   createResponseSpreadsheet,
   GoogleApiError,
   resolveColumns,
@@ -109,11 +110,13 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     const { results } = await c.env.DB.prepare(
       `SELECT f.id, f.title, f.status, f.published_version, f.updated_at,
          d.state AS destination_state,
-         (SELECT count(*) FROM deliveries x WHERE x.form_id = f.id AND x.state = 'blocked') AS blocked
+         (SELECT count(*) FROM deliveries x WHERE x.form_id = f.id
+            AND (x.state = 'blocked' OR (x.state = 'permanently_failed' AND x.accepted_at > ?))) AS blocked
        FROM forms f LEFT JOIN destinations d ON d.form_id = f.id
        WHERE f.owner_id = ? AND f.status != 'archived' ORDER BY f.updated_at DESC`,
     )
-      .bind(c.var.user.id)
+      // Responses that could not be delivered in the last 7 days also need the owner's attention.
+      .bind(deps.now() - 7 * 24 * 60 * 60 * 1000, c.var.user.id)
       .all<
         Omit<FormRow, "owner_id" | "draft_json"> & {
           destination_state: string | null;
@@ -214,7 +217,9 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
           parsed.form,
           await resolveColumns(sheets, dest),
         );
-        await syncHeaders(sheets, dest, parsed.form, columns);
+        const previous = await publishedJson(c, form);
+        const before = previous ? parseForm(JSON.parse(previous)) : null;
+        if (before?.success) await syncHeaders(sheets, dest, parsed.form, before.form, columns);
       } else {
         created = await createResponseSpreadsheet(sheets, {
           title: `${parsed.form.title} (responses)`,
@@ -309,8 +314,10 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     const parsed = parseForm(JSON.parse(form.draft_json));
     const draft = parsed.success ? parsed.form : { title: form.title, fields: [] };
     let dest: { spreadsheetId: string; sheetId: number };
+    let sheets: Awaited<ReturnType<typeof sheetsFor>>;
     try {
-      dest = await addResponseTab(await sheetsFor(c.env, deps, c.var.user.id), spreadsheetId, {
+      sheets = await sheetsFor(c.env, deps, c.var.user.id);
+      dest = await addResponseTab(sheets, spreadsheetId, {
         title: `${draft.title} responses`,
         form: draft,
       });
@@ -329,6 +336,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
         .bind(newId("dst"), form.id, dest.spreadsheetId, dest.sheetId, now, now, now)
         .run();
     } catch {
+      await deleteTab(sheets, dest); // a concurrent publish or attach won
       return c.json({ error: "destination_exists" }, 409);
     }
     return c.json(await view(c, form, await destinationOf(c, form.id)));

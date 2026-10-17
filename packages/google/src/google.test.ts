@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   addMissingColumns,
   addResponseTab,
+  syncHeaders,
   answerCell,
   appendRows,
   buildRow,
@@ -307,6 +308,44 @@ describe("addResponseTab", () => {
     await expect(
       addResponseTab(sheetsClient(fetchFn, "t"), "nope", { title: "x", form: { fields: [] } }),
     ).rejects.toMatchObject({ kind: "SHEET_DELETED" });
+  });
+});
+
+describe("syncHeaders", () => {
+  const dest = { spreadsheetId: "sheet1", sheetId: 42 };
+  const small = (label: string): Pick<Form, "fields"> => ({
+    fields: [{ id: "fld_a", type: "text", label }],
+  });
+  it("renames a header that still shows the old label, and leaves an edited one alone", async () => {
+    const columns = new Map([["fld_a", 3]]);
+    const kept = fake(
+      Response.json({ valueRanges: [{ valueRange: { values: [["", "", "", "Edited"]] } }] }),
+    );
+    await syncHeaders(sheetsClient(kept.fetchFn, "t"), dest, small("New"), small("Old"), columns);
+    expect(kept.calls).toHaveLength(1); // read only, no write
+    const renamed = fake(
+      Response.json({ valueRanges: [{ valueRange: { values: [["", "", "", "Old"]] } }] }),
+      Response.json({}),
+    );
+    await syncHeaders(
+      sheetsClient(renamed.fetchFn, "t"),
+      dest,
+      small("New"),
+      small("Old"),
+      columns,
+    );
+    expect(JSON.stringify(renamed.calls[1]?.body)).toContain('"stringValue":"New"');
+  });
+  it("does nothing when no question was renamed", async () => {
+    const none = fake();
+    await syncHeaders(
+      sheetsClient(none.fetchFn, "t"),
+      dest,
+      small("Same"),
+      small("Same"),
+      new Map([["fld_a", 0]]),
+    );
+    expect(none.calls).toHaveLength(0);
   });
 });
 

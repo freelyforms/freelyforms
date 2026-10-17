@@ -136,6 +136,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
           <h3 className="item-title">Delete account</h3>
           <ul className="helper-list">
             <li>Deletes your Freely Forms account, your forms and their history.</li>
+            <li>Revokes our Google access and discards responses still waiting for delivery.</li>
             <li>Your Google Sheets and the responses in them stay in your Drive.</li>
           </ul>
           <label className="field-label" htmlFor="confirm-email">
