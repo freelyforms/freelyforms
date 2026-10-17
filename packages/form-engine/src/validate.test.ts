@@ -83,7 +83,33 @@ describe("validateSubmission with fixtures", () => {
         fld_ticket: "opt_vip",
         fld_sessions: ["opt_morning", "opt_evening"],
         fld_consent: true,
+        fld_utm_source: "direct",
       },
+    });
+  });
+});
+
+describe("hidden fields", () => {
+  const hidden: Field = { id: "fld_src", type: "hidden", label: "Source", param: "utm_source" };
+  const run = (field: Field, raw: unknown) =>
+    validateSubmission({ fields: [field] }, { [field.id]: raw });
+
+  it("keeps a value, with whitespace collapsed", () => {
+    expect(run(hidden, "  news\nletter ")).toEqual({
+      ok: true,
+      values: { fld_src: "news letter" },
+    });
+  });
+  it("never fails: unusable values are dropped or shortened", () => {
+    expect(run(hidden, 42)).toEqual({ ok: true, values: {} });
+    expect(run(hidden, ["a", "b"])).toEqual({ ok: true, values: { fld_src: "a" } });
+    const long = run(hidden, "x".repeat(5_000));
+    expect(long.ok && long.values.fld_src).toHaveLength(1_000);
+  });
+  it("falls back to the default value", () => {
+    expect(run({ ...hidden, defaultValue: "direct" }, "")).toEqual({
+      ok: true,
+      values: { fld_src: "direct" },
     });
   });
 });

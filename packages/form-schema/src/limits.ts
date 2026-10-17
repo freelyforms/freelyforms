@@ -11,6 +11,8 @@ export const MAX_TEXT_LENGTH = 50_000;
 export const DEFAULT_TEXT_MAX_LENGTH = 1_000;
 /** Default maximum length when a `textarea` field sets none. */
 export const DEFAULT_TEXTAREA_MAX_LENGTH = 10_000;
+/** Longest value a hidden field keeps (from a link or the page an embedded form sits on). */
+export const MAX_HIDDEN_LENGTH = 1_000;
 /** RFC 5321 limit for a forward path. */
 export const MAX_EMAIL_LENGTH = 254;
 
@@ -26,6 +28,7 @@ export const FIELD_TYPES = [
   "checkboxes",
   "multiselect",
   "consent",
+  "hidden",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];

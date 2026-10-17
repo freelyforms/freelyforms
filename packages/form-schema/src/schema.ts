@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { FORM_SCHEMA_VERSION, MAX_FIELDS, MAX_OPTIONS, MAX_TEXT_LENGTH } from "./limits.js";
+import {
+  FORM_SCHEMA_VERSION,
+  MAX_FIELDS,
+  MAX_HIDDEN_LENGTH,
+  MAX_OPTIONS,
+  MAX_TEXT_LENGTH,
+} from "./limits.js";
 
 /** At least one non-whitespace character. */
 const nonBlank = /\S/;
@@ -79,6 +85,23 @@ export const checkboxesFieldSchema = z.strictObject({ type: z.literal("checkboxe
 export const multiselectFieldSchema = z.strictObject({ type: z.literal("multiselect"), ...multi });
 export const consentFieldSchema = z.strictObject({ type: z.literal("consent"), ...base });
 
+/** Name of a URL query parameter, such as `utm_source`. */
+export const paramNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]{1,64}$/, "Use 1-64 letters, digits, _, . or -");
+
+/**
+ * Not shown to respondents: its value comes from the form link's query parameter `param`
+ * (default: the field ID), from the same parameter of the page an embedded form sits on, or from
+ * `defaultValue`. Respondents can change it, so it is for attribution, not for trust.
+ */
+export const hiddenFieldSchema = z.strictObject({
+  type: z.literal("hidden"),
+  ...base,
+  param: paramNameSchema.optional(),
+  defaultValue: z.string().max(MAX_HIDDEN_LENGTH).optional(),
+});
+
 export const fieldSchema = z
   .discriminatedUnion("type", [
     textFieldSchema,
@@ -92,11 +115,15 @@ export const fieldSchema = z
     checkboxesFieldSchema,
     multiselectFieldSchema,
     consentFieldSchema,
+    hiddenFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {
       ctx.addIssue({ code: "custom", path: [path], message });
     };
+    if (field.type === "hidden" && field.required === true) {
+      bad("required", "A hidden field can't be required: respondents can't see it");
+    }
     if ("minLength" in field && field.minLength !== undefined && field.maxLength !== undefined) {
       if (field.minLength > field.maxLength) bad("minLength", "minLength exceeds maxLength");
     }

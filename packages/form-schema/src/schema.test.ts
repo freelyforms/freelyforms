@@ -30,6 +30,13 @@ describe("parseForm", () => {
     expect([...types].sort()).toEqual([...FIELD_TYPES].sort());
   });
 
+  it("accepts hidden fields with a URL parameter and rejects required ones", () => {
+    const hidden = { id: "fld_src", type: "hidden", label: "Source", param: "utm_source" };
+    expect(issuesOf(minimal([hidden]))).toEqual([]);
+    expect(issuesOf(minimal([{ ...hidden, required: true }])).join()).toMatch(/can't be required/);
+    expect(issuesOf(minimal([{ ...hidden, param: "utm source" }])).join()).toMatch(/param/);
+  });
+
   it("rejects an unknown schema version", () => {
     expect(issuesOf({ ...(minimal([]) as object), schemaVersion: 2 })).not.toEqual([]);
   });

@@ -26,6 +26,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   checkboxes: "Checkboxes",
   multiselect: "Multi-select list",
   consent: "Consent checkbox",
+  hidden: "Hidden field",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>
@@ -49,9 +50,41 @@ export function newField(type: FieldType): Field {
       };
     case "consent":
       return { id, type, label: "I agree to the terms", required: true };
+    case "hidden":
+      return { id, type, label: "Source" };
     default:
       return { id, type, label: FIELD_TYPE_LABELS[type] };
   }
+}
+
+export const UTM_PARAMS = [
+  ["utm_source", "UTM source"],
+  ["utm_medium", "UTM medium"],
+  ["utm_campaign", "UTM campaign"],
+  ["utm_term", "UTM term"],
+  ["utm_content", "UTM content"],
+] as const;
+
+/**
+ * Adds a hidden field for each UTM parameter the form doesn't read yet, so campaign tags in the
+ * form link (or the page an embedded form sits on) land in their own columns.
+ */
+export function addUtmFields(form: Form): { form: Form; added: number } {
+  const read = new Set(
+    form.fields.map((f) => (f.type === "hidden" ? (f.param ?? f.id) : undefined)),
+  );
+  const missing = UTM_PARAMS.filter(([param]) => !read.has(param));
+  const room = Math.max(0, MAX_FIELDS - form.fields.length);
+  const fields: Field[] = missing.slice(0, room).map(([param, label]) => ({
+    id: `fld_${param}`,
+    type: "hidden",
+    label,
+    param,
+  }));
+  // Field IDs are unique: fall back to a random ID if fld_utm_* is taken by another field.
+  const taken = new Set(form.fields.map((f) => f.id));
+  for (const f of fields) if (taken.has(f.id)) f.id = `fld_${randomSuffix()}`;
+  return { form: { ...form, fields: [...form.fields, ...fields] }, added: fields.length };
 }
 
 /** Drops keys whose value is `undefined` (the schema forbids explicit undefined values). */

@@ -191,6 +191,13 @@ ${str(value)}</textarea>`;
           >`,
       )}`;
     }
+    case "hidden":
+      return html`<input
+        type="hidden"
+        name="${id}"
+        value="${str(value)}"
+        data-param="${field.param ?? id}"
+      />`;
     case "consent":
       return html`<label class="choice"
         ><input
@@ -204,6 +211,7 @@ ${str(value)}</textarea>`;
 }
 
 function fieldBlock(field: Field, value: unknown, error: FieldError | undefined): Html {
+  if (field.type === "hidden") return control(field, value, undefined);
   const hintId = field.description ? `${field.id}_hint` : undefined;
   const errId = error ? `${field.id}_err` : undefined;
   const describedBy = [hintId, errId].filter(Boolean).join(" ") || undefined;

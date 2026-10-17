@@ -172,7 +172,11 @@ export function FieldEditor(props: Props) {
       </div>
 
       <label className="field-label" htmlFor={id("label")}>
-        {field.type === "consent" ? "Statement the respondent agrees to" : "Question"}
+        {field.type === "consent"
+          ? "Statement the respondent agrees to"
+          : field.type === "hidden"
+            ? "Column name"
+            : "Question"}
       </label>
       <input
         ref={labelRef}
@@ -238,107 +242,148 @@ export function FieldEditor(props: Props) {
         </fieldset>
       )}
 
-      <div className="field-row">
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={field.required === true}
-            onChange={(e) => {
-              props.onChange({ required: e.target.checked || undefined });
-            }}
-          />
-          Required
-        </label>
-        <button
-          type="button"
-          className="disclosure"
-          aria-expanded={showMore}
-          onClick={() => {
-            setShowMore((v) => !v);
-          }}
-        >
-          Field settings {showMore ? "▴" : "▾"}
-        </button>
-      </div>
-
-      {showMore && (
+      {field.type === "hidden" ? (
         <div className="more">
-          <label className="field-label" htmlFor={id("description")}>
-            Help text <span className="muted">(optional)</span>
-          </label>
-          <input
-            id={id("description")}
-            value={field.description ?? ""}
-            maxLength={2000}
-            onChange={(e) => {
-              props.onChange({ description: e.target.value || undefined });
-            }}
-          />
-          {"placeholder" in field ||
-          ["text", "textarea", "email", "phone", "number"].includes(field.type) ? (
-            <>
-              <label className="field-label" htmlFor={id("placeholder")}>
-                Placeholder <span className="muted">(optional)</span>
-              </label>
+          <p className="muted small">
+            Not shown to respondents. Filled from <code>?{field.param ?? field.id}=…</code> in the
+            form link, or from the same parameter in the address of the page an embedded form sits
+            on. Respondents can change it, so use it for attribution, not for anything you need to
+            trust.
+          </p>
+          <div className="minis">
+            <div className="mini">
+              <label htmlFor={id("param")}>URL parameter</label>
               <input
-                id={id("placeholder")}
-                value={"placeholder" in field ? (field.placeholder ?? "") : ""}
-                maxLength={200}
+                id={id("param")}
+                value={field.param ?? ""}
+                placeholder={field.id}
+                maxLength={64}
                 onChange={(e) => {
-                  props.onChange({ placeholder: e.target.value || undefined });
+                  props.onChange({ param: e.target.value.trim() || undefined });
                 }}
               />
-            </>
-          ) : null}
-          <div className="minis">
-            {(field.type === "text" || field.type === "textarea") && (
-              <>
-                {num("minLength", "Min characters", field.minLength, true)}
-                {num("maxLength", "Max characters", field.maxLength, true)}
-              </>
-            )}
-            {field.type === "number" && (
-              <>
-                {num("min", "Minimum", field.min)}
-                {num("max", "Maximum", field.max)}
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={field.integer === true}
-                    onChange={(e) => {
-                      props.onChange({ integer: e.target.checked || undefined });
-                    }}
-                  />
-                  Whole numbers only
-                </label>
-              </>
-            )}
-            {field.type === "date" &&
-              (["min", "max"] as const).map((key) => (
-                <div className="mini" key={key}>
-                  <label htmlFor={id(key)}>{key === "min" ? "Earliest" : "Latest"}</label>
-                  <input
-                    id={id(key)}
-                    type="date"
-                    value={field[key] ?? ""}
-                    onChange={(e) => {
-                      props.onChange({ [key]: e.target.value || undefined });
-                    }}
-                  />
-                </div>
-              ))}
-            {(field.type === "checkboxes" || field.type === "multiselect") && (
-              <>
-                {num("minSelected", "Choose at least", field.minSelected, true)}
-                {num("maxSelected", "Choose at most", field.maxSelected, true)}
-              </>
-            )}
+            </div>
+            <div className="mini">
+              <label htmlFor={id("default")}>Value when the link has none</label>
+              <input
+                id={id("default")}
+                value={field.defaultValue ?? ""}
+                maxLength={1000}
+                onChange={(e) => {
+                  props.onChange({ defaultValue: e.target.value || undefined });
+                }}
+              />
+            </div>
           </div>
           <p className="muted small">
-            Field ID <code>{field.id}</code> — the column in your sheet is matched by this ID, so
-            renaming the question never breaks it.
+            Field ID <code>{field.id}</code>
           </p>
         </div>
+      ) : (
+        <>
+          <div className="field-row">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={field.required === true}
+                onChange={(e) => {
+                  props.onChange({ required: e.target.checked || undefined });
+                }}
+              />
+              Required
+            </label>
+            <button
+              type="button"
+              className="disclosure"
+              aria-expanded={showMore}
+              onClick={() => {
+                setShowMore((v) => !v);
+              }}
+            >
+              Field settings {showMore ? "▴" : "▾"}
+            </button>
+          </div>
+
+          {showMore && (
+            <div className="more">
+              <label className="field-label" htmlFor={id("description")}>
+                Help text <span className="muted">(optional)</span>
+              </label>
+              <input
+                id={id("description")}
+                value={field.description ?? ""}
+                maxLength={2000}
+                onChange={(e) => {
+                  props.onChange({ description: e.target.value || undefined });
+                }}
+              />
+              {"placeholder" in field ||
+              ["text", "textarea", "email", "phone", "number"].includes(field.type) ? (
+                <>
+                  <label className="field-label" htmlFor={id("placeholder")}>
+                    Placeholder <span className="muted">(optional)</span>
+                  </label>
+                  <input
+                    id={id("placeholder")}
+                    value={"placeholder" in field ? (field.placeholder ?? "") : ""}
+                    maxLength={200}
+                    onChange={(e) => {
+                      props.onChange({ placeholder: e.target.value || undefined });
+                    }}
+                  />
+                </>
+              ) : null}
+              <div className="minis">
+                {(field.type === "text" || field.type === "textarea") && (
+                  <>
+                    {num("minLength", "Min characters", field.minLength, true)}
+                    {num("maxLength", "Max characters", field.maxLength, true)}
+                  </>
+                )}
+                {field.type === "number" && (
+                  <>
+                    {num("min", "Minimum", field.min)}
+                    {num("max", "Maximum", field.max)}
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={field.integer === true}
+                        onChange={(e) => {
+                          props.onChange({ integer: e.target.checked || undefined });
+                        }}
+                      />
+                      Whole numbers only
+                    </label>
+                  </>
+                )}
+                {field.type === "date" &&
+                  (["min", "max"] as const).map((key) => (
+                    <div className="mini" key={key}>
+                      <label htmlFor={id(key)}>{key === "min" ? "Earliest" : "Latest"}</label>
+                      <input
+                        id={id(key)}
+                        type="date"
+                        value={field[key] ?? ""}
+                        onChange={(e) => {
+                          props.onChange({ [key]: e.target.value || undefined });
+                        }}
+                      />
+                    </div>
+                  ))}
+                {(field.type === "checkboxes" || field.type === "multiselect") && (
+                  <>
+                    {num("minSelected", "Choose at least", field.minSelected, true)}
+                    {num("maxSelected", "Choose at most", field.maxSelected, true)}
+                  </>
+                )}
+              </div>
+              <p className="muted small">
+                Field ID <code>{field.id}</code> — the column in your sheet is matched by this ID,
+                so renaming the question never breaks it.
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {props.issues.map((m) => (

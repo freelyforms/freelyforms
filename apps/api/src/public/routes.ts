@@ -13,6 +13,7 @@ import {
   verifyTurnstile,
   withinRateLimits,
 } from "./protect.js";
+import { prefillValues } from "./prefill.js";
 import { renderForm, renderMessage, type PageOptions } from "./render.js";
 
 /** Cloudflare Queues rejects messages over 128 KB; keep a margin for metadata and encryption. */
@@ -112,7 +113,8 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
         404,
       );
     }
-    return c.html(renderForm(found.form, c.req.path, c.var.page));
+    const values = prefillValues(found.form, new URL(c.req.url).searchParams);
+    return c.html(renderForm(found.form, c.req.path, c.var.page, { values }));
   });
 
   pub.post("/:formId", async (c) => {

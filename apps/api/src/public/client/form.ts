@@ -137,6 +137,37 @@ function setup(form: HTMLFormElement, schema: Fields) {
   });
 }
 
+/**
+ * In an embed, hidden fields the form link didn't fill ask the host page for their parameters
+ * (e.g. utm_source from the page's address). The embed script answers with only the names asked
+ * for; nothing is sent anywhere until the respondent submits.
+ */
+function askHostForParams() {
+  if (window.parent === window) return;
+  const empty = [
+    ...document.querySelectorAll<HTMLInputElement>("input[type=hidden][data-param]"),
+  ].filter((input) => input.value === "");
+  if (!empty.length) return;
+  const names = [...new Set(empty.map((input) => input.dataset.param ?? ""))];
+  const ask = () => {
+    parent.postMessage({ type: "freelyforms:params", names }, "*");
+  };
+  addEventListener("message", (event: MessageEvent<unknown>) => {
+    if (event.source !== parent || typeof event.data !== "object" || event.data === null) return;
+    const data = event.data as { type?: unknown; values?: unknown };
+    if (data.type === "freelyforms:ping") ask();
+    if (data.type !== "freelyforms:param-values" || typeof data.values !== "object") return;
+    const values = (data.values ?? {}) as Record<string, unknown>;
+    for (const input of empty) {
+      const value = values[input.dataset.param ?? ""];
+      if (typeof value === "string" && input.value === "") input.value = value;
+    }
+  });
+  ask();
+}
+
+askHostForParams();
+
 const form = document.querySelector<HTMLFormElement>("form[data-ff]");
 const data = document.getElementById("ff-fields");
 if (form && data?.textContent) setup(form, JSON.parse(data.textContent) as Fields);

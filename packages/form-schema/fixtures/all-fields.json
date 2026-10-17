@@ -4,10 +4,28 @@
   "title": "Event registration",
   "description": "Every MVP field type in one form.",
   "fields": [
-    { "id": "fld_name", "type": "text", "label": "Full name", "required": true },
-    { "id": "fld_notes", "type": "textarea", "label": "Anything we should know?" },
-    { "id": "fld_email", "type": "email", "label": "Email", "required": true },
-    { "id": "fld_phone", "type": "phone", "label": "Mobile" },
+    {
+      "id": "fld_name",
+      "type": "text",
+      "label": "Full name",
+      "required": true
+    },
+    {
+      "id": "fld_notes",
+      "type": "textarea",
+      "label": "Anything we should know?"
+    },
+    {
+      "id": "fld_email",
+      "type": "email",
+      "label": "Email",
+      "required": true
+    },
+    {
+      "id": "fld_phone",
+      "type": "phone",
+      "label": "Mobile"
+    },
     {
       "id": "fld_guests",
       "type": "number",
@@ -29,8 +47,14 @@
       "label": "Ticket",
       "required": true,
       "options": [
-        { "id": "opt_standard", "label": "Standard" },
-        { "id": "opt_vip", "label": "VIP" }
+        {
+          "id": "opt_standard",
+          "label": "Standard"
+        },
+        {
+          "id": "opt_vip",
+          "label": "VIP"
+        }
       ]
     },
     {
@@ -38,9 +62,18 @@
       "type": "radio",
       "label": "Dietary requirement",
       "options": [
-        { "id": "opt_none", "label": "None" },
-        { "id": "opt_vegetarian", "label": "Vegetarian" },
-        { "id": "opt_vegan", "label": "Vegan" }
+        {
+          "id": "opt_none",
+          "label": "None"
+        },
+        {
+          "id": "opt_vegetarian",
+          "label": "Vegetarian"
+        },
+        {
+          "id": "opt_vegan",
+          "label": "Vegan"
+        }
       ]
     },
     {
@@ -50,9 +83,18 @@
       "minSelected": 1,
       "maxSelected": 2,
       "options": [
-        { "id": "opt_morning", "label": "Morning" },
-        { "id": "opt_afternoon", "label": "Afternoon" },
-        { "id": "opt_evening", "label": "Evening" }
+        {
+          "id": "opt_morning",
+          "label": "Morning"
+        },
+        {
+          "id": "opt_afternoon",
+          "label": "Afternoon"
+        },
+        {
+          "id": "opt_evening",
+          "label": "Evening"
+        }
       ]
     },
     {
@@ -60,8 +102,14 @@
       "type": "multiselect",
       "label": "Topics of interest",
       "options": [
-        { "id": "opt_design", "label": "Design" },
-        { "id": "opt_engineering", "label": "Engineering" }
+        {
+          "id": "opt_design",
+          "label": "Design"
+        },
+        {
+          "id": "opt_engineering",
+          "label": "Engineering"
+        }
       ]
     },
     {
@@ -69,6 +117,13 @@
       "type": "consent",
       "label": "I agree to the event terms.",
       "required": true
+    },
+    {
+      "id": "fld_utm_source",
+      "type": "hidden",
+      "label": "UTM source",
+      "param": "utm_source",
+      "defaultValue": "direct"
     }
   ]
 }

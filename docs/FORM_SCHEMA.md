@@ -61,8 +61,15 @@ Rules:
 | `checkboxes`  | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
 | `multiselect` | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
 | `consent`     | `true`                           | the label is the statement the respondent agrees to |
+| `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
 
 Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000) and optional `required`. Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
+
+A `hidden` field is not shown to respondents; its label is the column name in the sheet. Its value comes from the form link's query parameter `param` (default: the field ID), or, in an embed, from the same parameter in the address of the host page (the embed script passes only the parameter names the form asks for), or else `defaultValue`. It can't be `required`. Respondents can change it, so it is for attribution such as UTM tags, never for trust; validation never fails on it (unusable values are dropped, long ones shortened). The builder's "UTM tracking" adds hidden fields for `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` and `utm_content`.
+
+### Prefilled links
+
+A form link can suggest answers: `?fld_email=ada@example.com` fills a field by its ID; choice fields accept an option ID or its label, and repeating the parameter selects several options. Consent is never prefilled. Prefilled values are submitted and validated like typed ones. Avoid putting personal data in shared links: URLs end up in browser history and server logs.
 
 The theme's `accent` colour replaces the accent in both the light and dark palettes; text on accent-coloured buttons is black or white, whichever contrasts more.
 
@@ -89,7 +96,6 @@ Answers to choice fields are option IDs, so renaming an option label never break
 - signature;
 - currency;
 - calculated field;
-- hidden field;
 - section/content block.
 
 ## Schema rules

@@ -24,7 +24,8 @@ Requirements:
 
 - queue retention of at most 7 days with application-level envelope encryption ([ADR 0008](adr/0008-queue-retention-and-encryption.md));
 - no analytics derived from answer content by default;
-- no application logs containing answers;
+- no application logs containing answers; Cloudflare invocation logs are off (`invocation_logs: false` in `wrangler.jsonc`) because request URLs can carry prefilled answers and UTM tags, so only our own error events are logged;
+- an embedded form reads only the host-page query parameters its hidden fields name, and only after the host page's embed script answers; nothing leaves the browser until the respondent submits;
 - scrub exception/error reporting;
 - automatic retries for transient Google errors for up to 72 hours;
 - delete failed payloads after the retention policy and report failure state to owner (today: delivery counts and destination state in the builder; notifications later).

@@ -553,6 +553,25 @@ describe("delivery", () => {
     expect(await deliveryStates()).toEqual(["delivered", "delivered"]);
   });
 
+  it("prefills from the form link and writes hidden UTM values to their own column", async () => {
+    const id = await publishedForm([
+      { id: "fld_src", type: "hidden", label: "UTM source", param: "utm_source" },
+    ]);
+    const page = await (
+      await app().request(`/f/${id}?fld_name=Ada&fld_topic=Sales&utm_source=newsletter`, {}, env)
+    ).text();
+    expect(page).toMatch(/name="fld_name"\s+type="text"\s+value="Ada"/);
+    expect(page).toMatch(/value="opt_sales"\s+checked/);
+    expect(page).toMatch(
+      /type="hidden"\s+name="fld_src"\s+value="newsletter"\s+data-param="utm_source"/,
+    );
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com", fld_src: "newsletter" });
+    await deliver();
+    const sheet = onlySheet();
+    expect(sheet.rows[0]?.slice(3)).toEqual(["Name", "Email", "Topic", "UTM source"]);
+    expect(sheet.rows[1]?.slice(3)).toEqual(["Ada", "ada@example.com", "", "newsletter"]);
+  });
+
   it("does not deliver a message twice", async () => {
     const id = await publishedForm();
     await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });

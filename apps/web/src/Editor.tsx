@@ -6,6 +6,7 @@ import { Link } from "./App.js";
 import { DesignPanel } from "./DesignPanel.js";
 import {
   addField,
+  addUtmFields,
   addOption,
   duplicateField,
   FIELD_TYPE_LABELS,
@@ -402,6 +403,22 @@ export function Editor({ id }: { id: string }) {
                         {FIELD_TYPE_LABELS[type]}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className="palette-item"
+                      title="Hidden fields for utm_source, utm_medium, utm_campaign, utm_term and utm_content"
+                      onClick={() => {
+                        const result = addUtmFields(form);
+                        if (result.added) edit(result.form);
+                        setAnnouncement(
+                          result.added
+                            ? `Added ${String(result.added)} hidden UTM fields at the end of the form.`
+                            : "This form already records all UTM parameters.",
+                        );
+                      }}
+                    >
+                      UTM tracking
+                    </button>
                   </div>
                 )}
               </div>

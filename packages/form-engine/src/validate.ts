@@ -3,6 +3,7 @@ import {
   DEFAULT_TEXT_MAX_LENGTH,
   DEFAULT_TEXTAREA_MAX_LENGTH,
   MAX_EMAIL_LENGTH,
+  MAX_HIDDEN_LENGTH,
 } from "@freelyforms/form-schema/limits";
 
 /** A normalised answer: text, number, consent flag or list of option IDs. */
@@ -167,7 +168,19 @@ function validConsent(field: Extract<Field, { type: "consent" }>, raw: unknown):
   return { value: true };
 }
 
+/**
+ * Hidden values come from links and pages, never from typing, and respondents can't see an error
+ * on them: anything unusable is dropped or shortened instead of failing the submission.
+ */
+function validHidden(field: Extract<Field, { type: "hidden" }>, raw: unknown): Outcome {
+  const first: unknown = Array.isArray(raw) ? raw[0] : raw;
+  const value = typeof first === "string" ? first.replace(/\s+/g, " ").trim() : "";
+  if (value === "") return field.defaultValue ? { value: field.defaultValue } : { empty: true };
+  return { value: Array.from(value).slice(0, MAX_HIDDEN_LENGTH).join("") };
+}
+
 function validateField(field: Field, raw: unknown): Outcome {
+  if (field.type === "hidden") return validHidden(field, raw);
   if (field.type !== "consent" && isEmpty(raw)) {
     return field.required === true ? fail("required") : { empty: true };
   }

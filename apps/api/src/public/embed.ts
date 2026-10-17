@@ -1,7 +1,8 @@
 /**
  * Embed script served from the forms domain (`/embed.js`). It sizes every
- * `<iframe data-freelyforms>` to the height its form reports, accepting messages only from the
- * origin the script itself was loaded from.
+ * `<iframe data-freelyforms>` to the height its form reports and, when the form has hidden fields
+ * (e.g. UTM tracking), answers with the values of only the query parameters it names from this
+ * page's address. It accepts messages only from the origin the script itself was loaded from.
  */
 export const EMBED_JS = `(function(){
   var script = document.currentScript;
@@ -9,12 +10,19 @@ export const EMBED_JS = `(function(){
   var origin = new URL(script.src).origin;
   window.addEventListener("message", function (event) {
     var data = event.data;
-    if (event.origin !== origin || !data || data.type !== "freelyforms:height") return;
+    if (event.origin !== origin || !data) return;
     var frames = document.querySelectorAll("iframe[data-freelyforms]");
     for (var i = 0; i < frames.length; i++) {
-      if (frames[i].contentWindow === event.source) {
+      if (frames[i].contentWindow !== event.source) continue;
+      if (data.type === "freelyforms:height") {
         var height = Math.min(Math.max(Number(data.height) || 0, 120), 20000);
         frames[i].style.height = height + "px";
+      } else if (data.type === "freelyforms:params" && Array.isArray(data.names)) {
+        var query = new URLSearchParams(location.search), values = {};
+        data.names.slice(0, 50).forEach(function (name) {
+          if (typeof name === "string" && query.has(name)) values[name] = query.get(name);
+        });
+        event.source.postMessage({ type: "freelyforms:param-values", values: values }, origin);
       }
     }
   });

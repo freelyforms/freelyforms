@@ -41,9 +41,9 @@ Release publicly as soon as this is trustworthy.
 - progress indicator;
 - conditional visibility;
 - conditional required state;
-- hidden fields;
-- UTM capture;
-- URL prefilling;
+- hidden fields (done);
+- UTM capture (done, including from the page an embedded form sits on);
+- URL prefilling (done);
 - richer layout/themes;
 - custom validation;
 - redirects;

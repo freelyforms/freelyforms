@@ -3,7 +3,9 @@
   "name": "freelyforms-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  "observability": { "enabled": true },
+  // Our own error logs only: invocation logs would record full request URLs, and form links can
+  // carry prefilled answers and UTM tags in their query string.
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
   // The builder (apps/web) is served by this Worker under /app/ (see src/app.ts).
   "assets": { "directory": "../web/dist/app", "binding": "ASSETS", "run_worker_first": true },
   "d1_databases": [
