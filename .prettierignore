@@ -4,3 +4,4 @@ private/
 dist/
 coverage/
 packages/form-schema/form-v1.schema.json
+apps/api/src/public/client.generated.ts

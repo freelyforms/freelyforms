@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.wrangler/**",
       "private/**",
+      "apps/api/src/public/client.generated.ts",
     ],
   },
   js.configs.recommended,

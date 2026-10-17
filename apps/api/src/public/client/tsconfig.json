@@ -1,0 +1,14 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "outDir": "../../../dist/client",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": [".", "../messages.ts"],
+  "references": [
+    { "path": "../../../../../packages/form-engine" },
+    { "path": "../../../../../packages/form-schema" }
+  ]
+}

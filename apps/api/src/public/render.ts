@@ -2,28 +2,10 @@ import type { FieldError } from "@freelyforms/form-engine";
 import type { Field, Form, FormTheme } from "@freelyforms/form-schema";
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+import { FORM_CLIENT_JS } from "./client.generated.js";
+import { errorMessage } from "./messages.js";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
-
-const MESSAGES: Record<string, (p: Record<string, number | string>) => string> = {
-  required: () => "This field is required.",
-  invalid_type: () => "This value is not valid.",
-  too_short: (p) => `Enter at least ${String(p.min)} characters.`,
-  too_long: (p) => `Enter at most ${String(p.max)} characters.`,
-  invalid_email: () => "Enter a valid email address.",
-  invalid_phone: () => "Enter a valid phone number.",
-  not_a_number: () => "Enter a number.",
-  not_an_integer: () => "Enter a whole number.",
-  too_small: (p) => `Enter ${String(p.min)} or more.`,
-  too_large: (p) => `Enter ${String(p.max)} or less.`,
-  invalid_date: () => "Enter a valid date.",
-  invalid_option: () => "Choose one of the options.",
-  too_few_selected: (p) => `Choose at least ${String(p.min)}.`,
-  too_many_selected: (p) => `Choose at most ${String(p.max)}.`,
-};
-
-export const errorMessage = (e: FieldError) =>
-  (MESSAGES[e.code] ?? MESSAGES.invalid_type)?.(e.params ?? {}) ?? "";
 
 const LIGHT =
   "--fg:#1b1b1f;--muted:#5d5d66;--bg:#fff;--line:#b9b9c3;--accent:#1f5fd6;--on-accent:#fff;--err:#b3261e";
@@ -233,6 +215,7 @@ function fieldBlock(field: Field, value: unknown, error: FieldError | undefined)
   if (field.type === "radio" || field.type === "checkboxes") {
     return html`<fieldset
       class="field"
+      data-field="${field.id}"
       ${describedBy ? raw(` aria-describedby="${describedBy}"`) : ""}
     >
       <legend>${field.label}${star}</legend>
@@ -240,12 +223,28 @@ function fieldBlock(field: Field, value: unknown, error: FieldError | undefined)
     </fieldset>`;
   }
   if (field.type === "consent") {
-    return html`<div class="field">${hint}${control(field, value, describedBy)}${err}</div>`;
+    return html`<div class="field" data-field="${field.id}">
+      ${hint}${control(field, value, describedBy)}${err}
+    </div>`;
   }
-  return html`<div class="field">
+  return html`<div class="field" data-field="${field.id}">
     <label for="${field.id}">${field.label}${star}</label
     >${hint}${control(field, value, describedBy)}${err}
   </div>`;
+}
+
+/**
+ * The fields as data for the browser check, and the bundled check itself. `<` is escaped so a
+ * label can't close the data block.
+ */
+function clientScript(form: Form, nonce: string): Html {
+  const fields = JSON.stringify({ fields: form.fields }).replace(/</g, "\\u003c");
+  return html`<script type="application/json" id="ff-fields">
+      ${raw(fields)}
+    </script>
+    <script nonce="${nonce}">
+      ${raw(FORM_CLIENT_JS)};
+    </script>`;
 }
 
 export function renderForm(
@@ -260,9 +259,15 @@ export function renderForm(
     form.title,
     html`<h1>${form.title}</h1>
       ${form.description ? html`<p class="desc">${form.description}</p>` : ""}
-      ${errors.size ? html`<p class="error" role="alert">Please correct the highlighted fields.</p>` : ""}
+      ${
+        errors.size
+          ? html`<p class="error" role="alert" id="ff-summary">
+              Please correct the highlighted fields.
+            </p>`
+          : ""
+      }
       ${state.notice ? html`<p class="error" role="alert">${state.notice}</p>` : ""}
-      <form method="post" action="${action}" novalidate>
+      <form method="post" action="${action}" novalidate data-ff>
         ${form.fields.map((f) => fieldBlock(f, state.values?.[f.id], errors.get(f.id)))}
         ${turnstile ? html`<div class="field cf-turnstile" data-sitekey="${turnstile}"></div>` : ""}
         <div class="hp" aria-hidden="true">
@@ -271,7 +276,8 @@ export function renderForm(
         <button type="submit" ${opts.preview ? raw("disabled") : ""}>
           ${form.settings?.submitLabel ?? "Submit"}
         </button>
-      </form>`,
+      </form>
+      ${opts.preview ? "" : clientScript(form, opts.nonce)}`,
     opts,
     form.settings?.theme,
     form.id,

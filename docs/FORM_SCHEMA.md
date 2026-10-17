@@ -70,7 +70,7 @@ Answers to choice fields are option IDs, so renaming an option label never break
 
 ## Answer validation
 
-`packages/form-engine` exports `validateSubmission(form, answers)`. It has no runtime dependencies so the same code can run in the browser; today it runs on the server, where its result is authoritative, and client-side validation is still to come. It:
+`packages/form-engine` exports `validateSubmission(form, answers)`. It has no runtime dependencies, so the same code runs in the browser and on the server. The public form page inlines a small script bundled from it (`apps/api/src/public/client/form.ts`, generated into `client.generated.ts` by `pnpm --filter @freelyforms/api build:client`; a test fails when the bundle is stale) that checks answers before sending, with the same error messages as the server. The server's result is authoritative, and the form still works without the script. It:
 
 - trims text, collapses line breaks in single-line text and counts length in Unicode code points;
 - converts numbers sent as strings, rejects exponents, hex and locale formats;

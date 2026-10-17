@@ -7,10 +7,12 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local"
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "build:client": "node scripts/build-form-client.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261002.1",
+    "esbuild": "^0.28.1",
     "wrangler": "^4.146.0"
   },
   "dependencies": {

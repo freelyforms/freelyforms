@@ -133,7 +133,7 @@ Every resource must be scoped by account/workspace ownership. Avoid relying only
 
 ## Public rendering
 
-The public renderer could cache published definitions at the edge; today every form page is rendered per request with `no-store` (a fresh CSP nonce and Turnstile per page), which is cheap enough for the MVP. Published forms are served from a separate domain, `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
+The public renderer could cache published definitions at the edge; today every form page is rendered per request with `no-store` (a fresh CSP nonce and Turnstile per page), which is cheap enough for the MVP. The page runs three nonce-allowed scripts: the embed-height reporter, the answer check bundled from `form-engine` (it validates before sending; the server validates again), and Turnstile when enabled. Published forms are served from a separate domain, `freelyforms.link` ([ADR 0010](adr/0010-separate-domain-for-public-forms.md)).
 
 ## Custom domains
 

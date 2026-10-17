@@ -13,6 +13,7 @@ import { randomToken, sha256Base64Url } from "../src/util.js";
 import { localD1 } from "./d1.js";
 import { fakeGoogle } from "./fake-google.js";
 import { fakeKv, fakeQueue, message } from "./fakes.js";
+import { FORM_CLIENT_JS } from "../src/public/client.generated.js";
 
 const ORIGIN = "http://localhost";
 let clock = Date.UTC(2026, 9, 16, 12);
@@ -1082,7 +1083,7 @@ describe("intake protection", () => {
     expect(JSON.stringify(queue.sent[0])).not.toContain("good-token");
   });
 
-  it("serves form pages with a nonce-based CSP whose only script is the embed sizer", async () => {
+  it("serves form pages with a nonce-based CSP: only the embed sizer and the answer check run", async () => {
     const id = await publishedForm();
     const page = await app().request(`/f/${id}`, {}, env);
     const csp = page.headers.get("content-security-policy") ?? "";
@@ -1091,8 +1092,12 @@ describe("intake protection", () => {
     expect(csp).not.toContain("challenges.cloudflare.com");
     const text = await page.text();
     expect(text).toContain(`<style nonce="${nonce}">`);
-    expect(text.match(/<script/g)).toHaveLength(1);
+    // Two scripts run (embed sizer, answer check), each with the nonce; the third is form data.
+    expect(text.match(/<script nonce=/g)).toHaveLength(2);
+    expect(text.match(/<script/g)).toHaveLength(3);
+    expect(text).toContain('<script type="application/json" id="ff-fields">');
     expect(text).toContain("freelyforms:height");
+    expect(text).toContain(FORM_CLIENT_JS);
   });
 
   it("applies the owner's theme and links abuse reports", async () => {
@@ -1147,6 +1152,7 @@ describe("intake protection", () => {
     const page = await res.text();
     expect(page).toContain(`class="is-preview"`);
     expect(page).toMatch(/<button type="submit"\s+disabled/);
+    expect(page).not.toContain("ff-fields");
     expect((await app().request(`/forms/${id}/preview`, {}, env)).status).toBe(401);
   });
 });

@@ -71,7 +71,7 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Durable delivery with a 7-day encrypted deadline ([ADR 0008](adr/0008-queue-retention-and-encryption.md); on Workers Free the queue keeps 24 h and longer waits move to KV, [ADR 0014](adr/0014-run-on-workers-free.md)).
 - [x] Batched, idempotent delivery ([ADR 0001](adr/0001-batched-sheets-writes.md), [ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
 - [x] Success and error states.
-- [ ] Client-side validation enhancement (same `form-engine` in the browser).
+- [x] Client-side validation enhancement (same `form-engine` in the browser; errors without a page load, so Turnstile isn't solved twice).
 - [x] Basic appearance: theme settings in the schema (accent colour, light/dark), applied by the renderer.
 - [ ] Appearance, later: font, logo, background.
 - [x] Embed: iframe snippet and a small script that resizes the iframe ([API.md](API.md#embedding)).

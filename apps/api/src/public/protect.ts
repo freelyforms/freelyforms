@@ -55,7 +55,7 @@ export function formPageCsp(nonce: string, turnstile: boolean): string {
   return [
     "default-src 'none'",
     `style-src 'nonce-${nonce}'`,
-    // Inline scripts need the nonce: only the embed-height script and, when enabled, Turnstile.
+    // Scripts need the nonce: the embed-height script, the answer check and, when enabled, Turnstile.
     turnstile
       ? `script-src 'nonce-${nonce}' https://challenges.cloudflare.com`
       : `script-src 'nonce-${nonce}'`,
