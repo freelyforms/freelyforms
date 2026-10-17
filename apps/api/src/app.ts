@@ -129,7 +129,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   app.route("/f", publicRoutes(deps));
 
   // The builder (apps/web) is a static app under /app/, served from the same origin as the API so
-  // the session cookie and the Origin check work without CORS. "/" is the website later.
+  // the session cookie and the Origin check work without CORS. "/" is the website (ADR 0015).
   app.get("/app", (c) => c.redirect("/app/", 301));
   app.get("/app/*", async (c) => {
     if (!c.env.ASSETS)

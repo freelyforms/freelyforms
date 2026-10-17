@@ -108,7 +108,7 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [x] Production Google Cloud project `freelyforms-prod`: Sheets and Drive APIs, auth platform "Freely Forms" (External), the four non-sensitive scopes, homepage/privacy/terms links, authorised domain, OAuth client "production" (2026-10-16).
 - [x] OAuth app published "In production" (in Testing, `drive.file` refresh tokens expire after 7 days and only test users can sign in).
 - [ ] Remove the production origin from the development project's OAuth client.
-- [ ] Enable the Picker API in the production project when the Picker is built.
+- [x] Picker API enabled in the production project with a restricted browser key.
 - [ ] Brand verification: domain ownership in Search Console, app name, logo (120×120), support email, homepage and privacy policy links.
 - [x] Homepage at `/` that describes the app and links the privacy policy and terms (server-rendered, `noindex` until the website launches).
 - [x] "Sign in with Google" button following Google's branding guidelines.

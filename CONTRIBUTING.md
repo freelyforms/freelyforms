@@ -14,7 +14,7 @@ External contributions require signing the [Contributor License Agreement](CLA.m
 
 ## Ground rules
 
-- Never commit secrets, credentials, real user data, or identifiers that grant access by themselves. Resource IDs in `wrangler.jsonc` and the public Turnstile site key are fine: they are useless without account credentials.
+- Never commit secrets, credentials, real user data, or identifiers that grant access by themselves. Resource IDs in `wrangler.jsonc`, the public Turnstile site key, the Picker browser API key (restricted to the Picker API and our origin) and the Google project number are fine: they are public by design or useless without account credentials.
 - Do not log OAuth tokens or form answers, even in tests or debug output.
 - Respondent data is always written to Google Sheets as typed cells that Sheets never parses as formulas ([ADR 0002](docs/adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](docs/adr/0013-delivery-refinements.md)).
 - New Google OAuth scopes require an ADR ([ADR 0006](docs/adr/0006-oauth-scopes-drive-file-picker.md)).
@@ -39,7 +39,7 @@ You need your own Google Cloud project with an OAuth client first: follow "Googl
 
 Attaching an existing sheet locally needs `PICKER_API_KEY` and `GOOGLE_PROJECT_NUMBER` in `.dev.vars` (a key from your project restricted to `http://localhost:8787/*`); without them that one feature reports it is unavailable.
 
-Open http://localhost:8787/app/ in Chrome or Firefox (the `__Host-` session cookie needs a browser that treats `http://localhost` as secure). The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change. CI also runs `pnpm build`; the hourly maintenance job runs locally only with `wrangler dev --test-scheduled`.
+The website is at http://localhost:8787/ (always `noindex` locally). Open the builder at http://localhost:8787/app/ in Chrome or Firefox (the `__Host-` session cookie needs a browser that treats `http://localhost` as secure). The builder is a static app served by the same Worker, so there is no separate dev server and no CORS; reload the page after a change. CI also runs `pnpm build`; the hourly maintenance job runs locally only with `wrangler dev --test-scheduled`.
 
 To check delivery against real Google Sheets with your own account, sign in at http://localhost:8787/app/ with Drive access, then run `FREELYFORMS_LIVE_GOOGLE=1 pnpm exec vitest run apps/api/test/sheets.live.test.ts`. It creates a spreadsheet named "Freely Forms test responses" in your Drive; it is skipped in normal test runs and CI.
 
@@ -57,7 +57,7 @@ By contributing you agree that your contributions are licensed under the [Apache
 
 ## Deploying (maintainers)
 
-The hosted service is the `production` environment in `apps/api/wrangler.jsonc` (Worker `freelyforms`, custom domains `freelyforms.com` and `freelyforms.link`, Workers Free per [ADR 0014](docs/adr/0014-run-on-workers-free.md)).
+The hosted service is the `production` environment in `apps/api/wrangler.jsonc` (Worker `freelyforms`, custom domains `freelyforms.com`, `www.freelyforms.com` (redirects to the apex) and `freelyforms.link`, Workers Free per [ADR 0014](docs/adr/0014-run-on-workers-free.md)).
 
 ```sh
 cd apps/api

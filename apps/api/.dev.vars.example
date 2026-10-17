@@ -7,3 +7,8 @@ GOOGLE_CLIENT_SECRET=
 MASTER_KEY_K1=
 # Turnstile test secret that always passes (pairs with the test site key in wrangler.jsonc).
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+
+# Optional: Google Picker (attach an existing sheet). A browser key from your project restricted to
+# the Picker API and http://localhost:8787/*, and your project number.
+PICKER_API_KEY=
+GOOGLE_PROJECT_NUMBER=

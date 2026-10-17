@@ -85,7 +85,11 @@ Delivery states, the `blocked` and `unknown` states and reconciliation of ambigu
 
 ## Implemented web app
 
-`apps/web` is a React single-page app built with Vite and served by the API Worker under `/app/` (Workers static assets, [ADR 0012](adr/0012-single-worker-for-mvp.md)). It edits the draft as schema JSON with pure, tested functions (`apps/web/src/draft.ts`), validates it in the browser with the same `parseForm` the server uses, autosaves, and shows a live preview rendered by the real public renderer (`GET /forms/:id/preview`). Its CSP allows only same-origin scripts and styles.
+`apps/web` is a React single-page app built with Vite and served by the API Worker under `/app/` (Workers static assets, [ADR 0012](adr/0012-single-worker-for-mvp.md)). It edits the draft as schema JSON with pure, tested functions (`apps/web/src/draft.ts`), validates it in the browser with the same `parseForm` the server uses, autosaves, and shows a live preview rendered by the real public renderer (`GET /forms/:id/preview`). Its CSP allows same-origin scripts and styles, plus Google's Picker script (apis.google.com), its frame (docs.google.com) and the inline styles the Picker injects.
+
+## Implemented website
+
+The public website (home, explainers, templates, legal pages) is server-rendered by the same Worker from `apps/api/src/site` ([ADR 0015](adr/0015-website-in-the-api-worker.md)): no JavaScript, a nonce-based CSP, five-minute public caching and `noindex` until `SITE_INDEXABLE=1`. Template pages preview template schemas with the real public renderer.
 
 ## Implemented delivery path
 

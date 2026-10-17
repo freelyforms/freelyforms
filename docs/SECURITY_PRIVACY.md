@@ -8,7 +8,7 @@ Freely Forms does not keep a central database of submission content. Engineering
 
 - encrypt refresh tokens at rest;
 - encryption key must not live in the same plaintext database;
-- never send refresh tokens to the browser;
+- never send refresh tokens to the browser; the only token the browser ever gets is a short-lived access token for Google Picker while it is open (`GET /account/google/picker`, `no-store`);
 - never log access or refresh tokens;
 - support token revocation/disconnect (implemented: `POST /account/google/disconnect`, also part of account deletion);
 - minimise scopes;

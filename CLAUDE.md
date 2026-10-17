@@ -63,7 +63,7 @@ Target layout (packages are added only when code needs them; `apps/api`, `apps/w
 
 ```text
 apps/
-  web/              # builder, dashboard and public website
+  web/ # builder and dashboard (the public website is server-rendered in api, ADR 0015)
   api/              # one Worker: auth, form CRUD, publish, public forms, queue consumer, cron
 packages/
   form-schema/      # versioned schema types, JSON Schema export, migrations

@@ -21,11 +21,11 @@ Request the minimum scopes needed for the user's selected workflow.
 
 Prefer file-scoped access patterns such as `drive.file` where they satisfy the feature. Do not request broad Drive access merely for convenience.
 
-MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets will be attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md); not implemented yet, today every form gets a new sheet). Respondent values are written as typed cells that Sheets never parses ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](adr/0013-delivery-refinements.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
+MVP scopes are `openid`, `email`, `profile` and `drive.file`; existing spreadsheets are attached through Google Picker ([ADR 0006](adr/0006-oauth-scopes-drive-file-picker.md), [ADR 0016](adr/0016-google-verification-non-sensitive-scopes.md)): Freely Forms adds its own tab to the picked spreadsheet. Respondent values are written as typed cells that Sheets never parses ([ADR 0002](adr/0002-raw-writes-for-respondent-data.md), [ADR 0013](adr/0013-delivery-refinements.md)); columns are identified by developer metadata ([ADR 0004](adr/0004-column-identity-developer-metadata.md)).
 
 ## Google Cloud setup
 
-One Google Cloud project per environment (no organisation is required):
+One Google Cloud project per environment (no organisation is required): `freelyforms-dev` for local development (Testing), `freelyforms-prod` for the hosted service (In production, ADR 0016). Each has:
 
 - APIs enabled: Google Sheets API, Google Drive API, Google Picker API;
 - a browser API key restricted to the Picker API and the site's origin, set as `PICKER_API_KEY`, and the project number as `GOOGLE_PROJECT_NUMBER` (the Picker's app ID, which is what grants `drive.file` access to the picked file); without them the builder hides nothing but reports that attaching is unavailable;

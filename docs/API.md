@@ -85,7 +85,7 @@ The form page posts its height to the parent window (`{ type: "freelyforms:heigh
 
 ## Web app
 
-The builder is served at `/app/` by the same Worker (static assets from `apps/web/dist`), so it uses the session cookie and the Origin check without CORS. `/` redirects to `/app/` until the public website exists.
+The builder is served at `/app/` by the same Worker (static assets from `apps/web/dist`), so it uses the session cookie and the Origin check without CORS. `/` is the website home ([ADR 0015](adr/0015-website-in-the-api-worker.md)).
 
 ## Website pages
 
