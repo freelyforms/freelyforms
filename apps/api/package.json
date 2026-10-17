@@ -11,9 +11,9 @@
     "build:client": "node scripts/build-form-client.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261002.1",
-    "esbuild": "^0.28.1",
-    "wrangler": "^4.146.0"
+    "@cloudflare/workers-types": "^5.20261003.1",
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.147.0"
   },
   "dependencies": {
     "@freelyforms/crypto": "workspace:*",
