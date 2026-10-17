@@ -70,11 +70,12 @@ export const home: Page = {
     <section>
       <div class="wrap demo">
         <div>
-          <p class="eyebrow">Free form builder</p>
+          <p class="eyebrow">Freely Forms · free form builder</p>
           <h1>Free forms that write to your Google Sheet</h1>
           <p class="lead">
-            Build and publish online forms without a separate response database. Responses are
-            delivered as new rows in a Google Sheet you own.
+            Freely Forms is a free, open-source form builder. Build and publish online forms without
+            a separate response database: responses are delivered as new rows in a Google Sheet you
+            own.
           </p>
           <div class="actions">
             <a class="btn primary" href="/app/">Create a free form</a>
@@ -181,6 +182,33 @@ export const home: Page = {
             </p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap prose">
+        <h2>How Freely Forms uses your Google account</h2>
+        <p>
+          You sign in to Freely Forms with Google. The app asks for two things, and uses them only
+          to run your forms:
+        </p>
+        <ul>
+          <li>
+            <strong>Your name and email address</strong>, to identify your account and show who is
+            signed in.
+          </li>
+          <li>
+            <strong>Access to the spreadsheets Freely Forms creates or that you pick</strong>
+            (Google's <code>drive.file</code> permission), to create the response spreadsheet, add
+            its columns and append each response as a row. It can't open your other files.
+          </li>
+        </ul>
+        <p>
+          People who fill in your forms don't sign in and don't need a Google account. Google user
+          data is never sold, used for advertising or used to train AI models, and you can
+          disconnect Google or delete your account at any time. Read the
+          <a href="/privacy">privacy policy</a> and the <a href="/terms">terms</a>.
+        </p>
       </div>
     </section>
 
