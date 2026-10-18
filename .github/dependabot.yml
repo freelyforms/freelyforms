@@ -12,6 +12,13 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    # Majors that the toolchain must adopt together are upgraded by hand: typescript-eslint has to
+    # support a new TypeScript first, and @types/node follows the Node version in .nvmrc.
+    ignore:
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       dev-tooling:
         dependency-type: development
