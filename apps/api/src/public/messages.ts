@@ -16,7 +16,30 @@ const MESSAGES: Record<string, (p: Record<string, number | string>) => string> =
   invalid_option: () => "Choose one of the options.",
   too_few_selected: (p) => `Choose at least ${String(p.min)}.`,
   too_many_selected: (p) => `Choose at most ${String(p.max)}.`,
+  invalid_format: (p) => (typeof p.message === "string" ? p.message : formatHint(p)),
 };
+
+/** The default explanation of an answer format (ADR 0020), e.g. for a mask `AA-9999`. */
+function formatHint(p: Record<string, number | string>): string {
+  switch (p.kind) {
+    case "digits":
+      return "Use digits only.";
+    case "letters":
+      return "Use letters only.";
+    case "alphanumeric":
+      return "Use letters and digits only.";
+    case "url":
+      return "Enter a web address starting with https://.";
+  }
+  const mask = String(p.mask ?? "");
+  const shown = mask.replace(/\\(.)/g, "$1");
+  const legend = [
+    /(^|[^\\])9/.test(mask) ? "9 = digit" : "",
+    /(^|[^\\])A/.test(mask) ? "A = letter" : "",
+    /(^|[^\\])\*/.test(mask) ? "* = letter or digit" : "",
+  ].filter(Boolean);
+  return `Use the format ${shown}${legend.length ? ` (${legend.join(", ")})` : ""}.`;
+}
 
 export const errorMessage = (e: FieldError) =>
   (MESSAGES[e.code] ?? MESSAGES.invalid_type)?.(e.params ?? {}) ?? "";

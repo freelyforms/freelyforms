@@ -23,7 +23,8 @@ export type ValidationErrorCode =
   | "invalid_date"
   | "invalid_option"
   | "too_few_selected"
-  | "too_many_selected";
+  | "too_many_selected"
+  | "invalid_format";
 
 export interface FieldError {
   fieldId: string;
@@ -81,7 +82,71 @@ function validText(field: Extract<Field, { type: "text" | "textarea" }>, raw: un
     return fail("too_short", { min: field.minLength });
   }
   if (len > max) return fail("too_long", { max });
+  if (field.type === "text" && field.match && !matchesFormat(value, field.match)) {
+    const { kind, mask, message } = field.match;
+    return fail("invalid_format", {
+      kind,
+      ...(mask === undefined ? {} : { mask }),
+      ...(message === undefined ? {} : { message }),
+    });
+  }
   return { value };
+}
+
+type AnswerFormat = NonNullable<Extract<Field, { type: "text" }>["match"]>;
+
+const DIGIT = /^[0-9]$/;
+const LETTER = /^\p{L}$/u;
+const LETTER_OR_DIGIT = /^[\p{L}0-9]$/u;
+
+/**
+ * Whether an answer has the owner's format (ADR 0020). Linear in the answer's length: masks are
+ * walked one character at a time and the presets use no nested repetition, so a crafted answer
+ * can't make the check slow.
+ */
+function matchesFormat(value: string, format: AnswerFormat): boolean {
+  switch (format.kind) {
+    case "digits":
+      return /^[0-9]+$/.test(value);
+    case "letters":
+      return /^[\p{L}\s]+$/u.test(value);
+    case "alphanumeric":
+      return /^[\p{L}0-9]+$/u.test(value);
+    case "url":
+      try {
+        const url = new URL(value);
+        return (
+          (url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")
+        );
+      } catch {
+        return false;
+      }
+    case "mask": {
+      const chars = Array.from(value);
+      const tokens = Array.from(format.mask ?? "");
+      let at = 0;
+      for (let t = 0; t < tokens.length; t++) {
+        let token = tokens[t] ?? "";
+        let literal = false;
+        if (token === "\\" && t + 1 < tokens.length) {
+          token = tokens[++t] ?? "";
+          literal = true;
+        }
+        const ch = chars[at++];
+        if (ch === undefined) return false;
+        const ok =
+          literal || !"9A*".includes(token)
+            ? ch.toLowerCase() === token.toLowerCase()
+            : token === "9"
+              ? DIGIT.test(ch)
+              : token === "A"
+                ? LETTER.test(ch)
+                : LETTER_OR_DIGIT.test(ch);
+        if (!ok) return false;
+      }
+      return at === chars.length;
+    }
+  }
 }
 
 function validEmail(raw: unknown): Outcome {

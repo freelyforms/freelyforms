@@ -69,7 +69,23 @@ const textual = {
 
 const options = z.array(optionSchema).min(1).max(MAX_OPTIONS);
 
-export const textFieldSchema = z.strictObject({ type: z.literal("text"), ...textual });
+/** The shape a short answer must have (ADR 0020): a preset, or a mask such as `AA-9999`. */
+export const answerFormatSchema = z
+  .strictObject({
+    kind: z.enum(["digits", "letters", "alphanumeric", "url", "mask"]),
+    mask: z.string().min(1).max(100).optional(),
+    message: z.string().min(1).max(200).regex(nonBlank, "Must not be blank").optional(),
+  })
+  .refine((m) => (m.kind === "mask") === (m.mask !== undefined), {
+    message: "A custom format needs a pattern, and only a custom format has one",
+    path: ["mask"],
+  });
+
+export const textFieldSchema = z.strictObject({
+  type: z.literal("text"),
+  ...textual,
+  match: answerFormatSchema.optional(),
+});
 export const textareaFieldSchema = z.strictObject({ type: z.literal("textarea"), ...textual });
 export const emailFieldSchema = z.strictObject({
   type: z.literal("email"),
@@ -319,6 +335,7 @@ export type FieldOption = z.infer<typeof optionSchema>;
 export type FormSettings = z.infer<typeof settingsSchema>;
 export type FormTheme = z.infer<typeof themeSchema>;
 export type ShowIf = z.infer<typeof showIfSchema>;
+export type AnswerFormat = z.infer<typeof answerFormatSchema>;
 export type ConditionRule = z.infer<typeof conditionRuleSchema>;
 
 /** The fields that have answers and sheet columns, in order (page breaks left out). */

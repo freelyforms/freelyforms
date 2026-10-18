@@ -350,3 +350,29 @@ test("a form exported as JSON imports back as a new draft with the same question
   });
   await expect(page.getByRole("alert")).toContainText("isn't a form Freely Forms can read");
 });
+
+test("an answer must fit the format the owner set", async ({ page, browser, request }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Order lookup");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Short text", exact: true }).click();
+  const card = page.locator("article").first();
+  await card.getByRole("button", { name: /Field settings/ }).click();
+  await card.getByLabel("Answer format").selectOption({ label: "Custom pattern…" });
+  await expect(card.getByLabel("Pattern")).toHaveValue("AA-9999");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  await r.getByLabel("Short text").fill("12-ABCD");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText("Use the format AA-9999 (9 = digit, A = letter).")).toBeVisible();
+  await r.getByLabel("Short text").fill("ab-1234");
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  expect((await rows(request, spreadsheetId))[1]).toContain("ab-1234");
+});

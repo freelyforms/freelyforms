@@ -50,7 +50,7 @@ Rules:
 
 | Type          | Answer value                     | Type-specific properties                            |
 | ------------- | -------------------------------- | --------------------------------------------------- |
-| `text`        | string, single line              | `placeholder`, `minLength`, `maxLength`             |
+| `text`        | string, single line              | `placeholder`, `minLength`, `maxLength`, `match`    |
 | `textarea`    | string, line breaks kept as `\n` | `placeholder`, `minLength`, `maxLength`             |
 | `email`       | string                           | `placeholder`                                       |
 | `phone`       | string (5–15 digits)             | `placeholder`                                       |
@@ -110,6 +110,10 @@ Any field can be shown only when answers above it meet conditions ([ADR 0017](ad
 ### Required only if (`requiredIf`)
 
 `requiredIf` has the same shape and rules as `showIf`, and makes a shown field required only while its conditions hold ([ADR 0019](adr/0019-conditional-required.md)). It can't be combined with `required`, and hidden fields and page breaks can't have it. The public form shows the required marker and sets `aria-required` while it applies; the server enforces it either way.
+
+### Answer formats (`match`)
+
+A `text` field can require a shape ([ADR 0020](adr/0020-answer-formats.md)): `{ "kind": "digits" | "letters" | "alphanumeric" | "url" }`, or `{ "kind": "mask", "mask": "AA-9999" }` where `9` is a digit, `A` a letter, `*` a letter or digit, `\` makes the next character literal and every other character must match as written (letters case-insensitively). An optional `message` (up to 200 characters) replaces the default error text. There are no regular expressions in form definitions; every check is linear in the answer's length. Error code: `invalid_format`.
 
 ### Pages
 

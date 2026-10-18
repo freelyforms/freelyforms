@@ -1,4 +1,4 @@
-import type { Field } from "@freelyforms/form-schema";
+import type { AnswerFormat, Field } from "@freelyforms/form-schema";
 import { isAnswerField } from "@freelyforms/form-schema/limits";
 import {
   useCallback,
@@ -403,6 +403,15 @@ export function FieldEditor(props: Props) {
                   </>
                 )}
               </div>
+              {field.type === "text" && (
+                <AnswerFormatEditor
+                  id={id}
+                  value={field.match}
+                  onChange={(match) => {
+                    props.onChange({ match });
+                  }}
+                />
+              )}
               <p className="muted small">
                 Field ID <code>{field.id}</code> — the column in your sheet is matched by this ID,
                 so renaming the question never breaks it.
@@ -443,5 +452,99 @@ export function FieldEditor(props: Props) {
         </p>
       ))}
     </article>
+  );
+}
+
+const FORMAT_KINDS: [AnswerFormat["kind"] | "", string][] = [
+  ["", "Any text"],
+  ["digits", "Digits only"],
+  ["letters", "Letters only"],
+  ["alphanumeric", "Letters and digits"],
+  ["url", "Web address"],
+  ["mask", "Custom pattern…"],
+];
+
+/** The shape a short answer must have (ADR 0020): a preset or a mask such as AA-9999. */
+function AnswerFormatEditor({
+  id,
+  value,
+  onChange,
+}: {
+  id: (name: string) => string;
+  value: AnswerFormat | undefined;
+  onChange: (value: AnswerFormat | undefined) => void;
+}) {
+  const kind = value?.kind ?? "";
+  const set = (patch: Partial<AnswerFormat>) => {
+    if (!value) return;
+    const next = { ...value, ...patch };
+    onChange(
+      Object.fromEntries(
+        Object.entries(next).filter(([, v]) => v !== undefined && v !== ""),
+      ) as AnswerFormat,
+    );
+  };
+  return (
+    <div className="answer-format">
+      <label className="field-label" htmlFor={id("format")}>
+        Answer format
+      </label>
+      <select
+        id={id("format")}
+        value={kind}
+        onChange={(e) => {
+          const next = e.target.value as AnswerFormat["kind"] | "";
+          if (next === "") onChange(undefined);
+          else
+            onChange({
+              kind: next,
+              ...(next === "mask" ? { mask: value?.mask ?? "AA-9999" } : {}),
+              ...(value?.message ? { message: value.message } : {}),
+            });
+        }}
+      >
+        {FORMAT_KINDS.map(([k, label]) => (
+          <option key={k} value={k}>
+            {label}
+          </option>
+        ))}
+      </select>
+      {kind === "mask" && (
+        <>
+          <label className="field-label" htmlFor={id("mask")}>
+            Pattern
+          </label>
+          <input
+            id={id("mask")}
+            value={value?.mask ?? ""}
+            maxLength={100}
+            aria-describedby={id("mask-hint")}
+            onChange={(e) => {
+              set({ mask: e.target.value });
+            }}
+          />
+          <p className="muted small" id={id("mask-hint")}>
+            <code>9</code> is a digit, <code>A</code> a letter, <code>*</code> a letter or digit;
+            other characters must match as written. Example: <code>AA-9999</code> accepts AB-1234.
+          </p>
+        </>
+      )}
+      {kind !== "" && (
+        <>
+          <label className="field-label" htmlFor={id("format-message")}>
+            Error message <span className="muted">(optional)</span>
+          </label>
+          <input
+            id={id("format-message")}
+            value={value?.message ?? ""}
+            maxLength={200}
+            placeholder="Shown when the answer doesn't fit"
+            onChange={(e) => {
+              set({ message: e.target.value });
+            }}
+          />
+        </>
+      )}
+    </div>
   );
 }

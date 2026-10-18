@@ -467,3 +467,58 @@ describe("requiredIf (ADR 0019)", () => {
     });
   });
 });
+
+type Match = NonNullable<Extract<Field, { type: "text" }>["match"]>;
+
+describe("answer formats (ADR 0020)", () => {
+  const withFormat = (match: Match | undefined): Field => ({
+    id: "fld_code",
+    type: "text",
+    label: "Code",
+    ...(match ? { match } : {}),
+  });
+
+  it.each([
+    [{ kind: "digits" }, "0042", true],
+    [{ kind: "digits" }, "42a", false],
+    [{ kind: "letters" }, "Ана Мария", true],
+    [{ kind: "letters" }, "R2D2", false],
+    [{ kind: "alphanumeric" }, "R2D2", true],
+    [{ kind: "alphanumeric" }, "R2-D2", false],
+    [{ kind: "url" }, "https://example.com/x", true],
+    [{ kind: "url" }, "javascript:alert(1)", false],
+    [{ kind: "url" }, "https://localhost", false],
+    [{ kind: "mask", mask: "AA-9999" }, "ab-1234", true],
+    [{ kind: "mask", mask: "AA-9999" }, "AB-123", false],
+    [{ kind: "mask", mask: "AA-9999" }, "AB-12345", false],
+    [{ kind: "mask", mask: "AA-9999" }, "A1-1234", false],
+    [{ kind: "mask", mask: "***" }, "a1Я", true],
+    [{ kind: "mask", mask: "\\A9" }, "A5", true],
+    [{ kind: "mask", mask: "\\A9" }, "B5", false],
+  ] as [Match, string, boolean][])("%o accepts %s: %s", (match, answer, ok) => {
+    expect(errorOf(withFormat(match), answer)).toBe(ok ? undefined : "invalid_format");
+  });
+
+  it("passes the owner's message and the mask on to the renderer", () => {
+    const result = one(
+      withFormat({ kind: "mask", mask: "AA-9999", message: "Your order code" }),
+      "x",
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_format",
+          params: { kind: "mask", mask: "AA-9999", message: "Your order code" },
+        },
+      ],
+    });
+  });
+
+  it("checks a long crafted answer quickly", () => {
+    const started = performance.now();
+    errorOf(withFormat({ kind: "mask", mask: "*".repeat(100) }), "a".repeat(1000));
+    errorOf(withFormat({ kind: "letters" }), `${"a ".repeat(500)}!`);
+    expect(performance.now() - started).toBeLessThan(50);
+  });
+});

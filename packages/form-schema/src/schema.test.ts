@@ -307,3 +307,25 @@ describe("requiredIf (ADR 0019)", () => {
     ]);
   });
 });
+
+describe("answer formats (ADR 0020)", () => {
+  const text = (match: unknown) =>
+    minimal([{ id: "fld_code", type: "text", label: "Code", match }]);
+
+  it("accepts presets and masks", () => {
+    expect(issuesOf(text({ kind: "digits" }))).toEqual([]);
+    expect(
+      issuesOf(text({ kind: "mask", mask: "AA-9999", message: "Use your order code" })),
+    ).toEqual([]);
+  });
+
+  it("needs a mask exactly for the mask kind, and only on short text", () => {
+    expect(issuesOf(text({ kind: "mask" })).join()).toContain("needs a pattern");
+    expect(issuesOf(text({ kind: "digits", mask: "99" })).join()).toContain("needs a pattern");
+    expect(issuesOf(text({ kind: "regex", mask: ".*" }))).not.toEqual([]);
+    const long = minimal([
+      { id: "fld_t", type: "textarea", label: "T", match: { kind: "digits" } },
+    ]);
+    expect(issuesOf(long)).not.toEqual([]);
+  });
+});

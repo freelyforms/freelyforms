@@ -166,7 +166,11 @@ function control(field: AnswerField, value: unknown, describedBy: string | undef
             step="${field.integer === true ? "1" : "any"}"`
           : field.type === "date"
             ? html`${field.min ? html` min="${field.min}"` : ""}${field.max ? html` max="${field.max}"` : ""}`
-            : "";
+            : field.type === "text" && field.match?.kind === "digits"
+              ? raw(' inputmode="numeric"')
+              : field.type === "text" && field.match?.kind === "url"
+                ? raw(' inputmode="url"')
+                : "";
       const placeholder =
         "placeholder" in field && field.placeholder
           ? html` placeholder="${field.placeholder}"`

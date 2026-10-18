@@ -730,6 +730,11 @@ button.small {
   min-width: 0;
   width: auto;
 }
+.answer-format {
+  margin-top: var(--s3);
+  display: grid;
+  gap: var(--s1);
+}
 .condition-toggle {
   margin-top: var(--s2);
 }
