@@ -110,10 +110,10 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [x] OAuth app published "In production" (in Testing, `drive.file` refresh tokens expire after 7 days and only test users can sign in).
 - [ ] Remove the production origin from the development project's OAuth client.
 - [x] Picker API enabled in the production project with a restricted browser key.
-- [ ] Brand verification: domain ownership in Search Console, app name, logo (120×120), support email, homepage and privacy policy links.
+- [ ] Brand verification: domain ownership in Search Console, app name, logo (120×120), support email, homepage and privacy policy links (submitted; in Google's manual review).
 - [x] Homepage at `/` that describes the app and links the privacy policy and terms (server-rendered, `noindex` until the website launches).
 - [x] "Sign in with Google" button following Google's branding guidelines.
-- [ ] App logo and favicon.
+- [x] App logo, favicon and social image.
 - [ ] Measure consumer CPU time against the 10 ms Workers Free limit.
 - [x] Privacy policy (`/privacy`, includes the 7-day transient retention and Google's Limited Use statement) and terms (`/terms`), operator: the non-commercial Freely Forms project. Legal review before public launch.
 - [ ] Status/health checks; periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)).

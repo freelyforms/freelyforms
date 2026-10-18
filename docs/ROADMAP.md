@@ -17,7 +17,7 @@ Status: done (deployed to Cloudflare on 2026-10-16). The builder's CSS tokens ar
 
 ## Phase 1 — End-to-end MVP
 
-Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Done in the web app: builder with live preview, basic theme, publish flow, embed code, delivery status. Done for owners: account disconnect/deletion, privacy policy and terms, production deployment (early preview). Attaching an existing sheet through Google Picker is done. For a public launch: Google brand verification (logo), Workers Paid, legal review of the privacy policy and terms, owner email notifications, website content review before indexing, publishing the repository with secret scanning and the CLA bot. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
+Status: in progress. Done in the API: sign-in, form CRUD, publishing, Sheet creation, public form, anonymous submission, queued delivery, abuse controls. Done in the web app: builder with live preview, basic theme, publish flow, embed code, delivery status. Done for owners: account disconnect/deletion, privacy policy and terms, production deployment (early preview). Attaching an existing sheet through Google Picker is done. The repository is public on GitHub with secret scanning, Dependabot and the CLA bot. Answers are checked in the browser before sending (the server still validates). For a public launch: Google brand verification (in Google's manual review), Workers Paid, legal review of the privacy policy and terms, owner email notifications, website content review before indexing, end-to-end browser tests. See [INITIAL_BACKLOG.md](INITIAL_BACKLOG.md).
 
 - Google sign-in;
 - create/edit/delete form;
