@@ -13,6 +13,24 @@ export interface FormSummary {
   updatedAt: number;
   /** Only in the list: delivery to the sheet needs the owner's action. */
   needsAttention?: boolean;
+  /** What the signed-in user may do (ADR 0024): owner, editor or viewer. */
+  role?: Role;
+}
+
+export type Role = "owner" | "editor" | "viewer";
+
+export interface Member {
+  email: string;
+  role: "editor" | "viewer";
+}
+
+/** A page of responses read from the owner's sheet (ADR 0024); never stored by the app. */
+export interface ResponsesPage {
+  columns: { key: string; label: string; editable: boolean }[];
+  rows: { submissionId: string; cells: Record<string, string | number> }[];
+  total: number;
+  page: number;
+  pages: number;
 }
 
 /** A form's webhook as the owner sees it (ADR 0021); the secret is never part of it. */
@@ -100,6 +118,18 @@ export const api = {
     request<FormView>("/forms/import", { method: "POST", body: definition }),
   duplicateForm: (id: string) => request<FormView>(`/forms/${id}/duplicate`, { method: "POST" }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
+  members: (id: string) => request<{ members: Member[] }>(`/forms/${id}/members`),
+  saveMember: (id: string, member: Member) =>
+    request<Member>(`/forms/${id}/members`, { method: "PUT", body: member }),
+  removeMember: (id: string, email: string) =>
+    request<undefined>(`/forms/${id}/members/${encodeURIComponent(email)}`, { method: "DELETE" }),
+  responses: (id: string, page: number) =>
+    request<ResponsesPage>(`/forms/${id}/responses?page=${String(page)}`),
+  editResponse: (id: string, submissionId: string, key: string, value: string) =>
+    request<{ ok: true }>(`/forms/${id}/responses/${encodeURIComponent(submissionId)}`, {
+      method: "PATCH",
+      body: { key, value },
+    }),
   getWebhook: (id: string) => request<{ webhook: Webhook | null }>(`/forms/${id}/webhook`),
   saveWebhook: (id: string, url: string) =>
     request<{ webhook: Webhook; secret?: string }>(`/forms/${id}/webhook`, {

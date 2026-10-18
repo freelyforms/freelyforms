@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { api, ApiError, SIGN_IN_URL, type FormView, type SchemaIssue } from "./api.js";
 import { Link } from "./App.js";
 import { DesignPanel } from "./DesignPanel.js";
+import { Responses } from "./Responses.js";
 import {
   addField,
   addUtmFields,
@@ -31,7 +32,7 @@ type SaveState =
 /** Outcome of one save: `stale` means the draft changed while it was being saved. */
 export type FlushResult = "saved" | "stale" | "invalid" | "error" | "signedOut";
 
-type Tab = "build" | "design" | "share";
+type Tab = "build" | "design" | "share" | "responses";
 
 const AUTOSAVE_MS = 700;
 
@@ -229,7 +230,10 @@ export function Editor({ id }: { id: string }) {
         <h1 className="editor-title">{form.title}</h1>
         <SaveStatus save={save} onRetry={() => void flush()} />
         <div className="tabs" role="tablist" aria-label="Editor sections">
-          {(["build", "design", "share"] as const).map((t) => (
+          {(view.role === "viewer"
+            ? (["responses"] as const)
+            : (["build", "design", "share", "responses"] as const)
+          ).map((t) => (
             <button
               key={t}
               id={`tab-${t}`}
@@ -242,7 +246,7 @@ export function Editor({ id }: { id: string }) {
                 setTab(t);
               }}
             >
-              {{ build: "Fields", design: "Design", share: "Publish" }[t]}
+              {{ build: "Fields", design: "Design", share: "Publish", responses: "Responses" }[t]}
             </button>
           ))}
         </div>
@@ -274,7 +278,7 @@ export function Editor({ id }: { id: string }) {
               ))}
             </div>
           ) : null}
-          {tab === "build" && (
+          {tab === "build" && view.role !== "viewer" && (
             <>
               <div className="card details">
                 <h2 className="section-title">Form details</h2>
@@ -428,8 +432,13 @@ export function Editor({ id }: { id: string }) {
               </div>
             </>
           )}
-          {tab === "design" && <DesignPanel form={form} onChange={edit} />}
-          {tab === "share" && (
+          {tab === "design" && view.role !== "viewer" && (
+            <DesignPanel form={form} onChange={edit} />
+          )}
+          {(tab === "responses" || view.role === "viewer") && (
+            <Responses formId={view.id} role={view.role ?? "owner"} />
+          )}
+          {tab === "share" && view.role !== "viewer" && (
             <SharePanel
               view={view}
               fieldCount={form.fields.length}

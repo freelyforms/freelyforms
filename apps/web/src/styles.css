@@ -1006,3 +1006,53 @@ button.small {
   width: 80px;
   flex: none;
 }
+
+.table-wrap {
+  overflow-x: auto;
+  margin: var(--s2) 0;
+}
+.responses-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.responses-table th,
+.responses-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  max-width: 320px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.responses-table th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.responses-table .cell {
+  all: unset;
+  display: block;
+  min-height: 1.4em;
+  min-width: 3em;
+  cursor: text;
+  white-space: pre-wrap;
+}
+.responses-table .cell:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.members {
+  list-style: none;
+  padding: 0;
+  margin: var(--s2) 0 0;
+  display: grid;
+  gap: var(--s1);
+}
+.members li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.members li span:first-child {
+  flex: 1;
+}

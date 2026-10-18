@@ -11,6 +11,7 @@ import {
 import type { FlushResult } from "./Editor.js";
 import { pickSpreadsheet } from "./picker.js";
 import { navigate } from "./router.js";
+import { Members } from "./Members.js";
 import { WebhookCard } from "./Webhook.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
@@ -83,6 +84,8 @@ export function SharePanel({
   onPublished,
   onDeleted,
 }: Props) {
+  // Only the owner manages the sheet, webhook, sharing and deletion (ADR 0024).
+  const owner = (view.role ?? "owner") === "owner";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<Deliveries | null>(null);
@@ -321,9 +324,11 @@ export function SharePanel({
               Publishing creates a new spreadsheet in your Drive. You can use one of your existing
               spreadsheets instead; Freely Forms adds its own tab and never changes your other tabs.
             </p>
-            <button type="button" disabled={busy} onClick={() => void attach()}>
-              Use an existing Google Sheet…
-            </button>
+            {owner && (
+              <button type="button" disabled={busy} onClick={() => void attach()}>
+                Use an existing Google Sheet…
+              </button>
+            )}
             {attachError && (
               <p className="alert" role="alert">
                 {attachError}{" "}
@@ -336,7 +341,8 @@ export function SharePanel({
         )}
       </section>
 
-      {published && <WebhookCard formId={view.id} />}
+      {owner && published && <WebhookCard formId={view.id} />}
+      {owner && <Members formId={view.id} />}
 
       <section className="zone">
         <h2 className="section-title">Advanced</h2>
@@ -374,7 +380,7 @@ export function SharePanel({
             </p>
           )}
         </div>
-        <DeleteForm id={view.id} onDeleted={onDeleted} />
+        {owner && <DeleteForm id={view.id} onDeleted={onDeleted} />}
       </section>
     </div>
   );

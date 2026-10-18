@@ -655,3 +655,52 @@ test("a respondent signs on the page and the signature is linked in the sheet", 
     /^signature\.png – https:\/\/drive\.google\.com\/file\/d\/file\w+\/view$/,
   );
 });
+
+test("an owner shares a form; a viewer reads responses and an editor corrects one", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await formFromTemplate(page, "contact-form");
+  const { url, spreadsheetId } = await publish(page);
+  const formUrl = page.url();
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  await r.getByLabel("Name").fill("Margaret");
+  await r.getByLabel("Email").fill("margaret@example.com");
+  await r.getByLabel("Message").fill("Shared responses test.");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Send message" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+
+  for (const [email, role] of [
+    ["viewer@example.com", "Viewer"],
+    ["editor@example.com", "Editor"],
+  ] as const) {
+    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Role").selectOption({ label: role });
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(email)).toBeVisible();
+  }
+
+  // The viewer: the form is in their list, and they see responses only.
+  const viewer = await (await browser.newContext()).newPage();
+  await viewer.goto(`/__e2e/login?email=viewer@example.com`);
+  await expect(viewer.getByText("Shared with you · Viewer")).toBeVisible();
+  await viewer.goto(formUrl);
+  await expect(viewer.getByRole("tab", { name: "Fields" })).toHaveCount(0);
+  await expect(viewer.getByRole("cell", { name: "Margaret", exact: true })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: /Edit Name/ })).toHaveCount(0);
+
+  // The editor corrects the name; it is written to the sheet.
+  const editor = await (await browser.newContext()).newPage();
+  await editor.goto(`/__e2e/login?email=editor@example.com&next=${encodeURIComponent(formUrl)}`);
+  await editor.getByRole("tab", { name: "Responses" }).click();
+  await editor.getByRole("button", { name: "Edit Name: Margaret" }).click();
+  await editor.getByLabel(/^Name for response/).fill("Margaret Hamilton");
+  await editor.getByLabel(/^Name for response/).press("Enter");
+  await expect(editor.getByText("Saved to the sheet.")).toBeVisible();
+  expect((await rows(request, spreadsheetId)).flat()).toContain("Margaret Hamilton");
+});

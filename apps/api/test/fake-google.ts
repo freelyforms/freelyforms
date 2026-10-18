@@ -200,12 +200,14 @@ export function fakeGoogle() {
           );
         if (req.updateCells) {
           const u = req.updateCells as {
-            start: { columnIndex: number };
-            rows: { values: { userEnteredValue: { stringValue: string } }[] }[];
+            start: { rowIndex?: number; columnIndex: number };
+            rows: { values: { userEnteredValue: Record<string, unknown> }[] }[];
           };
-          const header = sheet.rows[0] as unknown[];
+          const rowIndex = u.start.rowIndex ?? 0;
+          while (sheet.rows.length <= rowIndex) sheet.rows.push([]);
+          const target = sheet.rows[rowIndex] as unknown[];
           u.rows[0]?.values.forEach((v, i) => {
-            header[u.start.columnIndex + i] = v.userEnteredValue.stringValue;
+            target[u.start.columnIndex + i] = Object.values(v.userEnteredValue)[0];
           });
         }
         if (req.appendCells) {
@@ -243,8 +245,11 @@ export function fakeGoogle() {
     }
     // values:batchGetByDataFilter: the header row (gridRange) or the _submission_id column
     const filters = (body.dataFilters ?? []) as { gridRange?: unknown }[];
-    if (filters[0]?.gridRange) {
-      return json({ valueRanges: [{ valueRange: { values: [sheet.rows[0] ?? []] } }] });
+    const grid = filters[0]?.gridRange as
+      { startRowIndex?: number; endRowIndex?: number } | undefined;
+    if (grid) {
+      const rows = sheet.rows.slice(grid.startRowIndex ?? 0, grid.endRowIndex ?? sheet.rows.length);
+      return json({ valueRanges: [{ valueRange: { values: rows } }] });
     }
     const col = sheet.meta.find((x) => x.metadataValue === "_submission_id")?.location
       .dimensionRange.startIndex;

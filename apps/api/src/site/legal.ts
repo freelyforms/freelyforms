@@ -82,12 +82,13 @@ export const privacyBody = html`
       edited that header yourself). If a form has a file question, it also creates an uploads folder
       for that form in your Drive, lets respondents' browsers upload files into it, reads each
       uploaded file's details to confirm it came through your form before linking it in your sheet,
-      and deletes files that were uploaded but never sent with a response. If you choose one of your
-      existing spreadsheets in Google's file picker, Freely Forms adds its own responses tab to it
-      and does not change your other tabs. The permission works only on spreadsheets Freely Forms
-      created or that you chose, and gives no access to any other file. While the picker is open,
-      your browser receives a short-lived Google access token so the picker can list your
-      spreadsheets.
+      and deletes files that were uploaded but never sent with a response. If you invite people to a
+      form, Freely Forms reads that form's responses tab with your access when they open it and
+      writes the corrections editors make. If you choose one of your existing spreadsheets in
+      Google's file picker, Freely Forms adds its own responses tab to it and does not change your
+      other tabs. The permission works only on spreadsheets Freely Forms created or that you chose,
+      and gives no access to any other file. While the picker is open, your browser receives a
+      short-lived Google access token so the picker can list your spreadsheets.
     </li>
   </ul>
   <p>
@@ -114,6 +115,11 @@ export const privacyBody = html`
     <li>
       If the owner's sheet is unavailable, the encrypted answers wait at most 7 days and are then
       deleted, delivered or not.
+    </li>
+    <li>
+      People the owner invites to a form can see your answers in Freely Forms, and editors can
+      correct them; Freely Forms reads them from the owner's sheet when they look and doesn't keep
+      them.
     </li>
     <li>
       Files you upload go from your browser straight to the owner's Google Drive; they never pass

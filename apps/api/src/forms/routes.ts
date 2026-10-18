@@ -1,13 +1,18 @@
 import { decryptText, type Envelope } from "@freelyforms/crypto";
-import { parseForm, type Form } from "@freelyforms/form-schema";
+import { answerFields, parseForm, type Form } from "@freelyforms/form-schema";
+import { MAX_TEXT_LENGTH } from "@freelyforms/form-schema/limits";
 import {
   addMissingColumns,
   addResponseTab,
   deleteTab,
   createResponseSpreadsheet,
   GoogleApiError,
+  readRows,
   resolveColumns,
+  submissionIdColumn,
   syncHeaders,
+  SYSTEM_COLUMNS,
+  writeCell,
 } from "@freelyforms/google";
 import { Hono, type Context } from "hono";
 import type { Deps } from "../env.js";
@@ -47,16 +52,39 @@ interface DestinationRow {
 }
 
 const MAX_DRAFT_BYTES = 256 * 1024;
+/** Responses per page in the responses view (ADR 0024). */
+const RESPONSES_PAGE = 50;
 
 type Ctx = Context<OwnerEnv>;
 
-async function ownedForm(c: Ctx, formId: string): Promise<FormRow | null> {
-  return c.env.DB.prepare(
-    "SELECT * FROM forms WHERE id = ? AND owner_id = ? AND status != 'archived'",
-  )
-    .bind(formId, c.var.user.id)
+type Role = "owner" | "editor" | "viewer";
+type Need = "view" | "edit" | "own";
+const RANK: Record<Role, number> = { viewer: 1, editor: 2, owner: 3 };
+const NEEDED: Record<Need, number> = { view: 1, edit: 2, own: 3 };
+
+/**
+ * The form if the signed-in user may do `need` with it (ADR 0024): the owner may do anything,
+ * an editor may view and edit, a viewer may view. Anyone else gets null, as if it didn't exist.
+ */
+async function formFor(
+  c: Ctx,
+  formId: string,
+  need: Need,
+): Promise<(FormRow & { role: Role }) | null> {
+  const form = await c.env.DB.prepare("SELECT * FROM forms WHERE id = ? AND status != 'archived'")
+    .bind(formId)
     .first<FormRow>();
+  if (!form) return null;
+  const role: Role | null =
+    form.owner_id === c.var.user.id
+      ? "owner"
+      : await c.env.DB.prepare("SELECT role FROM form_members WHERE form_id = ? AND email = ?")
+          .bind(formId, c.var.user.email.toLowerCase())
+          .first<"viewer" | "editor">("role");
+  return role && RANK[role] >= NEEDED[need] ? { ...form, role } : null;
 }
+
+const ownedForm = (c: Ctx, formId: string) => formFor(c, formId, "own");
 
 async function destinationOf(c: Ctx, formId: string): Promise<DestinationRow | null> {
   return c.env.DB.prepare(
@@ -84,10 +112,12 @@ async function publishedJson(c: Ctx, form: FormRow): Promise<string | null> {
     .first<string>("schema_json");
 }
 
-async function view(c: Ctx, form: FormRow, destination: DestinationRow | null) {
+async function view(c: Ctx, form: FormRow & { role?: Role }, destination: DestinationRow | null) {
   const published = await publishedJson(c, form);
   return {
     id: form.id,
+    /** What the signed-in user may do with this form (ADR 0024). */
+    role: form.role ?? "owner",
     title: form.title,
     status: form.status,
     publishedVersion: form.published_version,
@@ -164,16 +194,21 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       `SELECT f.id, f.title, f.status, f.published_version, f.updated_at,
          d.state AS destination_state,
          (SELECT count(*) FROM deliveries x WHERE x.form_id = f.id
-            AND (x.state = 'blocked' OR (x.state = 'permanently_failed' AND x.accepted_at > ?))) AS blocked
+            AND (x.state = 'blocked' OR (x.state = 'permanently_failed' AND x.accepted_at > ?1))) AS blocked,
+         CASE WHEN f.owner_id = ?2 THEN 'owner' ELSE m.role END AS role
        FROM forms f LEFT JOIN destinations d ON d.form_id = f.id
-       WHERE f.owner_id = ? AND f.status != 'archived' ORDER BY f.updated_at DESC`,
+       LEFT JOIN form_members m ON m.form_id = f.id AND m.email = ?3
+       WHERE (f.owner_id = ?2 OR m.email IS NOT NULL) AND f.status != 'archived'
+       ORDER BY f.updated_at DESC`,
     )
       // Responses that could not be delivered in the last 7 days also need the owner's attention.
-      .bind(deps.now() - 7 * 24 * 60 * 60 * 1000, c.var.user.id)
+      // Forms shared with the user (ADR 0024) are listed with their role.
+      .bind(deps.now() - 7 * 24 * 60 * 60 * 1000, c.var.user.id, c.var.user.email.toLowerCase())
       .all<
         Omit<FormRow, "owner_id" | "draft_json"> & {
           destination_state: string | null;
           blocked: number;
+          role: Role;
         }
       >();
     return c.json({
@@ -183,6 +218,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
         status: f.status,
         publishedVersion: f.published_version,
         updatedAt: f.updated_at,
+        role: f.role,
         // Something the owner must fix: the sheet is unreachable or responses are waiting.
         needsAttention:
           (f.destination_state !== null &&
@@ -216,7 +252,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
    * no spreadsheet (its first publish creates one) and no responses.
    */
   forms.post("/:id/duplicate", async (c) => {
-    const source = await ownedForm(c, c.req.param("id"));
+    const source = await formFor(c, c.req.param("id"), "view");
     if (!source) return c.json({ error: "not_found" }, 404);
     const id = newFormId();
     const title = `${source.title} (copy)`.slice(0, 200);
@@ -248,13 +284,13 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
   });
 
   forms.get("/:id", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "view");
     if (!form) return c.json({ error: "not_found" }, 404);
     return c.json(await view(c, form, await destinationOf(c, form.id)));
   });
 
   forms.put("/:id/draft", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "edit");
     if (!form) return c.json({ error: "not_found" }, 404);
     const bytes = await readBodyLimited(c.req.raw, MAX_DRAFT_BYTES);
     if (!bytes) return c.json({ error: "too_large" }, 413);
@@ -272,7 +308,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     )
       .bind(JSON.stringify(parsed.form), parsed.form.title, deps.now(), form.id)
       .run();
-    const updated = await ownedForm(c, form.id);
+    const updated = await formFor(c, form.id, "view");
     return c.json(updated && (await view(c, updated, await destinationOf(c, form.id))));
   });
 
@@ -281,7 +317,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
    * for every field (creating the spreadsheet on first publish).
    */
   forms.post("/:id/publish", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "edit");
     if (!form) return c.json({ error: "not_found" }, 404);
     const parsed = parseForm(JSON.parse(form.draft_json));
     if (!parsed.success) return c.json({ error: "invalid_form", issues: parsed.issues }, 422);
@@ -290,7 +326,8 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     let destination = await destinationOf(c, form.id);
     let created: { spreadsheetId: string; sheetId: number } | null = null;
     try {
-      const sheets = await sheetsFor(c.env, deps, c.var.user.id);
+      // Always as the owner: an editor publishing uses the owner's Google access (ADR 0024).
+      const sheets = await sheetsFor(c.env, deps, form.owner_id);
       if (destination) {
         const dest = { spreadsheetId: destination.spreadsheet_id, sheetId: destination.sheet_id };
         const columns = await addMissingColumns(
@@ -345,7 +382,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       return c.json({ error: "publish_conflict" }, 409);
     }
     destination = await destinationOf(c, form.id);
-    const updated = await ownedForm(c, form.id);
+    const updated = await formFor(c, form.id, "view");
     return c.json(updated && (await view(c, updated, destination)));
   });
 
@@ -354,7 +391,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
    * as the builder; it can be framed only by it and never submits.
    */
   forms.get("/:id/preview", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "view");
     if (!form) return c.json({ error: "not_found" }, 404);
     const nonce = randomToken(16);
     const parsed = parseForm(JSON.parse(form.draft_json));
@@ -425,7 +462,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
   });
 
   forms.get("/:id/deliveries", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "view");
     if (!form) return c.json({ error: "not_found" }, 404);
     const { results } = await c.env.DB.prepare(
       "SELECT state, count(*) AS n, max(last_error_code) AS error FROM deliveries WHERE form_id = ? GROUP BY state",
@@ -441,7 +478,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
 
   /** After the owner fixes the destination, resume deliveries held for it (ADR 0011). */
   forms.post("/:id/deliveries/resume", async (c) => {
-    const form = await ownedForm(c, c.req.param("id"));
+    const form = await formFor(c, c.req.param("id"), "edit");
     if (!form) return c.json({ error: "not_found" }, 404);
     const destination = await destinationOf(c, form.id);
     if (!destination) return c.json({ error: "no_destination" }, 409);
@@ -453,6 +490,127 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       .run();
     const { resumed, more } = await resumeHeld(c.env, destination.id);
     return c.json({ resumed: resumed.length, more });
+  });
+
+  // Members (ADR 0024): only the owner sees and changes who else has access.
+  forms.get("/:id/members", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const { results } = await c.env.DB.prepare(
+      "SELECT email, role FROM form_members WHERE form_id = ? ORDER BY created_at, rowid",
+    )
+      .bind(form.id)
+      .all<{ email: string; role: "viewer" | "editor" }>();
+    return c.json({ members: results });
+  });
+
+  forms.put("/:id/members", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const body = await c.req
+      .json<{ email?: unknown; role?: unknown }>()
+      .catch(() => ({ email: undefined, role: undefined }));
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+      return c.json({ error: "invalid_email" }, 422);
+    }
+    if (body.role !== "viewer" && body.role !== "editor") {
+      return c.json({ error: "invalid_role" }, 422);
+    }
+    if (email === c.var.user.email.toLowerCase()) return c.json({ error: "is_owner" }, 422);
+    await c.env.DB.prepare(
+      `INSERT INTO form_members (form_id, email, role, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (form_id, email) DO UPDATE SET role = excluded.role`,
+    )
+      .bind(form.id, email, body.role, deps.now())
+      .run();
+    return c.json({ email, role: body.role });
+  });
+
+  forms.delete("/:id/members/:email", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    await c.env.DB.prepare("DELETE FROM form_members WHERE form_id = ? AND email = ?")
+      .bind(form.id, decodeURIComponent(c.req.param("email")).toLowerCase())
+      .run();
+    return c.body(null, 204);
+  });
+
+  /**
+   * A page of responses, newest first (ADR 0024), read from the owner's sheet now and never
+   * stored. Columns are matched to fields by their identities (ADR 0004).
+   */
+  forms.get("/:id/responses", async (c) => {
+    const form = await formFor(c, c.req.param("id"), "view");
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const destination = await destinationOf(c, form.id);
+    if (!destination) return c.json({ columns: [], rows: [], total: 0, page: 1, pages: 0 });
+    c.header("Cache-Control", "no-store");
+    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
+    try {
+      const sheets = await sheetsFor(c.env, deps, form.owner_id);
+      const dest = { spreadsheetId: destination.spreadsheet_id, sheetId: destination.sheet_id };
+      const columns = await resolveColumns(sheets, dest);
+      const ids = await submissionIdColumn(sheets, dest);
+      // Row indexes of responses, newest (bottom) first.
+      const responseRows = ids
+        .map((id, row) => ({ id, row }))
+        .filter((r) => r.row > 0 && r.id !== "")
+        .reverse();
+      const total = responseRows.length;
+      const slice = responseRows.slice((page - 1) * RESPONSES_PAGE, page * RESPONSES_PAGE);
+      const first = Math.min(...slice.map((r) => r.row));
+      const last = Math.max(...slice.map((r) => r.row));
+      const values = slice.length ? await readRows(sheets, dest, first, last + 1) : [];
+      const parsed = parseForm(JSON.parse(form.draft_json));
+      const fields = parsed.success ? answerFields(parsed.form) : [];
+      const known = [...SYSTEM_COLUMNS, ...fields.map((f) => f.id)].filter((k) => columns.has(k));
+      return c.json({
+        columns: known.map((key) => ({
+          key,
+          label: fields.find((f) => f.id === key)?.label ?? key,
+          editable: !key.startsWith("_"),
+        })),
+        rows: slice.map(({ id, row }) => {
+          const cells = values[row - first] ?? [];
+          return {
+            submissionId: id,
+            cells: Object.fromEntries(known.map((k) => [k, cells[columns.get(k) ?? -1] ?? ""])),
+          };
+        }),
+        total,
+        page,
+        pages: Math.ceil(total / RESPONSES_PAGE),
+      });
+    } catch (err) {
+      return googleFailure(c, err);
+    }
+  });
+
+  /** Corrects one answer in the owner's sheet (editors and the owner; ADR 0024). */
+  forms.patch("/:id/responses/:submissionId", async (c) => {
+    const form = await formFor(c, c.req.param("id"), "edit");
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const destination = await destinationOf(c, form.id);
+    if (!destination) return c.json({ error: "no_destination" }, 409);
+    const body = await c.req
+      .json<{ key?: unknown; value?: unknown }>()
+      .catch(() => ({ key: undefined, value: undefined }));
+    const key = typeof body.key === "string" ? body.key : "";
+    const value = typeof body.value === "string" ? body.value.slice(0, MAX_TEXT_LENGTH) : null;
+    if (key.startsWith("_") || value === null) return c.json({ error: "invalid_edit" }, 422);
+    try {
+      const sheets = await sheetsFor(c.env, deps, form.owner_id);
+      const dest = { spreadsheetId: destination.spreadsheet_id, sheetId: destination.sheet_id };
+      const column = (await resolveColumns(sheets, dest)).get(key);
+      const row = (await submissionIdColumn(sheets, dest)).indexOf(c.req.param("submissionId"));
+      if (column === undefined || row < 1) return c.json({ error: "not_found" }, 404);
+      const numeric = /^-?\d+(\.\d+)?$/.test(value.trim()) ? Number(value.trim()) : null;
+      await writeCell(sheets, dest, row, column, numeric ?? value);
+      return c.json({ ok: true });
+    } catch (err) {
+      return googleFailure(c, err);
+    }
   });
 
   // Webhook destination (ADR 0021): the secret is shown only when created or rotated.

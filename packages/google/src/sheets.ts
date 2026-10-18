@@ -480,3 +480,87 @@ export async function existingSubmissionIds(
   }
   return ids;
 }
+
+/**
+ * The `_submission_id` column top to bottom: index `i` is sheet row `i` (0 is the header). Used to
+ * page through responses and to find a response's row (ADR 0024).
+ */
+export async function submissionIdColumn(
+  client: SheetsClient,
+  dest: Destination,
+): Promise<string[]> {
+  const res = await client.call<{
+    valueRanges?: { valueRange?: { values?: unknown[][] } }[];
+  }>(`/${dest.spreadsheetId}/values:batchGetByDataFilter`, {
+    method: "POST",
+    body: {
+      majorDimension: "COLUMNS",
+      dataFilters: [
+        {
+          developerMetadataLookup: {
+            metadataKey: FIELD_METADATA_KEY,
+            metadataValue: "_submission_id",
+            locationType: "COLUMN",
+          },
+        },
+      ],
+    },
+  });
+  const column = res.valueRanges?.[0]?.valueRange?.values?.[0] ?? [];
+  return column.map((v) => (typeof v === "string" ? v : ""));
+}
+
+/** Rows `start` (inclusive) to `end` (exclusive) of the tab, as the sheet displays them. */
+export async function readRows(
+  client: SheetsClient,
+  dest: Destination,
+  start: number,
+  end: number,
+): Promise<unknown[][]> {
+  if (end <= start) return [];
+  const res = await client.call<{
+    valueRanges?: { valueRange?: { values?: unknown[][] } }[];
+  }>(`/${dest.spreadsheetId}/values:batchGetByDataFilter`, {
+    method: "POST",
+    body: {
+      majorDimension: "ROWS",
+      valueRenderOption: "FORMATTED_VALUE",
+      dataFilters: [
+        { gridRange: { sheetId: dest.sheetId, startRowIndex: start, endRowIndex: end } },
+      ],
+    },
+  });
+  return res.valueRanges?.[0]?.valueRange?.values ?? [];
+}
+
+/** Writes one cell as a plain value (never a formula, ADR 0002). */
+export async function writeCell(
+  client: SheetsClient,
+  dest: Destination,
+  row: number,
+  column: number,
+  value: string | number,
+): Promise<void> {
+  await client.call(`/${dest.spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: {
+      requests: [
+        {
+          updateCells: {
+            start: { sheetId: dest.sheetId, rowIndex: row, columnIndex: column },
+            rows: [
+              {
+                values: [
+                  typeof value === "number"
+                    ? { userEnteredValue: { numberValue: value } }
+                    : text(value),
+                ],
+              },
+            ],
+            fields: "userEnteredValue",
+          },
+        },
+      ],
+    },
+  });
+}

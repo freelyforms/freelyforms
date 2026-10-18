@@ -244,6 +244,12 @@ export function FormList() {
                       {f.status === "published" ? "Published" : "Draft"}
                     </span>
                   )}
+                  {f.role && f.role !== "owner" && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>Shared with you · {f.role === "editor" ? "Editor" : "Viewer"}</span>
+                    </>
+                  )}
                   <span aria-hidden="true">·</span>
                   <span>Edited {dateFormat.format(f.updatedAt)}</span>
                 </span>

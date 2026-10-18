@@ -1525,3 +1525,114 @@ describe("file uploads (ADR 0007)", () => {
     expect(google.files.has(kept.fileId)).toBe(true);
   });
 });
+
+describe("collaborators and the responses view (ADR 0024)", () => {
+  /** Signs in a second person with this email and returns a request helper for them. */
+  async function person(email: string) {
+    const token = randomToken();
+    const userId = `usr_${email.split("@")[0] ?? "x"}`;
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO users (id, google_sub, email, created_at) VALUES (?, ?, ?, ?)",
+      ).bind(userId, `sub-${email}`, email, clock),
+      env.DB.prepare(
+        "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+      ).bind(await sha256Base64Url(token), userId, clock, clock + 86_400_000, clock),
+    ]);
+    return (path: string, init: { method?: string; body?: unknown } = {}) =>
+      app().request(
+        path,
+        {
+          method: init.method ?? "GET",
+          headers: {
+            cookie: `__Host-ff_session=${token}`,
+            origin: ORIGIN,
+            "content-type": "application/json",
+          },
+          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        },
+        env,
+      );
+  }
+
+  it("lets the owner share a form with viewers and editors by email", async () => {
+    const id = await publishedForm();
+    const add = (email: string, role: string) =>
+      owner(`/forms/${id}/members`, { method: "PUT", body: { email, role } });
+    expect((await add("not-an-email", "viewer")).status).toBe(422);
+    expect((await add("v@example.com", "admin")).status).toBe(422);
+    expect((await add("owner@example.com", "viewer")).status).toBe(422);
+    expect((await add("V@Example.com", "viewer")).status).toBe(200);
+    expect((await add("e@example.com", "editor")).status).toBe(200);
+    expect(await (await owner(`/forms/${id}/members`)).json()).toEqual({
+      members: [
+        { email: "v@example.com", role: "viewer" },
+        { email: "e@example.com", role: "editor" },
+      ],
+    });
+
+    const viewer = await person("v@example.com");
+    const list = await (await viewer("/forms")).json<{ forms: { id: string; role: string }[] }>();
+    expect(list.forms).toEqual([expect.objectContaining({ id, role: "viewer" })]);
+    expect(await (await viewer(`/forms/${id}`)).json()).toMatchObject({ role: "viewer" });
+    // A viewer can't change anything, and only the owner manages access.
+    for (const [path, method, body] of [
+      [`/forms/${id}/draft`, "PUT", { schemaVersion: 1, id, title: "x", fields }],
+      [`/forms/${id}/publish`, "POST"],
+      [`/forms/${id}/members`, "GET"],
+      [`/forms/${id}/webhook`, "GET"],
+      [`/forms/${id}`, "DELETE"],
+    ] as const) {
+      expect((await viewer(path, { method, body })).status, `${method} ${path}`).toBe(404);
+    }
+
+    await owner(`/forms/${id}/members/v%40example.com`, { method: "DELETE" });
+    expect((await viewer(`/forms/${id}`)).status).toBe(404);
+  });
+
+  it("shows responses newest first and lets editors correct an answer in the sheet", async () => {
+    const id = await publishedForm();
+    for (const name of ["Ada", "Grace", "Linus"]) {
+      await submit(id, { fld_name: name, fld_email: `${name.toLowerCase()}@example.com` });
+    }
+    await deliver();
+    await owner(`/forms/${id}/members`, {
+      method: "PUT",
+      body: { email: "e@example.com", role: "editor" },
+    });
+    await owner(`/forms/${id}/members`, {
+      method: "PUT",
+      body: { email: "v@example.com", role: "viewer" },
+    });
+    const editor = await person("e@example.com");
+    const viewer = await person("v@example.com");
+
+    const res = await viewer(`/forms/${id}/responses`);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const page = await res.json<{
+      columns: { key: string; editable: boolean }[];
+      rows: { submissionId: string; cells: Record<string, unknown> }[];
+      total: number;
+    }>();
+    expect(page.total).toBe(3);
+    expect(page.rows.map((r) => r.cells.fld_name)).toEqual(["Linus", "Grace", "Ada"]);
+    expect(page.columns.find((c) => c.key === "_submission_id")?.editable).toBe(false);
+
+    const target = page.rows[1]?.submissionId ?? "";
+    const edit = (as: typeof viewer, key: string, value: string) =>
+      as(`/forms/${id}/responses/${target}`, { method: "PATCH", body: { key, value } });
+    expect((await edit(viewer, "fld_name", "Nope")).status).toBe(404);
+    expect((await edit(editor, "_submission_id", "x")).status).toBe(422);
+    expect((await edit(editor, "fld_name", "Grace Hopper")).status).toBe(200);
+    const sheet = onlySheet();
+    const header = sheet.rows[0] as string[];
+    expect(sheet.rows.map((r) => r[header.indexOf("Name")])).toContain("Grace Hopper");
+
+    // An editor publishes with the owner's Google access.
+    await editor(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: { schemaVersion: 1, id, title: "Contact v2", fields },
+    });
+    expect((await editor(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+  });
+});

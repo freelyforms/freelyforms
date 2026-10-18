@@ -62,7 +62,7 @@ Status: done (2026-10-18).
 - webhook destinations (done: one signed webhook per form, ADR 0021);
 - custom domains;
 - payment provider connection;
-- basic collaboration/sharing.
+- basic collaboration/sharing (done: viewers and editors, responses view, ADR 0024).
 
 ## Phase 4 — Documents and workflows
 
