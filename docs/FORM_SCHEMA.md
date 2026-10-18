@@ -48,21 +48,23 @@ Rules:
 - text limits never exceed 50,000 characters (the Google Sheets cell limit); defaults are 1,000 for `text` and 10,000 for `textarea`.
 - `settings` (all optional): `submitLabel`; `mode`, `classic` (default) or `conversational` (the public form's script shows one question at a time with Back, Next and "Question 3 of 9"; page break titles show with the first question of their page; without the script all questions show); `success`, either `{ type: "message", message }` or `{ type: "redirect", url }` with an `https://` address (a standalone form goes there after submitting; an embedded one asks the embed script to take the whole host page there, and shows a Continue link otherwise); and `theme` with `accent` (a `#rrggbb` colour), `colorScheme` (`auto`, `light` or `dark`), `font` (`system`, `serif`, `rounded` or `mono`: system font stacks, nothing is downloaded), `corners` (`square`, `rounded` or `pill`) and `density` (`comfortable` or `compact`).
 
-| Type          | Answer value                     | Type-specific properties                            |
-| ------------- | -------------------------------- | --------------------------------------------------- |
-| `text`        | string, single line              | `placeholder`, `minLength`, `maxLength`, `match`    |
-| `textarea`    | string, line breaks kept as `\n` | `placeholder`, `minLength`, `maxLength`             |
-| `email`       | string                           | `placeholder`                                       |
-| `phone`       | string (5–15 digits)             | `placeholder`                                       |
-| `number`      | number                           | `placeholder`, `min`, `max`, `integer`              |
-| `date`        | ISO date `YYYY-MM-DD`            | `min`, `max`                                        |
-| `select`      | one option ID                    | `options`                                           |
-| `radio`       | one option ID                    | `options`                                           |
-| `checkboxes`  | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
-| `multiselect` | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
-| `consent`     | `true`                           | the label is the statement the respondent agrees to |
-| `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
-| `page`        | none (a page break, no column)   | `description` (shown under the page title)          |
+| Type          | Answer value                     | Type-specific properties                                                                 |
+| ------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| `text`        | string, single line              | `placeholder`, `minLength`, `maxLength`, `match`                                         |
+| `textarea`    | string, line breaks kept as `\n` | `placeholder`, `minLength`, `maxLength`                                                  |
+| `email`       | string                           | `placeholder`                                                                            |
+| `phone`       | string (5–15 digits)             | `placeholder`                                                                            |
+| `number`      | number                           | `placeholder`, `min`, `max`, `integer`                                                   |
+| `date`        | ISO date `YYYY-MM-DD`            | `min`, `max`                                                                             |
+| `select`      | one option ID                    | `options`                                                                                |
+| `radio`       | one option ID                    | `options`                                                                                |
+| `checkboxes`  | list of option IDs               | `options`, `minSelected`, `maxSelected`                                                  |
+| `multiselect` | list of option IDs               | `options`, `minSelected`, `maxSelected`                                                  |
+| `consent`     | `true`                           | the label is the statement the respondent agrees to                                      |
+| `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                                                                  |
+| `page`        | none (a page break, no column)   | `description` (shown under the page title)                                               |
+| `rating`      | whole number from 1 to `max`     | `max` (3–10, default 5): stars                                                           |
+| `scale`       | whole number from `min` to `max` | `min` (0 or 1, default 1), `max` (2–10, default 5), `minLabel`, `maxLabel` (0–10 is NPS) |
 
 Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required`, optional `showIf` and optional `requiredIf` (see Conditions below), and optional `width` (`full` or `half`: two half-width fields share a row on screens wider than 560px). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 

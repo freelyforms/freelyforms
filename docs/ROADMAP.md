@@ -57,7 +57,7 @@ Status: done (2026-10-18).
 - file upload -> Google Drive;
 - signature;
 - calculations;
-- rating/ranking/matrix fields;
+- rating/ranking/matrix fields (rating and scale/NPS done; ranking and matrix to do);
 - advanced logic/jumps;
 - webhook destinations;
 - custom domains;
