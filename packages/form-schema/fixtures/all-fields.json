@@ -130,6 +130,20 @@
       "label": "UTM source",
       "param": "utm_source",
       "defaultValue": "direct"
+    },
+    {
+      "id": "fld_rating",
+      "type": "rating",
+      "label": "How was it?"
+    },
+    {
+      "id": "fld_nps",
+      "type": "scale",
+      "label": "How likely are you to recommend us?",
+      "min": 0,
+      "max": 10,
+      "minLabel": "Not likely",
+      "maxLabel": "Very likely"
     }
   ]
 }

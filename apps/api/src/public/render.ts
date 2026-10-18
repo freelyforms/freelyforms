@@ -1,5 +1,10 @@
 import type { FieldError } from "@freelyforms/form-engine";
 import type { Field, Form, FormTheme } from "@freelyforms/form-schema";
+import {
+  DEFAULT_RATING_MAX,
+  DEFAULT_SCALE_MAX,
+  DEFAULT_SCALE_MIN,
+} from "@freelyforms/form-schema/limits";
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import { FORM_CLIENT_JS } from "./client.generated.js";
@@ -29,7 +34,15 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .progress{color:var(--muted);font-size:.9rem;margin:0 0 16px}.pager{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
 .pager .back{background:transparent;color:var(--fg);border:1px solid var(--line)}
 .page{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}.page>*{grid-column:1/-1}
-.page>.half{grid-column:auto}.step-off{display:none!important}
+.page>.half{grid-column:auto}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0}
+.rating{display:flex;gap:4px}.rating label{font-size:2rem;line-height:1;color:var(--line);cursor:pointer;margin:0;padding:2px;border-radius:6px}
+.rating label:has(input:checked),.rating label:has(~ label input:checked){color:var(--accent)}
+.rating label:has(input:focus-visible),.scale label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
+.scale{display:inline-flex;flex-direction:column;max-width:100%}.scale-options{display:flex;gap:6px;flex-wrap:wrap}.scale-options label{margin:0;font-weight:600;cursor:pointer}
+.scale-options span{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius)}
+.scale-options label:has(input:checked) span{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}.step-off{display:none!important}
 form[data-mode=conversational] .field>label,form[data-mode=conversational] .field>legend{font-size:1.3rem;line-height:1.35;margin-bottom:12px}
 form[data-mode=conversational] .page>.half{grid-column:1/-1}@media (max-width:560px){.page>.half{grid-column:1/-1}}
 footer{max-width:620px;margin:0 auto;padding:16px 20px 32px;font-size:.8rem;color:var(--muted)}
@@ -240,6 +253,50 @@ ${str(value)}</textarea>`;
         value="${str(value)}"
         data-param="${field.param ?? id}"
       />`;
+    case "rating": {
+      const max = field.max ?? DEFAULT_RATING_MAX;
+      return html`<div class="rating">
+        ${Array.from({ length: max }, (_, i) => i + 1).map(
+          (n) =>
+            html`<label
+              ><input
+                type="radio"
+                class="sr"
+                name="${id}"
+                value="${n}"
+                ${str(value) === String(n) || value === n ? raw(" checked") : ""}${req && n === 1 ? raw(" required") : ""}
+              /><span aria-hidden="true">★</span><span class="sr">${n} of ${max}</span></label
+            >`,
+        )}
+      </div>`;
+    }
+    case "scale": {
+      const min = field.min ?? DEFAULT_SCALE_MIN;
+      const max = field.max ?? DEFAULT_SCALE_MAX;
+      return html`<div class="scale">
+        <div class="scale-options">
+          ${Array.from({ length: max - min + 1 }, (_, i) => min + i).map(
+            (n) =>
+              html`<label
+                ><input
+                  type="radio"
+                  class="sr"
+                  name="${id}"
+                  value="${n}"
+                  ${str(value) === String(n) || value === n ? raw(" checked") : ""}${req && n === min ? raw(" required") : ""}
+                /><span>${n}</span></label
+              >`,
+          )}
+        </div>
+        ${
+          field.minLabel || field.maxLabel
+            ? html`<div class="scale-ends" aria-hidden="true">
+                <span>${field.minLabel ?? ""}</span><span>${field.maxLabel ?? ""}</span>
+              </div>`
+            : ""
+        }
+      </div>`;
+    }
     case "consent":
       return html`<label class="choice"
         ><input
@@ -250,6 +307,14 @@ ${str(value)}</textarea>`;
         />${field.label}${starFor(field)}</label
       >`;
   }
+}
+
+/** The scale's end labels for screen readers (they are shown visually under the buttons). */
+function scaleEnds(field: AnswerField): Html | "" {
+  if (field.type !== "scale" || (!field.minLabel && !field.maxLabel)) return "";
+  const min = `${String(field.min ?? DEFAULT_SCALE_MIN)}${field.minLabel ? ` = ${field.minLabel}` : ""}`;
+  const max = `${String(field.max ?? DEFAULT_SCALE_MAX)}${field.maxLabel ? ` = ${field.maxLabel}` : ""}`;
+  return html`<span class="sr"> (${min}, ${max})</span>`;
 }
 
 const fieldClass = (field: AnswerField) => (field.width === "half" ? "field half" : "field");
@@ -264,13 +329,18 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
     : "";
   const err = error ? html`<p class="error" id="${errId}">${errorMessage(error)}</p>` : "";
   const star = starFor(field);
-  if (field.type === "radio" || field.type === "checkboxes") {
+  if (
+    field.type === "radio" ||
+    field.type === "checkboxes" ||
+    field.type === "rating" ||
+    field.type === "scale"
+  ) {
     return html`<fieldset
       class="${fieldClass(field)}"
       data-field="${field.id}"
       ${describedBy ? raw(` aria-describedby="${describedBy}"`) : ""}
     >
-      <legend>${field.label}${star}</legend>
+      <legend>${field.label}${star}${scaleEnds(field)}</legend>
       ${hint}${control(field, value, undefined)}${err}
     </fieldset>`;
   }

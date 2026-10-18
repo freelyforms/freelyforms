@@ -35,6 +35,8 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   consent: "Consent checkbox",
   hidden: "Hidden field",
   page: "Page break",
+  rating: "Rating",
+  scale: "Scale",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>

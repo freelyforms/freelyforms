@@ -396,6 +396,57 @@ export function FieldEditor(props: Props) {
                       />
                     </div>
                   ))}
+                {field.type === "rating" && num("max", "Number of stars (3–10)", field.max, true)}
+                {field.type === "scale" && (
+                  <>
+                    <div className="mini">
+                      <label htmlFor={id("scale-min")}>From</label>
+                      <select
+                        id={id("scale-min")}
+                        value={field.min ?? 1}
+                        onChange={(e) => {
+                          props.onChange({ min: e.target.value === "0" ? 0 : undefined });
+                        }}
+                      >
+                        <option value={0}>0</option>
+                        <option value={1}>1</option>
+                      </select>
+                    </div>
+                    <div className="mini">
+                      <label htmlFor={id("scale-max")}>To</label>
+                      <select
+                        id={id("scale-max")}
+                        value={field.max ?? 5}
+                        onChange={(e) => {
+                          const max = Number(e.target.value);
+                          props.onChange({ max: max === 5 ? undefined : max });
+                        }}
+                      >
+                        {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {(["minLabel", "maxLabel"] as const).map((key) => (
+                      <div className="mini" key={key}>
+                        <label htmlFor={id(key)}>
+                          {key === "minLabel" ? "Label at the start" : "Label at the end"}
+                        </label>
+                        <input
+                          id={id(key)}
+                          value={field[key] ?? ""}
+                          maxLength={60}
+                          placeholder={key === "minLabel" ? "Not likely" : "Very likely"}
+                          onChange={(e) => {
+                            props.onChange({ [key]: e.target.value || undefined });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </>
+                )}
                 {(field.type === "checkboxes" || field.type === "multiselect") && (
                   <>
                     {num("minSelected", "Choose at least", field.minSelected, true)}

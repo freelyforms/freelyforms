@@ -30,6 +30,8 @@ export const FIELD_TYPES = [
   "consent",
   "hidden",
   "page",
+  "rating",
+  "scale",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -76,7 +78,15 @@ export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOpe
   consent: ["is_empty", "is_not_empty"],
   // A page break has no answer to test (ADR 0018).
   page: [],
+  rating: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
+  scale: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
 };
 
 /** Whether a field has an answer and a sheet column (page breaks don't, ADR 0018). */
 export const isAnswerField = (field: { type: FieldType }): boolean => field.type !== "page";
+
+/** Stars in a rating when the field sets none. */
+export const DEFAULT_RATING_MAX = 5;
+/** Ends of a scale when the field sets none (1 to 5). */
+export const DEFAULT_SCALE_MIN = 1;
+export const DEFAULT_SCALE_MAX = 5;

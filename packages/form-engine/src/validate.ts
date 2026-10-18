@@ -1,5 +1,8 @@
 import type { Field, Form } from "@freelyforms/form-schema";
 import {
+  DEFAULT_RATING_MAX,
+  DEFAULT_SCALE_MAX,
+  DEFAULT_SCALE_MIN,
   DEFAULT_TEXT_MAX_LENGTH,
   DEFAULT_TEXTAREA_MAX_LENGTH,
   MAX_EMAIL_LENGTH,
@@ -176,6 +179,16 @@ function validNumber(field: Extract<Field, { type: "number" }>, raw: unknown): O
   return { value };
 }
 
+/** A whole number from `min` to `max`, as rating and scale answers are. */
+function validStep(raw: unknown, min: number, max: number): Outcome {
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw.trim()) : NaN;
+  if (typeof raw === "string" && !/^\d+$/.test(raw.trim())) return fail("not_a_number");
+  if (!Number.isInteger(value)) return fail("not_an_integer");
+  if (value < min) return fail("too_small", { min });
+  if (value > max) return fail("too_large", { max });
+  return { value };
+}
+
 function isCalendarDate(value: string): boolean {
   const match = ISO_DATE.exec(value);
   if (!match) return false;
@@ -267,6 +280,10 @@ function validateField(field: Exclude<Field, { type: "page" }>, raw: unknown): O
     case "checkboxes":
     case "multiselect":
       return validMultiChoice(field, raw);
+    case "rating":
+      return validStep(raw, 1, field.max ?? DEFAULT_RATING_MAX);
+    case "scale":
+      return validStep(raw, field.min ?? DEFAULT_SCALE_MIN, field.max ?? DEFAULT_SCALE_MAX);
     case "consent":
       return isEmpty(raw)
         ? field.required === true

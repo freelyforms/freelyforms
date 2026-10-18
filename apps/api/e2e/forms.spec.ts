@@ -411,3 +411,47 @@ test("the conversational layout asks one question at a time", async ({
   await expect(r.getByText(/received/i)).toBeVisible();
   await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
 });
+
+test("rating and scale answers arrive as numbers and can drive a follow-up", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Feedback");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  for (const t of ["Rating", "Scale", "Long text"]) {
+    await page.getByRole("button", { name: `+ ${t}`, exact: true }).click();
+  }
+  const scale = page.locator("article").nth(1);
+  await scale.getByRole("button", { name: /Field settings/ }).click();
+  await scale.getByLabel("From", { exact: true }).selectOption("0");
+  await scale.getByLabel("To", { exact: true }).selectOption("10");
+  // Ask what to improve only for scores below 7.
+  const followUp = page.locator("article").nth(2);
+  await followUp.getByRole("button", { name: "+ Show only if…" }).click();
+  await followUp.getByLabel("Condition 1: question").selectOption({ label: "Scale" });
+  await followUp.getByLabel("Condition 1: test").selectOption({ label: "is less than" });
+  await followUp.getByLabel("Condition 1: value").fill("7");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  // Click what people see: the fourth star (the radio inside it is for screen readers).
+  await r.locator(".rating label").nth(3).click();
+  await expect(r.getByLabel("4 of 5")).toBeChecked();
+  await expect(r.getByLabel("Long text")).toBeHidden();
+  await r.locator(".scale-options label").filter({ hasText: /^3$/ }).click();
+  await expect(r.getByLabel("Long text")).toBeVisible();
+  await r.getByLabel("Long text").fill("Faster replies, please.");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Rating") ?? -1]).toBe(4);
+  expect(row?.[head?.indexOf("Scale") ?? -1]).toBe(3);
+});

@@ -142,6 +142,23 @@ export const hiddenFieldSchema = z.strictObject({
   defaultValue: z.string().max(MAX_HIDDEN_LENGTH).optional(),
 });
 
+/** 1 to `max` stars (3–10, default 5); the answer is the number of stars. */
+export const ratingFieldSchema = z.strictObject({
+  type: z.literal("rating"),
+  ...base,
+  max: z.int().min(3).max(10).optional(),
+});
+
+/** A linear scale from `min` (0 or 1, default 1) to `max` (2–10, default 5); 0–10 is NPS. */
+export const scaleFieldSchema = z.strictObject({
+  type: z.literal("scale"),
+  ...base,
+  min: z.int().min(0).max(1).optional(),
+  max: z.int().min(2).max(10).optional(),
+  minLabel: z.string().max(60).optional(),
+  maxLabel: z.string().max(60).optional(),
+});
+
 /**
  * Starts a new page (ADR 0018): its label is the page title. Not an answer: no value, no sheet
  * column, never required. With `showIf`, the whole page is skipped when the conditions fail.
@@ -169,6 +186,8 @@ export const fieldSchema = z
     consentFieldSchema,
     hiddenFieldSchema,
     pageFieldSchema,
+    ratingFieldSchema,
+    scaleFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {
@@ -328,7 +347,7 @@ function ruleProblem(rule: z.infer<typeof conditionRuleSchema>, source: Field | 
       ? null
       : "choose one of the question's options";
   }
-  if (source.type === "number") {
+  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
     return typeof value === "number" && Number.isFinite(value) ? null : "enter a number";
   }
   if (source.type === "date") {

@@ -522,3 +522,23 @@ describe("answer formats (ADR 0020)", () => {
     expect(performance.now() - started).toBeLessThan(50);
   });
 });
+
+describe("rating and scale", () => {
+  const rating: Field = { id: "fld_r", type: "rating", label: "R" };
+  const nps: Field = { id: "fld_n", type: "scale", label: "N", min: 0, max: 10 };
+
+  it("accepts whole numbers within the range, as numbers", () => {
+    expect(valueOf(rating, "4")).toBe(4);
+    expect(valueOf(nps, "0")).toBe(0);
+    expect(valueOf(nps, 10)).toBe(10);
+  });
+
+  it("rejects values outside the range or not whole", () => {
+    expect(errorOf(rating, "0")).toBe("too_small");
+    expect(errorOf(rating, "6")).toBe("too_large");
+    expect(errorOf(nps, "11")).toBe("too_large");
+    expect(errorOf(nps, "7.5")).toBe("not_a_number");
+    expect(errorOf(nps, "-1")).toBe("not_a_number");
+    expect(errorOf({ ...rating, max: 10 }, "9")).toBeUndefined();
+  });
+});

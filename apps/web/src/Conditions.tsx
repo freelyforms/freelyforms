@@ -61,8 +61,9 @@ function withValue(rule: ConditionRule, source: Field): ConditionRule {
     const kept = source.options.some((o) => o.id === rule.value) ? rule.value : undefined;
     return { field, op, value: kept ?? source.options[0]?.id ?? "" };
   }
-  if (source.type === "number") {
-    return { field, op, value: typeof rule.value === "number" ? rule.value : 0 };
+  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
+    const fallback = source.type === "rating" ? 1 : source.type === "scale" ? (source.min ?? 1) : 0;
+    return { field, op, value: typeof rule.value === "number" ? rule.value : fallback };
   }
   return { field, op, value: typeof rule.value === "string" ? rule.value : "" };
 }
@@ -222,7 +223,7 @@ function RuleValue({
       </select>
     );
   }
-  if (source.type === "number") {
+  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
     return (
       <input
         aria-label={label}
