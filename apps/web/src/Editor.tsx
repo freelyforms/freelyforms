@@ -329,6 +329,7 @@ export function Editor({ id }: { id: string }) {
                   >
                     <FieldEditor
                       field={field}
+                      earlier={form.fields.slice(0, index)}
                       index={index}
                       count={form.fields.length}
                       issues={issues.get(field.id) ?? []}

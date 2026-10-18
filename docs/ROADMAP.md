@@ -39,7 +39,7 @@ Release publicly as soon as this is trustworthy.
 
 - sections and multi-page forms;
 - progress indicator;
-- conditional visibility;
+- conditional visibility (done: `showIf`, ADR 0017);
 - conditional required state;
 - hidden fields (done);
 - UTM capture (done, including from the page an embedded form sits on);

@@ -170,3 +170,52 @@ test("an owner copies a form into a new draft with the same fields", async ({ pa
   await page.goto("/app/");
   await expect(page.getByRole("link", { name: /\(copy\)/ })).toBeVisible();
 });
+
+test("a follow-up question appears only when its condition holds", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Conditional");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Single choice", exact: true }).click();
+  await page.getByRole("button", { name: "+ Short text", exact: true }).click();
+
+  // On the second question: show it only if the first is "Option 1", and require it.
+  const followUp = page.locator("article").nth(1);
+  await followUp.getByRole("button", { name: "+ Show only if…" }).click();
+  await expect(followUp.getByLabel("Condition 1: question")).toHaveValue(/fld_/);
+  await expect(followUp.getByLabel("Condition 1: test")).toHaveValue("equals");
+  await expect(followUp.getByLabel("Condition 1: value").locator("option:checked")).toHaveText(
+    "Option 1",
+  );
+  await followUp.getByLabel("Required").check();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const respondent = await (await browser.newContext()).newPage();
+  await respondent.goto(url);
+  const question = respondent.getByLabel("Short text");
+  await expect(question).toBeHidden();
+  await respondent.getByLabel("Option 1").check();
+  await expect(question).toBeVisible();
+
+  // Required while shown...
+  await waitForTurnstile(respondent);
+  await respondent.getByRole("button", { name: "Submit" }).click();
+  await expect(respondent.getByText("This field is required.")).toBeVisible();
+  await question.fill("typed, then hidden");
+
+  // ...and neither required nor sent once hidden again.
+  await respondent.getByLabel("Option 2").check();
+  await expect(question).toBeHidden();
+  await respondent.getByRole("button", { name: "Submit" }).click();
+  await expect(respondent.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Single choice") ?? -1]).toBe("Option 2");
+  expect(row?.[head?.indexOf("Short text") ?? -1] ?? "").toBe("");
+});

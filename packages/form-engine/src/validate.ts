@@ -211,23 +211,85 @@ function validateField(field: Field, raw: unknown): Outcome {
   }
 }
 
+type ShowIf = NonNullable<Field["showIf"]>;
+type Rule = ShowIf["rules"][number];
+
 /**
- * Validates and normalises a respondent's answers against a published form.
- *
- * Runs unchanged in the browser and on the server; the server result is authoritative.
- * Keys that are not field IDs of the form are ignored and never returned.
+ * Whether a rule holds for a source field's normalised answer (`undefined` when it is empty, not
+ * shown or invalid). Text compares trimmed and case-insensitively; ISO dates compare as strings.
  */
-export function validateSubmission(
-  form: Pick<Form, "fields">,
-  answers: Readonly<Record<string, unknown>>,
-): ValidationResult {
+function holds(rule: Rule, value: AnswerValue | undefined): boolean {
+  const empty = value === undefined || (Array.isArray(value) && value.length === 0);
+  switch (rule.op) {
+    case "is_empty":
+      return empty;
+    case "is_not_empty":
+      return !empty;
+    case "not_equals":
+      return !holds({ ...rule, op: "equals" }, value);
+    case "not_contains":
+      return !holds({ ...rule, op: "contains" }, value);
+  }
+  if (empty || rule.value === undefined) return false;
+  if (Array.isArray(value)) return rule.op === "contains" && value.includes(String(rule.value));
+  if (typeof value === "number") {
+    const target = Number(rule.value);
+    if (rule.op === "equals") return value === target;
+    if (rule.op === "greater_than") return value > target;
+    return rule.op === "less_than" && value < target;
+  }
+  if (typeof value !== "string") return false;
+  const v = value.toLowerCase();
+  const target = String(rule.value).trim().toLowerCase();
+  if (rule.op === "equals") return v === target;
+  if (rule.op === "contains") return v.includes(target);
+  if (rule.op === "greater_than") return v > target;
+  return v < target; // less_than
+}
+
+function isShown(showIf: ShowIf, values: Readonly<Record<string, AnswerValue>>): boolean {
+  const test = (rule: Rule) => holds(rule, values[rule.field]);
+  return showIf.match === "all" ? showIf.rules.every(test) : showIf.rules.some(test);
+}
+
+/**
+ * One pass from the top: a field is shown when its conditions hold for the answers above it
+ * (ADR 0017). Fields that are not shown are skipped: not validated, and their answers dropped.
+ */
+function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unknown>>) {
   const values: Record<string, AnswerValue> = {};
   const errors: FieldError[] = [];
+  const shown = new Set<string>();
   for (const field of form.fields) {
+    if (field.showIf && !isShown(field.showIf, values)) continue;
+    shown.add(field.id);
     const raw = Object.hasOwn(answers, field.id) ? answers[field.id] : undefined;
     const outcome = validateField(field, raw);
     if ("error" in outcome) errors.push({ fieldId: field.id, ...outcome.error });
     else if ("value" in outcome) values[field.id] = outcome.value;
   }
+  return { values, errors, shown };
+}
+
+/** IDs of the fields a respondent sees for these answers (conditions applied, ADR 0017). */
+export function visibleFields(
+  form: Pick<Form, "fields">,
+  answers: Readonly<Record<string, unknown>>,
+): ReadonlySet<string> {
+  return walk(form, answers).shown;
+}
+
+/**
+ * Validates and normalises a respondent's answers against a published form.
+ *
+ * Runs unchanged in the browser and on the server; the server result is authoritative.
+ * Keys that are not field IDs of the form are ignored and never returned, and so are answers to
+ * fields whose conditions hide them.
+ */
+export function validateSubmission(
+  form: Pick<Form, "fields">,
+  answers: Readonly<Record<string, unknown>>,
+): ValidationResult {
+  const { values, errors } = walk(form, answers);
   return errors.length > 0 ? { ok: false, errors } : { ok: true, values };
 }

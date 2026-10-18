@@ -285,7 +285,7 @@ export function renderForm(
           ${form.settings?.submitLabel ?? "Submit"}
         </button>
       </form>
-      ${opts.preview ? "" : clientScript(form, opts.nonce)}`,
+      ${clientScript(form, opts.nonce)}`,
     opts,
     form.settings?.theme,
     form.id,

@@ -1,10 +1,15 @@
 import { z } from "zod";
 import {
+  CONDITION_OPERATORS,
   FORM_SCHEMA_VERSION,
+  MAX_CONDITION_RULES,
+  MAX_CONDITION_TEXT,
   MAX_FIELDS,
   MAX_HIDDEN_LENGTH,
   MAX_OPTIONS,
   MAX_TEXT_LENGTH,
+  OPERATORS_BY_TYPE,
+  VALUELESS_OPERATORS,
 } from "./limits.js";
 
 /** At least one non-whitespace character. */
@@ -31,11 +36,25 @@ export const optionSchema = z.strictObject({
   label: z.string().min(1).max(200).regex(nonBlank, "Must not be blank"),
 });
 
+/** One test on an earlier field's answer (ADR 0017). */
+export const conditionRuleSchema = z.strictObject({
+  field: fieldIdSchema,
+  op: z.enum(CONDITION_OPERATORS),
+  value: z.union([z.string().max(MAX_CONDITION_TEXT), z.number()]).optional(),
+});
+
+/** Shows the field only when all (or any) of the rules hold. */
+export const showIfSchema = z.strictObject({
+  match: z.enum(["all", "any"]),
+  rules: z.array(conditionRuleSchema).min(1).max(MAX_CONDITION_RULES),
+});
+
 const base = {
   id: fieldIdSchema,
   label: labelSchema,
   description: descriptionSchema.optional(),
   required: z.boolean().optional(),
+  showIf: showIfSchema.optional(),
 };
 
 const textual = {
@@ -205,24 +224,67 @@ export const formSchemaV1 = z
     fields: z.array(fieldSchema).max(MAX_FIELDS),
   })
   .superRefine((form, ctx) => {
-    const ids = new Set<string>();
+    const earlier = new Map<string, Field>();
     form.fields.forEach((field, index) => {
-      if (ids.has(field.id)) {
+      if (earlier.has(field.id)) {
         ctx.addIssue({
           code: "custom",
           path: ["fields", index, "id"],
           message: `Duplicate field ID ${field.id}`,
         });
       }
-      ids.add(field.id);
+      field.showIf?.rules.forEach((rule, r) => {
+        const problem = ruleProblem(rule, earlier.get(rule.field));
+        if (problem) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["fields", index, "showIf", "rules", r],
+            message: problem,
+          });
+        }
+      });
+      earlier.set(field.id, field);
     });
   });
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Why a rule can't apply to its source field (only fields above it qualify), or null. */
+function ruleProblem(rule: z.infer<typeof conditionRuleSchema>, source: Field | undefined) {
+  if (!source) return "Show only if: choose a question above this one";
+  if (!OPERATORS_BY_TYPE[source.type].includes(rule.op)) {
+    return `Show only if: "${rule.op}" doesn't apply to this kind of question`;
+  }
+  if (VALUELESS_OPERATORS.includes(rule.op)) {
+    return rule.value === undefined ? null : "Show only if: this test takes no value";
+  }
+  const { value } = rule;
+  if (value === undefined || value === "") return "Show only if: enter a value to compare with";
+  if ("options" in source) {
+    return typeof value === "string" && source.options.some((o) => o.id === value)
+      ? null
+      : "Show only if: choose one of the question's options";
+  }
+  if (source.type === "number") {
+    return typeof value === "number" && Number.isFinite(value)
+      ? null
+      : "Show only if: enter a number";
+  }
+  if (source.type === "date") {
+    return typeof value === "string" && ISO_DATE.test(value) ? null : "Show only if: enter a date";
+  }
+  return typeof value === "string" && /\S/.test(value)
+    ? null
+    : "Show only if: enter text to compare with";
+}
 
 export type Form = z.infer<typeof formSchemaV1>;
 export type Field = z.infer<typeof fieldSchema>;
 export type FieldOption = z.infer<typeof optionSchema>;
 export type FormSettings = z.infer<typeof settingsSchema>;
 export type FormTheme = z.infer<typeof themeSchema>;
+export type ShowIf = z.infer<typeof showIfSchema>;
+export type ConditionRule = z.infer<typeof conditionRuleSchema>;
 
 export interface SchemaIssue {
   /** Location of the problem, e.g. `fields.2.options.0.id`. */

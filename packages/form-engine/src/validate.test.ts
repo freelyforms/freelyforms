@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { parseForm, type Field, type Form } from "@freelyforms/form-schema";
 import { describe, expect, it } from "vitest";
-import { validateSubmission, type ValidationResult } from "./index.js";
+import { validateSubmission, visibleFields, type ValidationResult } from "./index.js";
 
 const loadFixture = (name: string): Form => {
   const url = new URL(`../../form-schema/fixtures/${name}.json`, import.meta.url);
@@ -247,5 +247,128 @@ describe("consent", () => {
   });
   it("rejects other values", () => {
     expect(errorOf(consent, "yes please")).toBe("invalid_type");
+  });
+});
+
+describe("conditional visibility (ADR 0017)", () => {
+  const plan: Field = {
+    id: "fld_plan",
+    type: "radio",
+    label: "Plan",
+    options: [
+      { id: "opt_personal", label: "Personal" },
+      { id: "opt_business", label: "Business" },
+    ],
+  };
+  const company: Field = {
+    id: "fld_company",
+    type: "text",
+    label: "Company",
+    required: true,
+    showIf: { match: "all", rules: [{ field: "fld_plan", op: "equals", value: "opt_business" }] },
+  };
+  const vat: Field = {
+    id: "fld_vat",
+    type: "text",
+    label: "VAT number",
+    showIf: { match: "all", rules: [{ field: "fld_company", op: "is_not_empty" }] },
+  };
+  const form = { fields: [plan, company, vat] };
+
+  it("requires a shown field and ignores a hidden one, dropping its answer", () => {
+    expect(validateSubmission(form, { fld_plan: "opt_business" })).toMatchObject({
+      ok: false,
+      errors: [{ fieldId: "fld_company", code: "required" }],
+    });
+    expect(
+      validateSubmission(form, { fld_plan: "opt_personal", fld_company: "Acme", fld_vat: "X1" }),
+    ).toEqual({ ok: true, values: { fld_plan: "opt_personal" } });
+  });
+
+  it("cascades: a field depending on a hidden field is hidden too", () => {
+    expect([...visibleFields(form, { fld_plan: "opt_business", fld_company: "Acme" })]).toEqual([
+      "fld_plan",
+      "fld_company",
+      "fld_vat",
+    ]);
+    expect([...visibleFields(form, { fld_plan: "opt_personal", fld_company: "Acme" })]).toEqual([
+      "fld_plan",
+    ]);
+  });
+
+  const shownFor = (source: Field, op: string, value: unknown, raw: unknown) =>
+    visibleFields(
+      {
+        fields: [
+          source,
+          {
+            id: "fld_target",
+            type: "text",
+            label: "T",
+            showIf: {
+              match: "all",
+              rules: [{ field: source.id, op, ...(value === undefined ? {} : { value }) }],
+            },
+          } as Field,
+        ],
+      },
+      raw === undefined ? {} : { [source.id]: raw },
+    ).has("fld_target");
+
+  it.each([
+    [{ id: "fld_s", type: "text", label: "S" }, "equals", "yes", " YES ", true],
+    [{ id: "fld_s", type: "text", label: "S" }, "contains", "corp", "Acme Corp", true],
+    [{ id: "fld_s", type: "text", label: "S" }, "not_contains", "corp", undefined, true],
+    [{ id: "fld_s", type: "number", label: "S" }, "less_than", 18, "17", true],
+    [{ id: "fld_s", type: "number", label: "S" }, "greater_than", 18, "18", false],
+    [{ id: "fld_s", type: "date", label: "S" }, "greater_than", "2026-01-01", "2026-03-01", true],
+    [
+      { id: "fld_s", type: "checkboxes", label: "S", options },
+      "contains",
+      "opt_b",
+      ["opt_a", "opt_b"],
+      true,
+    ],
+    [
+      { id: "fld_s", type: "checkboxes", label: "S", options },
+      "not_contains",
+      "opt_b",
+      ["opt_a"],
+      true,
+    ],
+    [{ id: "fld_s", type: "consent", label: "S" }, "is_not_empty", undefined, "on", true],
+    [{ id: "fld_s", type: "consent", label: "S" }, "is_empty", undefined, undefined, true],
+    [
+      { id: "fld_s", type: "hidden", label: "S", defaultValue: "direct" },
+      "equals",
+      "direct",
+      undefined,
+      true,
+    ],
+    [{ id: "fld_s", type: "email", label: "S" }, "is_not_empty", undefined, "not-an-email", false],
+  ] as [Field, string, unknown, unknown, boolean][])(
+    "%o %s %o for %o → %s",
+    (source, op, value, raw, expected) => {
+      expect(shownFor(source, op, value, raw)).toBe(expected);
+    },
+  );
+
+  it("matches any rule when asked to", () => {
+    const either: Field = {
+      id: "fld_either",
+      type: "text",
+      label: "E",
+      showIf: {
+        match: "any",
+        rules: [
+          { field: "fld_plan", op: "equals", value: "opt_personal" },
+          { field: "fld_plan", op: "is_empty" },
+        ],
+      },
+    };
+    expect(visibleFields({ fields: [plan, either] }, {}).has("fld_either")).toBe(true);
+    expect(
+      visibleFields({ fields: [plan, either] }, { fld_plan: "opt_business" }).has("fld_either"),
+    ).toBe(false);
   });
 });

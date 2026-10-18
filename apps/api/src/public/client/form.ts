@@ -5,7 +5,7 @@
  *
  * Bundled into ../client.generated.ts by scripts/build-form-client.ts (`pnpm build:client`).
  */
-import { validateSubmission, type FieldError } from "@freelyforms/form-engine";
+import { validateSubmission, visibleFields, type FieldError } from "@freelyforms/form-engine";
 import type { Form } from "@freelyforms/form-schema";
 import { errorMessage } from "../messages.js";
 
@@ -85,12 +85,33 @@ function setup(form: HTMLFormElement, schema: Fields) {
     return new Map(result.ok ? [] : result.errors.map((e) => [e.fieldId, e]));
   };
 
+  // A field's check can depend on the answers above it (conditions), so the whole form is checked.
   const recheck = (id: string) => {
-    const field = schema.fields.find((f) => f.id === id);
-    if (!field) return;
-    show(id, errorsFor([field]).get(id));
+    if (!schema.fields.some((f) => f.id === id)) return;
+    show(id, errorsFor(schema.fields).get(id));
     if (!form.querySelector(".error")) summary(false);
   };
+
+  /**
+   * Shows the fields whose conditions hold and hides the others (ADR 0017). Inputs of hidden
+   * fields are disabled, so they are neither checked nor sent; the server applies the same rules.
+   */
+  const conditional = schema.fields.filter((f) => f.showIf);
+  const applyVisibility = () => {
+    if (!conditional.length) return;
+    const shown = visibleFields(schema, answersOf(form));
+    for (const field of conditional) {
+      const visible = shown.has(field.id);
+      const box = container(field.id);
+      if (box) box.hidden = !visible;
+      const controls = box
+        ? box.querySelectorAll<HTMLInputElement>("input, select, textarea")
+        : form.querySelectorAll<HTMLInputElement>(`[name="${CSS.escape(field.id)}"]`);
+      for (const control of controls) control.disabled = !visible;
+      if (!visible) show(field.id, undefined);
+    }
+  };
+  applyVisibility();
 
   form.addEventListener("submit", (event) => {
     attempted = true;
@@ -119,10 +140,12 @@ function setup(form: HTMLFormElement, schema: Fields) {
   // While typing, only a field that already shows an error is rechecked (so it clears as soon as
   // it's fixed); after a submit attempt, leaving any field rechecks it.
   form.addEventListener("input", (event) => {
+    applyVisibility();
     const name = (event.target as HTMLInputElement | null)?.name;
     if (name && document.getElementById(`${name}_err`)) recheck(name);
   });
   form.addEventListener("change", (event) => {
+    applyVisibility();
     const name = (event.target as HTMLInputElement | null)?.name;
     if (name && attempted) recheck(name);
   });
@@ -162,6 +185,8 @@ function askHostForParams() {
       const value = values[input.dataset.param ?? ""];
       if (typeof value === "string" && input.value === "") input.value = value;
     }
+    // Conditions may depend on these values.
+    empty[0]?.form?.dispatchEvent(new Event("change"));
   });
   ask();
 }

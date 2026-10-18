@@ -171,3 +171,74 @@ describe("docs/FORM_SCHEMA.md", () => {
     for (const example of examples) expect(issuesOf(JSON.parse(example))).toEqual([]);
   });
 });
+
+describe("showIf (ADR 0017)", () => {
+  const plan = {
+    id: "fld_plan",
+    type: "radio",
+    label: "Plan",
+    options: [
+      { id: "opt_personal", label: "Personal" },
+      { id: "opt_business", label: "Business" },
+    ],
+  };
+  const company = (showIf: unknown) => ({
+    id: "fld_company",
+    type: "text",
+    label: "Company",
+    showIf,
+  });
+  const rule = (r: Record<string, unknown>) => ({
+    match: "all",
+    rules: [{ field: "fld_plan", ...r }],
+  });
+
+  it("accepts rules on earlier fields with operators and values that fit them", () => {
+    expect(
+      issuesOf(minimal([plan, company(rule({ op: "equals", value: "opt_business" }))])),
+    ).toEqual([]);
+    expect(issuesOf(minimal([plan, company(rule({ op: "is_not_empty" }))]))).toEqual([]);
+    const age = { id: "fld_age", type: "number", label: "Age" };
+    const guardian = {
+      id: "fld_guardian",
+      type: "text",
+      label: "Guardian",
+      showIf: { match: "any", rules: [{ field: "fld_age", op: "less_than", value: 18 }] },
+    };
+    expect(issuesOf(minimal([age, guardian]))).toEqual([]);
+  });
+
+  it("rejects later, missing or self references", () => {
+    expect(issuesOf(minimal([company(rule({ op: "is_empty" })), plan]))).toEqual([
+      "fields.0.showIf.rules.0: Show only if: choose a question above this one",
+    ]);
+    const self = { ...plan, showIf: rule({ op: "is_empty" }) };
+    expect(issuesOf(minimal([self]))).toHaveLength(1);
+  });
+
+  it("rejects operators, values and options that don't fit the source", () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ op: "greater_than", value: "opt_business" }, "doesn't apply"],
+      [{ op: "equals", value: "opt_nope" }, "choose one of the question's options"],
+      [{ op: "equals" }, "enter a value"],
+      [{ op: "is_empty", value: "opt_business" }, "takes no value"],
+    ];
+    for (const [r, message] of cases) {
+      const issues = issuesOf(minimal([plan, company(rule(r))]));
+      expect(issues.join(), JSON.stringify(r)).toContain(message);
+    }
+    const age = { id: "fld_age", type: "number", label: "Age" };
+    const later = {
+      id: "fld_x",
+      type: "text",
+      label: "X",
+      showIf: { match: "all", rules: [{ field: "fld_age", op: "equals", value: "18" }] },
+    };
+    expect(issuesOf(minimal([age, later])).join()).toContain("enter a number");
+  });
+
+  it("limits the number of rules", () => {
+    const rules = Array.from({ length: 11 }, () => ({ field: "fld_plan", op: "is_empty" }));
+    expect(issuesOf(minimal([plan, company({ match: "all", rules })]))).not.toEqual([]);
+  });
+});

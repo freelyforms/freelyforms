@@ -17,7 +17,7 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Define schema versioning.
 - [x] Define MVP field types.
 - [x] Define validation model (`validateSubmission` in `packages/form-engine`).
-- [ ] Define conditional-logic model placeholder.
+- [x] Conditional-logic model: `showIf` rules on earlier fields ([ADR 0017](adr/0017-conditional-field-visibility.md)).
 - [x] Add JSON schema/export representation.
 
 ## Auth

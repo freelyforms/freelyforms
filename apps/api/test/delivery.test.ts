@@ -1239,7 +1239,8 @@ describe("intake protection", () => {
     const page = await res.text();
     expect(page).toContain(`class="is-preview"`);
     expect(page).toMatch(/<button type="submit"\s+disabled/);
-    expect(page).not.toContain("ff-fields");
+    // The browser script runs in the preview too, so conditions show and hide fields there.
+    expect(page).toContain("ff-fields");
     expect((await app().request(`/forms/${id}/preview`, {}, env)).status).toBe(401);
   });
 });

@@ -2,7 +2,13 @@
  * Pure edits of a form draft. Every function returns a new form and never mutates its input, so
  * React state updates stay simple and the logic is testable without a browser.
  */
-import type { Field, FieldOption, Form, FormSettings } from "@freelyforms/form-schema";
+import type {
+  ConditionRule,
+  Field,
+  FieldOption,
+  Form,
+  FormSettings,
+} from "@freelyforms/form-schema";
 import { MAX_FIELDS, MAX_OPTIONS, type FieldType } from "@freelyforms/form-schema/limits";
 
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -114,8 +120,25 @@ export function updateField(form: Form, id: string, patch: Record<string, unknow
   return replaceField(form, id, (f) => clean<Field>({ ...f, ...patch }));
 }
 
+/** Drops condition rules that match `drop`; a field left without rules loses its `showIf`. */
+function withoutRules(form: Form, drop: (rule: ConditionRule) => boolean): Form {
+  const fields = form.fields.map((f) => {
+    if (!f.showIf?.rules.some(drop)) return f;
+    const rules = f.showIf.rules.filter((r) => !drop(r));
+    return clean<Field>({
+      ...f,
+      showIf: rules.length ? { ...f.showIf, rules } : undefined,
+    });
+  });
+  return { ...form, fields };
+}
+
+/** Removes a field and the conditions of other fields that refer to it (ADR 0017). */
 export function removeField(form: Form, id: string): Form {
-  return { ...form, fields: form.fields.filter((f) => f.id !== id) };
+  return withoutRules(
+    { ...form, fields: form.fields.filter((f) => f.id !== id) },
+    (rule) => rule.field === id,
+  );
 }
 
 export function duplicateField(form: Form, id: string): { form: Form; id: string } {
@@ -180,11 +203,15 @@ export const updateOption = (form: Form, fieldId: string, optionId: string, labe
     options.map((o) => (o.id === optionId ? { ...o, label } : o)),
   );
 
-/** Removes an option; a choice field always keeps at least one. */
-export const removeOption = (form: Form, fieldId: string, optionId: string): Form =>
-  withOptions(form, fieldId, (options) =>
-    options.length <= 1 ? options : options.filter((o) => o.id !== optionId),
+/** Removes an option (a choice field always keeps at least one) and conditions that test it. */
+export const removeOption = (form: Form, fieldId: string, optionId: string): Form => {
+  const field = form.fields.find((f) => f.id === fieldId);
+  if (!field || !hasOptions(field) || field.options.length <= 1) return form;
+  return withoutRules(
+    withOptions(form, fieldId, (options) => options.filter((o) => o.id !== optionId)),
+    (rule) => rule.field === fieldId && rule.value === optionId,
   );
+};
 
 export const moveOption = (form: Form, fieldId: string, optionId: string, delta: number): Form =>
   withOptions(form, fieldId, (options) => {
@@ -234,7 +261,8 @@ export function issuesByField(
     const match = /^fields\.(\d+)(?:\.(.+))?$/.exec(issue.path);
     const field = match ? form.fields[Number(match[1])] : undefined;
     const key = field?.id ?? "";
-    const where = match ? (match[2] ?? "") : issue.path;
+    // Condition problems already say "Show only if: …".
+    const where = match ? (match[2]?.startsWith("showIf") ? "" : (match[2] ?? "")) : issue.path;
     const list = out.get(key) ?? [];
     list.push(where ? `${where}: ${issue.message}` : issue.message);
     out.set(key, list);

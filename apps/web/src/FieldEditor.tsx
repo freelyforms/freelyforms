@@ -7,11 +7,14 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { Conditions } from "./Conditions.js";
 import { FIELD_TYPE_LABELS, hasOptions } from "./draft.js";
 import { useDismiss } from "./useDismiss.js";
 
 interface Props {
   field: Field;
+  /** Fields above this one, which its conditions may test. */
+  earlier: readonly Field[];
   index: number;
   count: number;
   issues: string[];
@@ -383,6 +386,16 @@ export function FieldEditor(props: Props) {
           )}
         </>
       )}
+
+      <div className="condition-toggle">
+        <Conditions
+          showIf={field.showIf}
+          earlier={props.earlier}
+          onChange={(showIf) => {
+            props.onChange({ showIf });
+          }}
+        />
+      </div>
 
       {props.issues.map((m) => (
         <p key={m} className="issue" role="alert">

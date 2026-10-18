@@ -63,9 +63,48 @@ Rules:
 | `consent`     | `true`                           | the label is the statement the respondent agrees to |
 | `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
 
-Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000) and optional `required`. Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
+Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required` and optional `showIf` (see Conditions below). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 
 A `hidden` field is not shown to respondents; its label is the column name in the sheet. Its value comes from the form link's query parameter `param` (default: the field ID), or, in an embed, from the same parameter in the address of the host page (the embed script passes only the parameter names the form asks for), or else `defaultValue`. It can't be `required`. Respondents can change it, so it is for attribution such as UTM tags, never for trust; validation never fails on it (unusable values are dropped, long ones shortened). The builder's "UTM tracking" adds hidden fields for `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` and `utm_content`.
+
+### Conditions (`showIf`)
+
+Any field can be shown only when answers above it meet conditions ([ADR 0017](adr/0017-conditional-field-visibility.md)):
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "frm_example2",
+  "title": "Sign up",
+  "fields": [
+    {
+      "id": "fld_plan",
+      "type": "radio",
+      "label": "Plan",
+      "required": true,
+      "options": [
+        { "id": "opt_personal", "label": "Personal" },
+        { "id": "opt_business", "label": "Business" }
+      ]
+    },
+    {
+      "id": "fld_company",
+      "type": "text",
+      "label": "Company name",
+      "required": true,
+      "showIf": {
+        "match": "all",
+        "rules": [{ "field": "fld_plan", "op": "equals", "value": "opt_business" }]
+      }
+    }
+  ]
+}
+```
+
+- `match` is `all` or `any`; 1–10 `rules`, each testing one field **above** this one (never itself or a later field).
+- Operators depend on the tested field: `equals`/`not_equals` (choice: an option ID; text: case-insensitive; number; date), `contains`/`not_contains` (text: case-insensitive substring; checkboxes and multi-select: an option ID), `greater_than`/`less_than` (number; date: after/before), `is_empty`/`is_not_empty` (any field; for consent: not ticked / ticked, with no `value`). `not_equals` and `not_contains` hold when the tested field is empty.
+- A field that is not shown is not validated (its `required` applies only when shown), and its answer is dropped on the server even if one is sent; its cell in the sheet stays empty. A field that depends on a field that is not shown sees it as empty, so hiding cascades.
+- The public form hides and disables such fields as the respondent answers, with the same evaluator (`visibleFields` in `form-engine`); without JavaScript every field is shown and the server applies the conditions.
 
 ### Prefilled links
 
@@ -110,15 +149,12 @@ Answers to choice fields are option IDs, so renaming an option label never break
 
 ## Logic model
 
-Support conditions such as:
+Conditions are data, never code: no executable JavaScript in form definitions. Showing a field when earlier answers match (`showIf`, above) is implemented; the same rule format is meant for later targets:
 
 ```text
-IF field A equals X THEN show field B
 IF field A contains Y THEN require field C
 IF score > N THEN jump to page Z
 ```
-
-Do not use arbitrary executable JavaScript in form definitions.
 
 ## Validation
 

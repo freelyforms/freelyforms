@@ -37,3 +37,40 @@ export type FieldType = (typeof FIELD_TYPES)[number];
 export const SINGLE_CHOICE_TYPES = ["select", "radio"] as const;
 /** Field types whose answer is a list of option IDs. */
 export const MULTI_CHOICE_TYPES = ["checkboxes", "multiselect"] as const;
+
+/** Most rules in one field's `showIf` (ADR 0017). */
+export const MAX_CONDITION_RULES = 10;
+/** Longest text a condition compares against. */
+export const MAX_CONDITION_TEXT = 1_000;
+
+export const CONDITION_OPERATORS = [
+  "equals",
+  "not_equals",
+  "contains",
+  "not_contains",
+  "greater_than",
+  "less_than",
+  "is_empty",
+  "is_not_empty",
+] as const;
+
+export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
+
+/** Operators that compare with no value. */
+export const VALUELESS_OPERATORS: readonly ConditionOperator[] = ["is_empty", "is_not_empty"];
+
+/** Which operators a condition may use on each source field type (ADR 0017). */
+export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOperator[]>> = {
+  text: ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty"],
+  textarea: ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty"],
+  email: ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty"],
+  phone: ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty"],
+  hidden: ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty"],
+  number: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
+  date: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
+  select: ["equals", "not_equals", "is_empty", "is_not_empty"],
+  radio: ["equals", "not_equals", "is_empty", "is_not_empty"],
+  checkboxes: ["contains", "not_contains", "is_empty", "is_not_empty"],
+  multiselect: ["contains", "not_contains", "is_empty", "is_not_empty"],
+  consent: ["is_empty", "is_not_empty"],
+};

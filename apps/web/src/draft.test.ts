@@ -1,4 +1,4 @@
-import { parseForm, type Form } from "@freelyforms/form-schema";
+import { parseForm, type Field, type Form } from "@freelyforms/form-schema";
 import { FIELD_TYPES } from "@freelyforms/form-schema/limits";
 import { describe, expect, it } from "vitest";
 import {
@@ -9,6 +9,7 @@ import {
   moveField,
   moveFieldTo,
   newField,
+  removeField,
   removeOption,
   updateField,
   updateMeta,
@@ -108,5 +109,48 @@ describe("draft edits", () => {
 
   it("generates schema-valid IDs", () => {
     expect(newField("text").id).toMatch(/^fld_[a-z0-9]{8}$/);
+  });
+});
+
+describe("conditions in draft edits (ADR 0017)", () => {
+  const withCondition = () => {
+    let form = addField(empty, "radio").form;
+    form = addField(form, "text").form;
+    const [choice, text] = form.fields as [Field & { options: { id: string }[] }, Field];
+    const value = choice.options[0]?.id ?? "";
+    return {
+      form: updateField(form, text.id, {
+        showIf: { match: "all", rules: [{ field: choice.id, op: "equals", value }] },
+      }),
+      choice,
+      text,
+      value,
+    };
+  };
+
+  it("removes conditions on a deleted field", () => {
+    const { form, choice, text } = withCondition();
+    expect(valid(form)).toEqual([]);
+    const next = removeField(form, choice.id);
+    expect(next.fields.find((f) => f.id === text.id)?.showIf).toBeUndefined();
+    expect(valid(next)).toEqual([]);
+  });
+
+  it("removes conditions on a deleted option, and keeps them when nothing is removed", () => {
+    const { form, choice, text, value } = withCondition();
+    const next = removeOption(form, choice.id, value);
+    expect(next.fields.find((f) => f.id === text.id)?.showIf).toBeUndefined();
+    const single = removeOption(next, choice.id, choice.options[1]?.id ?? "");
+    expect(single).toBe(next);
+  });
+
+  it("reports a condition on a later field after a move, on the field itself", () => {
+    const { form, text } = withCondition();
+    const moved = moveField(form, text.id, -1);
+    const result = parseForm(moved);
+    if (result.success) throw new Error("expected a schema problem");
+    expect(issuesByField(moved, result.issues).get(text.id)).toEqual([
+      "Show only if: choose a question above this one",
+    ]);
   });
 });
