@@ -363,6 +363,8 @@ function optionLabels(field: Field, ids: readonly string[]): string {
 /** Converts one answer to a typed cell. Typed cells are never parsed by Sheets (ADR 0002). */
 export function answerCell(field: Field, value: AnswerValue | undefined): CellData {
   if (value === undefined) return {};
+  const combined = combinedText(field, value);
+  if (combined !== null) return text(combined);
   if (typeof value === "number") return { userEnteredValue: { numberValue: value } };
   if (typeof value === "boolean") return { userEnteredValue: { boolValue: value } };
   if (typeof value === "string") {
@@ -371,6 +373,31 @@ export function answerCell(field: Field, value: AnswerValue | undefined): CellDa
     );
   }
   return text(optionLabels(field, value));
+}
+
+/**
+ * One readable cell for answers with several parts (ADR 0023): `Row: Column; Row: Column` for a
+ * matrix, `1. A, 2. B` for a ranking. Null for other fields.
+ */
+export function combinedText(field: Field, value: AnswerValue): string | null {
+  if (field.type === "matrix" && Array.isArray(value)) {
+    return field.rows
+      .map((row, i) => {
+        const column = field.columns.find((c) => c.id === value[i]);
+        return column ? `${row.label}: ${column.label}` : null;
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (field.type === "ranking" && Array.isArray(value)) {
+    return value
+      .map(
+        (id, i) =>
+          `${String(i + 1)}. ${field.options.find((o) => o.id === id)?.label ?? String(id)}`,
+      )
+      .join(", ");
+  }
+  return null;
 }
 
 /** Builds row cells positioned by the resolved column map. */

@@ -33,6 +33,8 @@ export const FIELD_TYPES = [
   "rating",
   "scale",
   "calculation",
+  "matrix",
+  "ranking",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -82,6 +84,8 @@ export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOpe
   rating: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
   scale: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
   calculation: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
+  matrix: ["is_empty", "is_not_empty"],
+  ranking: ["is_empty", "is_not_empty"],
 };
 
 /** Whether a field has an answer and a sheet column (page breaks don't, ADR 0018). */
@@ -103,6 +107,7 @@ export const SUMMABLE_TYPES: readonly FieldType[] = [
   "checkboxes",
   "multiselect",
   "calculation",
+  "matrix",
 ];
 /** Most fields one calculation adds up. */
 export const MAX_SUM_FIELDS = 50;

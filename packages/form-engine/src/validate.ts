@@ -27,7 +27,9 @@ export type ValidationErrorCode =
   | "invalid_option"
   | "too_few_selected"
   | "too_many_selected"
-  | "invalid_format";
+  | "invalid_format"
+  | "incomplete"
+  | "duplicate_rank";
 
 export interface FieldError {
   fieldId: string;
@@ -179,6 +181,46 @@ function validNumber(field: Extract<Field, { type: "number" }>, raw: unknown): O
   return { value };
 }
 
+/**
+ * A matrix answer: one column ID per row, in row order, "" for a blank row (ADR 0023). Required
+ * means every row is answered.
+ */
+function validMatrix(field: Extract<Field, { type: "matrix" }>, raw: unknown): Outcome {
+  if (!Array.isArray(raw)) return fail("invalid_type");
+  const value = field.rows.map((_, i) => {
+    const v: unknown = raw[i];
+    return typeof v === "string" ? v.trim() : "";
+  });
+  if (!value.every((v) => v === "" || field.columns.some((c) => c.id === v))) {
+    return fail("invalid_option");
+  }
+  if (field.required === true && value.some((v) => v === "")) {
+    return fail("incomplete", { part: "row" });
+  }
+  return { value };
+}
+
+/**
+ * A ranking answer arrives as a position (1…n) per option; the value is the option IDs in
+ * ranked order (ADR 0023). Positions are all given and all different, or (if optional) none.
+ */
+function validRanking(field: Extract<Field, { type: "ranking" }>, raw: unknown): Outcome {
+  if (!Array.isArray(raw)) return fail("invalid_type");
+  const n = field.options.length;
+  const positions = field.options.map((_, i) => {
+    const v: unknown = raw[i];
+    return typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v.trim()) : 0;
+  });
+  if (positions.some((p) => p > n)) return fail("invalid_option");
+  if (positions.some((p) => p === 0)) return fail("incomplete", { part: "place" });
+  if (new Set(positions).size !== n) return fail("duplicate_rank");
+  const value = field.options
+    .map((o, i) => ({ id: o.id, at: positions[i] ?? 0 }))
+    .sort((a, b) => a.at - b.at)
+    .map((o) => o.id);
+  return { value };
+}
+
 /** A whole number from `min` to `max`, as rating and scale answers are. */
 function validStep(raw: unknown, min: number, max: number): Outcome {
   const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw.trim()) : NaN;
@@ -287,6 +329,10 @@ function validateField(
       return validStep(raw, 1, field.max ?? DEFAULT_RATING_MAX);
     case "scale":
       return validStep(raw, field.min ?? DEFAULT_SCALE_MIN, field.max ?? DEFAULT_SCALE_MAX);
+    case "matrix":
+      return validMatrix(field, raw);
+    case "ranking":
+      return validRanking(field, raw);
     case "consent":
       return isEmpty(raw)
         ? field.required === true
@@ -311,13 +357,32 @@ function sumOf(
     const value = values[id];
     if (!source || value === undefined) continue;
     if (typeof value === "number") total += value;
-    else if ("options" in source) {
+    else if (source.type === "matrix" && Array.isArray(value)) {
+      for (const id of value) total += source.columns.find((c) => c.id === id)?.score ?? 0;
+    } else if ("options" in source) {
       const chosen = Array.isArray(value) ? value : [value];
       for (const option of source.options)
         if (chosen.includes(option.id)) total += option.score ?? 0;
     }
   }
   return Math.round(total * 1e6) / 1e6;
+}
+
+/**
+ * The raw answer of a field. Matrix and ranking answers come as one input per row or option,
+ * named `<fieldId>.<part>` (ADR 0023); API clients may also send a list under the field ID. A
+ * matrix or ranking with nothing filled in counts as unanswered.
+ */
+function rawAnswer(field: Field, answers: Readonly<Record<string, unknown>>): unknown {
+  const own = Object.hasOwn(answers, field.id) ? answers[field.id] : undefined;
+  if (field.type !== "matrix" && field.type !== "ranking") return own;
+  if (Array.isArray(own))
+    return own.some((v) => typeof v === "string" && v.trim()) ? own : undefined;
+  const parts = (field.type === "matrix" ? field.rows : field.options).map((p) => {
+    const v = answers[`${field.id}.${p.id}`];
+    return typeof v === "string" ? v : "";
+  });
+  return parts.some((v) => v.trim() !== "") ? parts : undefined;
 }
 
 type ShowIf = NonNullable<Field["showIf"]>;
@@ -392,7 +457,7 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
       field.required === true ||
       (field.requiredIf !== undefined && isShown(field.requiredIf, values));
     if (mustAnswer) required.add(field.id);
-    const raw = Object.hasOwn(answers, field.id) ? answers[field.id] : undefined;
+    const raw = rawAnswer(field, answers);
     const outcome = validateField(mustAnswer ? { ...field, required: true } : field, raw);
     if ("error" in outcome) errors.push({ fieldId: field.id, ...outcome.error });
     else if ("value" in outcome) values[field.id] = outcome.value;

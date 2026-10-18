@@ -5,6 +5,7 @@
 import { decryptText, encrypt, type Envelope } from "@freelyforms/crypto";
 import type { AnswerValue } from "@freelyforms/form-engine";
 import { answerFields, parseForm, type Field, type Form } from "@freelyforms/form-schema";
+import { combinedText } from "@freelyforms/google";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { keyringFor } from "../keys.js";
 import { base64Url, randomToken } from "../util.js";
@@ -70,6 +71,8 @@ export async function signature(secret: string, body: string, nowMs: number): Pr
 /** What the sheet would show for an answer: option labels for choices, the value otherwise. */
 function textOf(field: Field, value: AnswerValue | undefined): string {
   if (value === undefined) return "";
+  const combined = combinedText(field, value);
+  if (combined !== null) return combined;
   if ("options" in field) {
     const ids = Array.isArray(value) ? value : [value];
     return ids.map((id) => field.options.find((o) => o.id === id)?.label ?? String(id)).join(", ");

@@ -27,6 +27,8 @@ export function prefillValues(form: Pick<Form, "fields">, query: URLSearchParams
       case "consent":
       case "page":
       case "calculation":
+      case "matrix":
+      case "ranking":
         break;
       case "select":
       case "radio": {

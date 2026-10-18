@@ -599,3 +599,71 @@ describe("calculations (ADR 0022)", () => {
     expect(visibleFields(form, { fld_level: "opt_high" }).has("fld_advice")).toBe(false);
   });
 });
+
+describe("matrix and ranking (ADR 0023)", () => {
+  const grid: Field = {
+    id: "fld_g",
+    type: "matrix",
+    label: "G",
+    required: true,
+    rows: [
+      { id: "row_a", label: "A" },
+      { id: "row_b", label: "B" },
+    ],
+    columns: [
+      { id: "opt_no", label: "No", score: 0 },
+      { id: "opt_yes", label: "Yes", score: 1 },
+    ],
+  };
+  const rank: Field = {
+    id: "fld_r",
+    type: "ranking",
+    label: "R",
+    options: [
+      { id: "opt_x", label: "X" },
+      { id: "opt_y", label: "Y" },
+      { id: "opt_z", label: "Z" },
+    ],
+  };
+  const check = (field: Field, answers: Record<string, unknown>) =>
+    validateSubmission({ fields: [field] }, answers);
+
+  it("gathers matrix rows from their inputs and requires each row when required", () => {
+    expect(check(grid, { "fld_g.row_a": "opt_yes", "fld_g.row_b": "opt_no" })).toEqual({
+      ok: true,
+      values: { fld_g: ["opt_yes", "opt_no"] },
+    });
+    expect(check(grid, { "fld_g.row_a": "opt_yes" })).toMatchObject({
+      ok: false,
+      errors: [{ code: "incomplete" }],
+    });
+    expect(check(grid, {})).toMatchObject({ ok: false, errors: [{ code: "required" }] });
+    expect(check(grid, { "fld_g.row_a": "opt_maybe", "fld_g.row_b": "opt_no" })).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_option" }],
+    });
+  });
+
+  it("orders a ranking by the places given, all different", () => {
+    expect(check(rank, { "fld_r.opt_x": "3", "fld_r.opt_y": "1", "fld_r.opt_z": "2" })).toEqual({
+      ok: true,
+      values: { fld_r: ["opt_y", "opt_z", "opt_x"] },
+    });
+    expect(
+      check(rank, { "fld_r.opt_x": "1", "fld_r.opt_y": "1", "fld_r.opt_z": "2" }),
+    ).toMatchObject({
+      errors: [{ code: "duplicate_rank" }],
+    });
+    expect(check(rank, { "fld_r.opt_x": "1" })).toMatchObject({ errors: [{ code: "incomplete" }] });
+    expect(check(rank, {})).toEqual({ ok: true, values: {} });
+  });
+
+  it("adds a matrix's column scores in calculations", () => {
+    const total: Field = { id: "fld_t", type: "calculation", label: "T", sum: ["fld_g"] };
+    const state = formState(
+      { fields: [grid, total] },
+      { "fld_g.row_a": "opt_yes", "fld_g.row_b": "opt_yes" },
+    );
+    expect(state.values.fld_t).toBe(2);
+  });
+});

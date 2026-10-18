@@ -539,3 +539,43 @@ test("a quiz adds up option scores live and branches on the total", async ({
   const [head, row] = await rows(request, spreadsheetId);
   expect(row?.[head?.indexOf("Score") ?? -1]).toBe(10);
 });
+
+test("matrix and ranking answers reach the sheet as one readable cell each", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Event review");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Matrix", exact: true }).click();
+  await page.getByRole("button", { name: "+ Ranking", exact: true }).click();
+  await page.locator("article").first().getByLabel("Required").check();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext({ viewport: { width: 720, height: 760 } })).newPage();
+  await r.goto(url);
+  await r.getByLabel("Quality: Good").check();
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText("Answer every row.")).toBeVisible();
+  await r.getByLabel("Speed: OK").check();
+  await r.getByLabel("Second idea").selectOption("1");
+  await r.getByLabel("Third idea").selectOption("1");
+  await r.getByLabel("First idea").selectOption("3");
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText("Give each item a different place.")).toBeVisible();
+  await r.getByLabel("Third idea").selectOption("2");
+  await r.screenshot({ path: test.info().outputPath("matrix-ranking.png") });
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Rate each of these") ?? -1]).toBe("Quality: Good; Speed: OK");
+  expect(row?.[head?.indexOf("Rank these") ?? -1]).toBe(
+    "1. Second idea, 2. Third idea, 3. First idea",
+  );
+});

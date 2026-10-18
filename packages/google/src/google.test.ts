@@ -426,3 +426,26 @@ describe("rows", () => {
     });
   });
 });
+
+describe("combined cells (ADR 0023)", () => {
+  it("writes a matrix and a ranking as one readable cell each", () => {
+    const parsed = parseForm(
+      JSON.parse(
+        readFileSync(
+          new URL("../../form-schema/fixtures/all-fields.json", import.meta.url),
+          "utf8",
+        ),
+      ),
+    );
+    if (!parsed.success) throw new Error("fixture");
+    const grid = parsed.form.fields.find((f) => f.id === "fld_grid");
+    const rank = parsed.form.fields.find((f) => f.id === "fld_rank");
+    if (!grid || !rank) throw new Error("fixture fields");
+    expect(answerCell(grid, ["opt_good", ""])).toEqual({
+      userEnteredValue: { stringValue: "Food: Good" },
+    });
+    expect(answerCell(rank, ["opt_t2", "opt_t1", "opt_t3"])).toEqual({
+      userEnteredValue: { stringValue: "1. Panel, 2. Keynote, 3. Workshop" },
+    });
+  });
+});

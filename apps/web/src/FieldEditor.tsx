@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Conditions } from "./Conditions.js";
-import { FIELD_TYPE_LABELS, hasOptions } from "./draft.js";
+import { FIELD_TYPE_LABELS, hasOptions, matrixItem } from "./draft.js";
 import { useDismiss } from "./useDismiss.js";
 
 interface Props {
@@ -273,6 +273,22 @@ export function FieldEditor(props: Props) {
           </button>
         </fieldset>
       )}
+
+      {field.type === "matrix" &&
+        (["rows", "columns"] as const).map((kind) => (
+          <ItemList
+            key={kind}
+            legend={kind === "rows" ? "Rows (questions)" : "Columns (answers)"}
+            items={field[kind]}
+            min={kind === "rows" ? 1 : 2}
+            max={kind === "rows" ? 20 : 10}
+            scored={kind === "columns" && props.scored}
+            onChange={(items) => {
+              props.onChange({ [kind]: items });
+            }}
+            newItem={(n) => matrixItem(kind, `${kind === "rows" ? "Row" : "Column"} ${String(n)}`)}
+          />
+        ))}
 
       {field.type === "calculation" ? (
         <div className="more">
@@ -681,5 +697,118 @@ function AnswerFormatEditor({
         </>
       )}
     </div>
+  );
+}
+
+interface Item {
+  id: string;
+  label: string;
+  score?: number;
+}
+
+/** Rows or columns of a matrix (ADR 0023): labels, order and, for scored columns, points. */
+function ItemList<T extends Item>({
+  legend,
+  items,
+  min,
+  max,
+  scored,
+  onChange,
+  newItem,
+}: {
+  legend: string;
+  items: readonly T[];
+  min: number;
+  max: number;
+  scored: boolean;
+  onChange: (items: T[]) => void;
+  newItem: (n: number) => T;
+}) {
+  const uid = useId();
+  const update = (id: string, patch: { label?: string; score?: number | undefined }) => {
+    onChange(
+      items.map((it) =>
+        it.id === id
+          ? (Object.fromEntries(
+              Object.entries({ ...it, ...patch }).filter(
+                ([, v]) => v !== undefined && !(typeof v === "number" && Number.isNaN(v)),
+              ),
+            ) as T)
+          : it,
+      ),
+    );
+  };
+  return (
+    <fieldset className="options">
+      <legend className="field-label">{legend}</legend>
+      <ol>
+        {items.map((item, i) => (
+          <li key={item.id} className="option-row">
+            <label className="visually-hidden" htmlFor={`${uid}-${item.id}`}>
+              {legend} {i + 1}
+            </label>
+            <input
+              id={`${uid}-${item.id}`}
+              value={item.label}
+              maxLength={200}
+              onChange={(e) => {
+                update(item.id, { label: e.target.value });
+              }}
+            />
+            {scored && (
+              <input
+                className="score"
+                type="number"
+                step="any"
+                aria-label={`Score for ${item.label}`}
+                placeholder="0"
+                value={item.score ?? ""}
+                onChange={(e) => {
+                  update(item.id, {
+                    score: e.target.value === "" ? undefined : Number(e.target.value),
+                  });
+                }}
+              />
+            )}
+            <button
+              type="button"
+              className="icon"
+              aria-label={`Move ${item.label} up`}
+              disabled={i === 0}
+              onClick={() => {
+                const next = [...items];
+                const [moved] = next.splice(i, 1);
+                if (moved) next.splice(i - 1, 0, moved);
+                onChange(next);
+              }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="icon"
+              aria-label={`Remove ${item.label}`}
+              disabled={items.length <= min}
+              onClick={() => {
+                onChange(items.filter((it) => it.id !== item.id));
+              }}
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ol>
+      {items.length < max && (
+        <button
+          type="button"
+          className="ghost small"
+          onClick={() => {
+            onChange([...items, newItem(items.length + 1)]);
+          }}
+        >
+          + Add
+        </button>
+      )}
+    </fieldset>
   );
 }

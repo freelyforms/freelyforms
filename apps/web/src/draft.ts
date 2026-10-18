@@ -43,12 +43,19 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   rating: "Rating",
   scale: "Scale",
   calculation: "Calculation",
+  matrix: "Matrix",
+  ranking: "Ranking",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>
   "options" in field;
 
 const option = (label: string): FieldOption => ({ id: `opt_${randomSuffix()}`, label });
+const row = (label: string) => ({ id: `row_${randomSuffix()}`, label });
+
+/** A new matrix row or column with a fresh ID (ADR 0023). */
+export const matrixItem = (kind: "rows" | "columns", label: string) =>
+  kind === "rows" ? row(label) : option(label);
 
 /** A new field of `type` with sensible defaults. */
 export function newField(type: FieldType): Field {
@@ -63,6 +70,21 @@ export function newField(type: FieldType): Field {
         type,
         label: FIELD_TYPE_LABELS[type],
         options: [option("Option 1"), option("Option 2")],
+      };
+    case "ranking":
+      return {
+        id,
+        type,
+        label: "Rank these",
+        options: [option("First idea"), option("Second idea"), option("Third idea")],
+      };
+    case "matrix":
+      return {
+        id,
+        type,
+        label: "Rate each of these",
+        rows: [row("Quality"), row("Speed")],
+        columns: [option("Poor"), option("OK"), option("Good")],
       };
     case "consent":
       return { id, type, label: "I agree to the terms", required: true };

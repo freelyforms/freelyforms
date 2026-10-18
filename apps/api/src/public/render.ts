@@ -42,6 +42,11 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .scale{display:inline-flex;flex-direction:column;max-width:100%}.scale-options{display:flex;gap:6px;flex-wrap:wrap}.scale-options label{margin:0;font-weight:600;cursor:pointer}
 .scale-options span{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius)}
 .scale-options label:has(input:checked) span{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.matrix-wrap{overflow-x:auto}.matrix{border-collapse:collapse;width:100%}.matrix th,.matrix td{padding:8px;text-align:center}
+.matrix thead th{font-weight:600;font-size:.9rem}.matrix tbody th{text-align:left;font-weight:400}.matrix tbody tr{border-top:1px solid var(--line)}
+.matrix input{width:20px;height:20px}
+.ranking{list-style:none;padding:0;margin:0;display:grid;gap:8px}.ranking li{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ranking label{font-weight:400;margin:0}.ranking select{width:auto;min-width:110px}
 .calc{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .calc-label{font-weight:600}.calc output{font-size:1.4rem;font-weight:700;font-variant-numeric:tabular-nums}
 .scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}.step-off{display:none!important}
@@ -300,6 +305,60 @@ ${str(value)}</textarea>`;
         }
       </div>`;
     }
+    case "matrix": {
+      const parts = (value ?? {}) as Record<string, unknown>;
+      return html`<div class="matrix-wrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <td></td>
+              ${field.columns.map((c) => html`<th scope="col">${c.label}</th>`)}
+            </tr>
+          </thead>
+          <tbody>
+            ${field.rows.map(
+              (row) =>
+                html`<tr>
+                  <th scope="row">${row.label}</th>
+                  ${field.columns.map(
+                    (c) =>
+                      html`<td>
+                        <input
+                          type="radio"
+                          name="${id}.${row.id}"
+                          value="${c.id}"
+                          aria-label="${row.label}: ${c.label}"
+                          ${parts[row.id] === c.id ? raw(" checked") : ""}
+                        />
+                      </td>`,
+                  )}
+                </tr>`,
+            )}
+          </tbody>
+        </table>
+      </div>`;
+    }
+    case "ranking": {
+      const parts = (value ?? {}) as Record<string, unknown>;
+      const n = field.options.length;
+      return html`<ol class="ranking">
+        ${field.options.map(
+          (o) =>
+            html`<li>
+              <label for="${id}.${o.id}">${o.label}</label>
+              <select id="${id}.${o.id}" name="${id}.${o.id}">
+                <option value="">Place…</option>
+                ${Array.from({ length: n }, (_, i) => String(i + 1)).map(
+                  (place) =>
+                    html`<option value="${place}" ${parts[o.id] === place ? raw("selected") : ""}>
+                      ${place}
+                    </option>`,
+                )}
+              </select>
+            </li>`,
+        )}
+      </ol>`;
+    }
     case "consent":
       return html`<label class="choice"
         ><input
@@ -345,7 +404,9 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
     field.type === "radio" ||
     field.type === "checkboxes" ||
     field.type === "rating" ||
-    field.type === "scale"
+    field.type === "scale" ||
+    field.type === "matrix" ||
+    field.type === "ranking"
   ) {
     return html`<fieldset
       class="${fieldClass(field)}"
@@ -379,6 +440,13 @@ function clientScript(form: Form, nonce: string): Html {
     <script nonce="${nonce}">
       ${raw(FORM_CLIENT_JS)};
     </script>`;
+}
+
+/** A field's submitted value; matrix and ranking answers are one input per part (ADR 0023). */
+function valueFor(field: AnswerField, values: Record<string, unknown> | undefined): unknown {
+  if (field.type !== "matrix" && field.type !== "ranking") return values?.[field.id];
+  const parts = field.type === "matrix" ? field.rows : field.options;
+  return Object.fromEntries(parts.map((p) => [p.id, values?.[`${field.id}.${p.id}`]]));
 }
 
 /** The form split at its page breaks (ADR 0018); the first page has no break of its own. */
@@ -443,7 +511,7 @@ export function renderForm(
                       }`
                   : ""
               }
-              ${p.fields.map((f) => fieldBlock(f, state.values?.[f.id], errors.get(f.id)))}
+              ${p.fields.map((f) => fieldBlock(f, valueFor(f, state.values), errors.get(f.id)))}
             </section>`,
         )}
         ${

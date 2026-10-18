@@ -146,10 +146,56 @@
       "maxLabel": "Very likely"
     },
     {
+      "id": "fld_grid",
+      "type": "matrix",
+      "label": "Rate each",
+      "rows": [
+        {
+          "id": "row_food",
+          "label": "Food"
+        },
+        {
+          "id": "row_venue",
+          "label": "Venue"
+        }
+      ],
+      "columns": [
+        {
+          "id": "opt_bad",
+          "label": "Bad",
+          "score": 0
+        },
+        {
+          "id": "opt_good",
+          "label": "Good",
+          "score": 2
+        }
+      ]
+    },
+    {
+      "id": "fld_rank",
+      "type": "ranking",
+      "label": "Rank the talks",
+      "options": [
+        {
+          "id": "opt_t1",
+          "label": "Keynote"
+        },
+        {
+          "id": "opt_t2",
+          "label": "Panel"
+        },
+        {
+          "id": "opt_t3",
+          "label": "Workshop"
+        }
+      ]
+    },
+    {
       "id": "fld_total",
       "type": "calculation",
       "label": "Total score",
-      "sum": ["fld_rating", "fld_nps"],
+      "sum": ["fld_rating", "fld_nps", "fld_grid"],
       "show": true
     }
   ]

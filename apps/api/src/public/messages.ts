@@ -16,6 +16,8 @@ const MESSAGES: Record<string, (p: Record<string, number | string>) => string> =
   invalid_option: () => "Choose one of the options.",
   too_few_selected: (p) => `Choose at least ${String(p.min)}.`,
   too_many_selected: (p) => `Choose at most ${String(p.max)}.`,
+  incomplete: (p) => (p.part === "place" ? "Give every item a place." : "Answer every row."),
+  duplicate_rank: () => "Give each item a different place.",
   invalid_format: (p) => (typeof p.message === "string" ? p.message : formatHint(p)),
 };
 

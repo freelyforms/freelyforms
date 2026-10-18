@@ -209,7 +209,8 @@ function setup(form: HTMLFormElement, schema: Fields) {
     const box = container(id);
     const control =
       box?.querySelector<HTMLElement>(`#${CSS.escape(id)}`) ??
-      box?.querySelector<HTMLElement>(`[name="${CSS.escape(id)}"]`);
+      box?.querySelector<HTMLElement>(`[name="${CSS.escape(id)}"]`) ??
+      box?.querySelector<HTMLElement>("input, select, textarea");
     control?.focus();
   };
 
@@ -288,12 +289,14 @@ function setup(form: HTMLFormElement, schema: Fields) {
   // it's fixed); after a submit attempt, leaving any field rechecks it.
   form.addEventListener("input", (event) => {
     applyVisibility();
-    const name = (event.target as HTMLInputElement | null)?.name;
+    // Matrix and ranking inputs are named <fieldId>.<part> (ADR 0023).
+    const name = (event.target as HTMLInputElement | null)?.name.split(".")[0];
     if (name && document.getElementById(`${name}_err`)) recheck(name);
   });
   form.addEventListener("change", (event) => {
     applyVisibility();
-    const name = (event.target as HTMLInputElement | null)?.name;
+    // Matrix and ranking inputs are named <fieldId>.<part> (ADR 0023).
+    const name = (event.target as HTMLInputElement | null)?.name.split(".")[0];
     if (name && attempted) recheck(name);
   });
 

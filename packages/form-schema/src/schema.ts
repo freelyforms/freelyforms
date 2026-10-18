@@ -163,6 +163,33 @@ export const scaleFieldSchema = z.strictObject({
   maxLabel: z.string().max(60).optional(),
 });
 
+export const rowIdSchema = z
+  .string()
+  .regex(/^row_[a-z0-9_]{1,48}$/, "Row IDs look like row_ followed by 1-48 of a-z, 0-9, _");
+
+/** Rows of questions sharing one set of columns (ADR 0023); one choice per row. */
+export const matrixFieldSchema = z.strictObject({
+  type: z.literal("matrix"),
+  ...base,
+  rows: z
+    .array(
+      z.strictObject({
+        id: rowIdSchema,
+        label: z.string().min(1).max(200).regex(nonBlank, "Must not be blank"),
+      }),
+    )
+    .min(1)
+    .max(20),
+  columns: z.array(optionSchema).min(2).max(10),
+});
+
+/** Options the respondent puts in order (ADR 0023); the answer is the option IDs, best first. */
+export const rankingFieldSchema = z.strictObject({
+  type: z.literal("ranking"),
+  ...base,
+  options: z.array(optionSchema).min(2).max(10),
+});
+
 /**
  * A number computed from earlier answers (ADR 0022): the sum of `sum`'s fields. Computed by the
  * server, never taken from the browser; `show` displays the running result to respondents.
@@ -211,6 +238,8 @@ export const fieldSchema = z
     ratingFieldSchema,
     scaleFieldSchema,
     calculationFieldSchema,
+    matrixFieldSchema,
+    rankingFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {
@@ -230,6 +259,21 @@ export const fieldSchema = z
     }
     if (field.type === "date" && field.min !== undefined && field.max !== undefined) {
       if (field.min > field.max) bad("min", "min is after max");
+    }
+    if (field.type === "matrix") {
+      for (const key of ["rows", "columns"] as const) {
+        const seen = new Set<string>();
+        field[key].forEach((item, index) => {
+          if (seen.has(item.id)) {
+            ctx.addIssue({
+              code: "custom",
+              path: [key, index, "id"],
+              message: `Duplicate ID ${item.id}`,
+            });
+          }
+          seen.add(item.id);
+        });
+      }
     }
     if ("options" in field) {
       const ids = new Set<string>();
