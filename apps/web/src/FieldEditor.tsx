@@ -403,6 +403,16 @@ export function FieldEditor(props: Props) {
                   </>
                 )}
               </div>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={field.width === "half"}
+                  onChange={(e) => {
+                    props.onChange({ width: e.target.checked ? "half" : undefined });
+                  }}
+                />
+                Half width (next to another half-width question on wide screens)
+              </label>
               {field.type === "text" && (
                 <AnswerFormatEditor
                   id={id}

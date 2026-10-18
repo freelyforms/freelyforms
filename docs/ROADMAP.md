@@ -44,7 +44,7 @@ Release publicly as soon as this is trustworthy.
 - hidden fields (done);
 - UTM capture (done, including from the page an embedded form sits on);
 - URL prefilling (done);
-- richer layout/themes;
+- richer layout/themes (done: fonts, corners, spacing, half-width fields);
 - custom validation (done: answer formats and masks, ADR 0020);
 - redirects after submitting (done);
 - duplication (done) and templates (25 on the website, done);

@@ -13,21 +13,23 @@ const DARK =
   "--fg:#ececf1;--muted:#a5a5ae;--bg:#141417;--line:#55555f;--accent:#8ab0ff;--on-accent:#141417;--err:#ffb4ab";
 
 const BASE = `
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--font)}[hidden]{display:none!important}
 main{max-width:620px;margin:0 auto;padding:40px 20px 24px}h1{font-size:1.75rem;line-height:1.25;margin:0 0 8px}
-.desc{color:var(--muted);margin:0 0 32px;white-space:pre-line}h1+form{margin-top:32px}.field{margin:0 0 24px;border:0;padding:0}
+.desc{color:var(--muted);margin:0 0 32px;white-space:pre-line}h1+form{margin-top:32px}.field{margin:0 0 var(--gap);border:0;padding:0;min-width:0}
 label,legend{display:block;font-weight:600;margin-bottom:8px}.hint{color:var(--muted);font-size:.9rem;margin:-4px 0 8px}
-input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],textarea,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
+input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],textarea,select{width:100%;padding:var(--pad);border:1px solid var(--line);border-radius:var(--radius);background:transparent;color:inherit;font:inherit}
 textarea{min-height:120px}.choice{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:6px 0}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 [aria-invalid=true]{border-color:var(--err)!important}
-.error{color:var(--err);font-size:.9rem;margin-top:6px}button{min-width:120px;background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:12px 24px;font:inherit;font-weight:600;cursor:pointer}
+.error{color:var(--err);font-size:.9rem;margin-top:6px}button{min-width:120px;background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--button-radius);padding:12px 24px;font:inherit;font-weight:600;cursor:pointer}
 button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacity:1;cursor:default}
 .cf-turnstile{margin:32px 0 24px}
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.req{color:var(--err)}
 .page-title{font-size:1.3rem;line-height:1.3;margin:8px 0 12px}.page-title:focus{outline:none}
 .progress{color:var(--muted);font-size:.9rem;margin:0 0 16px}.pager{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
 .pager .back{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.page{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}.page>*{grid-column:1/-1}
+.page>.half{grid-column:auto}@media (max-width:560px){.page>.half{grid-column:1/-1}}
 footer{max-width:620px;margin:0 auto;padding:16px 20px 32px;font-size:.8rem;color:var(--muted)}
 footer p{margin:0 0 4px}footer a{color:inherit}
 `;
@@ -42,12 +44,30 @@ function onAccent(hex: string): string {
   return (lum + 0.05) / 0.05 > 1.05 / (lum + 0.05) ? "#000" : "#fff";
 }
 
-/** Page CSS for a theme. The accent is a schema-validated `#rrggbb`, safe to inline. */
+const FONTS = {
+  system: "system-ui,sans-serif",
+  serif: 'ui-serif,Georgia,Cambria,"Times New Roman",serif',
+  rounded: 'ui-rounded,"SF Pro Rounded","Nunito","Varela Round",system-ui,sans-serif',
+  mono: 'ui-monospace,"SF Mono",Menlo,Consolas,monospace',
+} as const;
+const CORNERS = {
+  square: { field: "2px", button: "2px" },
+  rounded: { field: "8px", button: "8px" },
+  pill: { field: "14px", button: "999px" },
+} as const;
+
+/**
+ * Page CSS for a theme. Every value comes from a schema enum or a validated `#rrggbb`, so it is
+ * safe to inline.
+ */
 export function themeCss(theme: FormTheme | undefined): string {
   const scheme = theme?.colorScheme ?? "auto";
+  const corners = CORNERS[theme?.corners ?? "rounded"];
+  const compact = theme?.density === "compact";
+  const shape = `--font:${FONTS[theme?.font ?? "system"]};--radius:${corners.field};--button-radius:${corners.button};--gap:${compact ? "14px" : "24px"};--pad:${compact ? "7px 10px" : "11px 12px"}`;
   const accent = theme?.accent
-    ? `--accent:${theme.accent};--on-accent:${onAccent(theme.accent)}`
-    : "";
+    ? `--accent:${theme.accent};--on-accent:${onAccent(theme.accent)};${shape}`
+    : shape;
   const root =
     scheme === "auto"
       ? `:root{color-scheme:light dark;${LIGHT};${accent}}@media (prefers-color-scheme:dark){:root{${DARK};${accent}}}`
@@ -230,6 +250,8 @@ ${str(value)}</textarea>`;
   }
 }
 
+const fieldClass = (field: AnswerField) => (field.width === "half" ? "field half" : "field");
+
 function fieldBlock(field: AnswerField, value: unknown, error: FieldError | undefined): Html {
   if (field.type === "hidden") return control(field, value, undefined);
   const hintId = field.description ? `${field.id}_hint` : undefined;
@@ -242,7 +264,7 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
   const star = starFor(field);
   if (field.type === "radio" || field.type === "checkboxes") {
     return html`<fieldset
-      class="field"
+      class="${fieldClass(field)}"
       data-field="${field.id}"
       ${describedBy ? raw(` aria-describedby="${describedBy}"`) : ""}
     >
@@ -251,11 +273,11 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
     </fieldset>`;
   }
   if (field.type === "consent") {
-    return html`<div class="field" data-field="${field.id}">
+    return html`<div class="${fieldClass(field)}" data-field="${field.id}">
       ${hint}${control(field, value, describedBy)}${err}
     </div>`;
   }
-  return html`<div class="field" data-field="${field.id}">
+  return html`<div class="${fieldClass(field)}" data-field="${field.id}">
     <label for="${field.id}">${field.label}${star}</label
     >${hint}${control(field, value, describedBy)}${err}
   </div>`;

@@ -58,6 +58,8 @@ const base = {
   showIf: showIfSchema.optional(),
   /** Required only when these conditions hold (ADR 0019); not together with `required`. */
   requiredIf: showIfSchema.optional(),
+  /** `half` puts the field next to a neighbouring half-width field on wide screens. */
+  width: z.enum(["full", "half"]).optional(),
 };
 
 const textual = {
@@ -241,6 +243,10 @@ export const themeSchema = z.strictObject({
     .regex(/^#[0-9a-fA-F]{6}$/, "Use a hex colour such as #1f5fd6")
     .optional(),
   colorScheme: z.enum(["auto", "light", "dark"]).optional(),
+  /** System font families only: nothing is downloaded from a font service. */
+  font: z.enum(["system", "serif", "rounded", "mono"]).optional(),
+  corners: z.enum(["square", "rounded", "pill"]).optional(),
+  density: z.enum(["comfortable", "compact"]).optional(),
 });
 
 export const settingsSchema = z.strictObject({

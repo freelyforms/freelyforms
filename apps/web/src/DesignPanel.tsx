@@ -11,6 +11,21 @@ const isHttpsUrl = (value: string) => {
     return false;
   }
 };
+const FONTS = [
+  ["system", "System"],
+  ["serif", "Serif"],
+  ["rounded", "Rounded"],
+  ["mono", "Mono"],
+] as const;
+const CORNERS = [
+  ["square", "Square"],
+  ["rounded", "Rounded"],
+  ["pill", "Pill"],
+] as const;
+const DENSITIES = [
+  ["comfortable", "Comfortable"],
+  ["compact", "Compact"],
+] as const;
 const SCHEMES = [
   ["auto", "Match device"],
   ["light", "Light"],
@@ -79,6 +94,42 @@ export function DesignPanel({ form, onChange }: { form: Form; onChange: (form: F
             </button>
           ))}
         </div>
+
+        {(
+          [
+            ["font", "Font", FONTS, "system"],
+            ["corners", "Corners", CORNERS, "rounded"],
+            ["density", "Spacing", DENSITIES, "comfortable"],
+          ] as const
+        ).map(([key, title, options, fallback]) => (
+          <div key={key}>
+            <span className="field-label" id={`${uid}-${key}-label`}>
+              {title}
+            </span>
+            <div className="segmented" role="group" aria-labelledby={`${uid}-${key}-label`}>
+              {options.map(([value, label]) => {
+                const current = theme[key] ?? fallback;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={current === value}
+                    className={current === value ? "selected" : undefined}
+                    onClick={() => {
+                      // The default is stored as "not set", keeping exported forms small.
+                      setTheme({ [key]: value === fallback ? undefined : value });
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <p className="helper">
+          Fonts are the respondent's own system fonts; nothing is downloaded.
+        </p>
       </section>
 
       <section className="card">

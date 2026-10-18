@@ -87,6 +87,30 @@
                 "light",
                 "dark"
               ]
+            },
+            "font": {
+              "type": "string",
+              "enum": [
+                "system",
+                "serif",
+                "rounded",
+                "mono"
+              ]
+            },
+            "corners": {
+              "type": "string",
+              "enum": [
+                "square",
+                "rounded",
+                "pill"
+              ]
+            },
+            "density": {
+              "type": "string",
+              "enum": [
+                "comfortable",
+                "compact"
+              ]
             }
           },
           "additionalProperties": false
@@ -242,6 +266,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               },
               "placeholder": {
                 "type": "string",
@@ -439,6 +470,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "placeholder": {
                 "type": "string",
                 "maxLength": 200
@@ -605,6 +643,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "placeholder": {
                 "type": "string",
                 "maxLength": 200
@@ -761,6 +806,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "placeholder": {
                 "type": "string",
                 "maxLength": 200
@@ -916,6 +968,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               },
               "placeholder": {
                 "type": "string",
@@ -1082,6 +1141,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "min": {
                 "type": "string",
                 "format": "date",
@@ -1243,6 +1309,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               },
               "options": {
                 "minItems": 1,
@@ -1422,6 +1495,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "options": {
                 "minItems": 1,
                 "maxItems": 500,
@@ -1599,6 +1679,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               },
               "options": {
                 "minItems": 1,
@@ -1788,6 +1875,13 @@
                 ],
                 "additionalProperties": false
               },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
               "options": {
                 "minItems": 1,
                 "maxItems": 500,
@@ -1975,6 +2069,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               }
             },
             "required": [
@@ -2127,6 +2228,13 @@
                   "rules"
                 ],
                 "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
               },
               "param": {
                 "type": "string",

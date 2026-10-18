@@ -46,7 +46,7 @@ Rules:
 - form IDs match `frm_[A-Za-z0-9]{6,32}`, field IDs `fld_[a-z0-9_]{1,48}`, option IDs `opt_[a-z0-9_]{1,48}`;
 - at most 200 fields per form and 500 options per choice field;
 - text limits never exceed 50,000 characters (the Google Sheets cell limit); defaults are 1,000 for `text` and 10,000 for `textarea`.
-- `settings` (all optional): `submitLabel`; `success`, either `{ type: "message", message }` or `{ type: "redirect", url }` with an `https://` address (a standalone form goes there after submitting; an embedded one asks the embed script to take the whole host page there, and shows a Continue link otherwise); and `theme` with `accent` (a `#rrggbb` colour) and `colorScheme` (`auto`, `light` or `dark`).
+- `settings` (all optional): `submitLabel`; `success`, either `{ type: "message", message }` or `{ type: "redirect", url }` with an `https://` address (a standalone form goes there after submitting; an embedded one asks the embed script to take the whole host page there, and shows a Continue link otherwise); and `theme` with `accent` (a `#rrggbb` colour), `colorScheme` (`auto`, `light` or `dark`), `font` (`system`, `serif`, `rounded` or `mono`: system font stacks, nothing is downloaded), `corners` (`square`, `rounded` or `pill`) and `density` (`comfortable` or `compact`).
 
 | Type          | Answer value                     | Type-specific properties                            |
 | ------------- | -------------------------------- | --------------------------------------------------- |
@@ -64,7 +64,7 @@ Rules:
 | `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
 | `page`        | none (a page break, no column)   | `description` (shown under the page title)          |
 
-Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required`, optional `showIf` and optional `requiredIf` (see Conditions below). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
+Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required`, optional `showIf` and optional `requiredIf` (see Conditions below), and optional `width` (`full` or `half`: two half-width fields share a row on screens wider than 560px). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 
 A `hidden` field is not shown to respondents; its label is the column name in the sheet. Its value comes from the form link's query parameter `param` (default: the field ID), or, in an embed, from the same parameter in the address of the host page (the embed script passes only the parameter names the form asks for), or else `defaultValue`. It can't be `required`. Respondents can change it, so it is for attribution such as UTM tags, never for trust; validation never fails on it (unusable values are dropped, long ones shortened). The builder's "UTM tracking" adds hidden fields for `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` and `utm_content`.
 
