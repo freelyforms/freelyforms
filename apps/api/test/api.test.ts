@@ -65,6 +65,7 @@ describe("migrations on D1", () => {
       "google_connections",
       "sessions",
       "users",
+      "webhooks",
     ]);
   });
 

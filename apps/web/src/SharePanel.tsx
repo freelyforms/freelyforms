@@ -11,6 +11,7 @@ import {
 import type { FlushResult } from "./Editor.js";
 import { pickSpreadsheet } from "./picker.js";
 import { navigate } from "./router.js";
+import { WebhookCard } from "./Webhook.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
   ACCESS_REVOKED:
@@ -334,6 +335,8 @@ export function SharePanel({
           </>
         )}
       </section>
+
+      {published && <WebhookCard formId={view.id} />}
 
       <section className="zone">
         <h2 className="section-title">Advanced</h2>

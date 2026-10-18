@@ -15,6 +15,7 @@ import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { sheetsFor } from "../google-access.js";
 import { keyringFor } from "../keys.js";
 import { hold, resumeStragglers } from "./hold.js";
+import { deliverWebhook } from "./webhook.js";
 
 /** ADR 0008: transient errors are retried for up to 72 hours. */
 export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -262,7 +263,16 @@ export async function processBatch(
   deps: Deps,
 ): Promise<void> {
   const groups = new Map<string, Msg[]>();
+  const retentionMs = (numberVar(env.QUEUE_RETENTION_HOURS, 24) - 1) * HOUR_MS;
   for (const m of batch.messages) {
+    // Webhook copies (ADR 0021) go out one by one and never touch the sheet's delivery state.
+    if (m.body.webhookId) {
+      await deliverWebhook(env, deps, m, (attempts) => {
+        const delay = backoffSeconds(attempts);
+        return deps.now() + delay * 1000 - m.timestamp.getTime() > retentionMs ? null : delay;
+      });
+      continue;
+    }
     const list = groups.get(m.body.formId) ?? [];
     list.push(m);
     groups.set(m.body.formId, list);

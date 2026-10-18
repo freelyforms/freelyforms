@@ -15,6 +15,8 @@ import { newId } from "../src/util.js";
 import { fakeGoogle } from "../test/fake-google.js";
 
 const google = fakeGoogle();
+/** Webhook bodies sent to the test receiver (ADR 0021). */
+const hooks: { signature: string | null; body: unknown }[] = [];
 const GOOGLE_HOSTS = new Set(["oauth2.googleapis.com", "sheets.googleapis.com"]);
 
 const deps: Deps = {
@@ -22,6 +24,13 @@ const deps: Deps = {
     const url = new URL(
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
     );
+    if (url.hostname === "hooks.e2e.test") {
+      hooks.push({
+        signature: new Headers(init?.headers).get("freely-signature"),
+        body: JSON.parse(typeof init?.body === "string" ? init.body : "null") as unknown,
+      });
+      return Promise.resolve(new Response(null, { status: 200 }));
+    }
     // Turnstile's siteverify stays real: the test keys in e2e/wrangler.jsonc always pass.
     return GOOGLE_HOSTS.has(url.hostname) ? google.fetchFn(input, init) : fetch(input, init);
   },
@@ -75,6 +84,9 @@ testRoutes.get("/__e2e/sheets/:id", (c) => {
   const sheet = google.sheets.get(c.req.param("id"));
   return sheet ? c.json(sheet.rows) : c.json({ error: "not_found" }, 404);
 });
+
+/** Webhook bodies the test receiver got, oldest first. */
+testRoutes.get("/__e2e/webhooks", (c) => c.json(hooks));
 
 /**
  * An owner's page with the given embed code. Tests open it on 127.0.0.1, a different origin from

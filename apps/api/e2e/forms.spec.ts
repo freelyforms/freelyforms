@@ -455,3 +455,36 @@ test("rating and scale answers arrive as numbers and can drive a follow-up", asy
   expect(row?.[head?.indexOf("Rating") ?? -1]).toBe(4);
   expect(row?.[head?.indexOf("Scale") ?? -1]).toBe(3);
 });
+
+test("an owner adds a webhook and each response arrives there, signed", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await formFromTemplate(page, "contact-form");
+  const { url } = await publish(page);
+  await page.getByLabel("Endpoint URL").fill("https://hooks.e2e.test/contact");
+  await page.getByRole("button", { name: "Add webhook" }).click();
+  await expect(page.getByText("copy it now")).toBeVisible();
+  await page.getByRole("button", { name: "Send a test event" }).click();
+  await expect(page.getByText("Test event delivered (HTTP 200).")).toBeVisible();
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  await r.getByLabel("Name").fill("Linus");
+  await r.getByLabel("Email").fill("linus@example.com");
+  await r.getByLabel("Message").fill("Hello over a webhook.");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Send message" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  type Hook = { signature: string; body: { test?: boolean; answers: Record<string, unknown> } };
+  await expect
+    .poll(async () => ((await (await request.get("/__e2e/webhooks")).json()) as Hook[]).length)
+    .toBeGreaterThanOrEqual(2);
+  const hooks = (await (await request.get("/__e2e/webhooks")).json()) as Hook[];
+  const real = hooks.filter((h) => !h.body.test).at(-1);
+  expect(real?.body.answers).toMatchObject({ fld_name: "Linus", fld_email: "linus@example.com" });
+  expect(real?.signature).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/);
+});

@@ -185,6 +185,16 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
         .bind(submissionId, form.id, version, now, now + PAYLOAD_RETENTION_MS)
         .run();
       await c.env.DELIVERY_QUEUE.send(message, { contentType: "json" });
+      // A copy for the form's webhook, if it has one (ADR 0021).
+      const hook = await c.env.DB.prepare("SELECT id FROM webhooks WHERE form_id = ?")
+        .bind(form.id)
+        .first<{ id: string }>();
+      if (hook) {
+        await c.env.DELIVERY_QUEUE.send(
+          { ...message, webhookId: hook.id },
+          { contentType: "json" },
+        );
+      }
       await c.env.DB.prepare(
         "UPDATE deliveries SET state = 'queued' WHERE submission_id = ? AND state = 'accepted'",
       )

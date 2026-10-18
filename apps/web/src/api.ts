@@ -15,6 +15,15 @@ export interface FormSummary {
   needsAttention?: boolean;
 }
 
+/** A form's webhook as the owner sees it (ADR 0021); the secret is never part of it. */
+export interface Webhook {
+  url: string;
+  failing: boolean;
+  lastStatus: number | null;
+  lastAttemptAt: number | null;
+  lastOkAt: number | null;
+}
+
 export interface FormView extends FormSummary {
   draft: unknown;
   hasUnpublishedChanges: boolean;
@@ -91,6 +100,17 @@ export const api = {
     request<FormView>("/forms/import", { method: "POST", body: definition }),
   duplicateForm: (id: string) => request<FormView>(`/forms/${id}/duplicate`, { method: "POST" }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
+  getWebhook: (id: string) => request<{ webhook: Webhook | null }>(`/forms/${id}/webhook`),
+  saveWebhook: (id: string, url: string) =>
+    request<{ webhook: Webhook; secret?: string }>(`/forms/${id}/webhook`, {
+      method: "PUT",
+      body: { url },
+    }),
+  rotateWebhookSecret: (id: string) =>
+    request<{ secret: string }>(`/forms/${id}/webhook/rotate`, { method: "POST" }),
+  testWebhook: (id: string) =>
+    request<{ status: number; ok: boolean }>(`/forms/${id}/webhook/test`, { method: "POST" }),
+  deleteWebhook: (id: string) => request<undefined>(`/forms/${id}/webhook`, { method: "DELETE" }),
   pickerConfig: () =>
     request<{ accessToken: string; apiKey: string; appId: string }>("/account/google/picker"),
   attachSpreadsheet: (id: string, spreadsheetId: string) =>

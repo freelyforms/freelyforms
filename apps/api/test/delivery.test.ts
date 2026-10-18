@@ -1302,3 +1302,120 @@ describe("intake protection", () => {
     expect((await app().request(`/forms/${id}/preview`, {}, env)).status).toBe(401);
   });
 });
+
+describe("webhook destination (ADR 0021)", () => {
+  const HOOK = "https://hooks.example.com/freely";
+  /** Captures webhook calls; everything else goes to the fake Google. */
+  function receiver(status: number) {
+    const calls: { headers: Headers; body: string }[] = [];
+    const google = deps.fetch;
+    deps.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.startsWith(HOOK)) return google(input, init);
+      calls.push({
+        headers: new Headers(init?.headers),
+        body: typeof init?.body === "string" ? init.body : "",
+      });
+      return new Response(null, { status });
+    };
+    return calls;
+  }
+
+  it("accepts only public https URLs", async () => {
+    const id = await publishedForm();
+    for (const url of [
+      "http://hooks.example.com/x",
+      "https://localhost/x",
+      "https://10.0.0.1/x",
+      "https://user:pass@hooks.example.com/x",
+      "not a url",
+    ]) {
+      const res = await owner(`/forms/${id}/webhook`, { method: "PUT", body: { url } });
+      expect(res.status, url).toBe(422);
+    }
+  });
+
+  it("sends a signed copy of each response, next to the sheet", async () => {
+    const id = await publishedForm();
+    const created = await owner(`/forms/${id}/webhook`, { method: "PUT", body: { url: HOOK } });
+    expect(created.status).toBe(201);
+    const { secret } = await created.json<{ secret: string }>();
+    expect(secret.length).toBeGreaterThan(30);
+    // Later reads never show the secret.
+    expect(JSON.stringify(await (await owner(`/forms/${id}/webhook`)).json())).not.toContain(
+      secret,
+    );
+
+    const calls = receiver(200);
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com", fld_topic: "opt_sales" });
+    expect(queue.sent.map((m) => Boolean(m.webhookId))).toEqual([false, true]);
+    const outcomes = await deliver();
+    expect(outcomes.every((o) => o.acked)).toBe(true);
+    expect(onlySheet().rows).toHaveLength(2);
+
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
+    const body = JSON.parse(call?.body ?? "{}") as {
+      event: string;
+      submissionId: string;
+      answers: Record<string, unknown>;
+      fields: { id: string; text: string }[];
+    };
+    expect(body.event).toBe("submission.created");
+    expect(body.answers).toMatchObject({ fld_name: "Ada", fld_topic: "opt_sales" });
+    expect(body.fields.find((f) => f.id === "fld_topic")?.text).toBe("Sales");
+    const [, t, v1] =
+      /^t=(\d+),v1=([0-9a-f]{64})$/.exec(call?.headers.get("freely-signature") ?? "") ?? [];
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const expected = [
+      ...new Uint8Array(
+        await crypto.subtle.sign(
+          "HMAC",
+          key,
+          new TextEncoder().encode(`${t ?? ""}.${call?.body ?? ""}`),
+        ),
+      ),
+    ]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    expect(v1).toBe(expected);
+    expect(await (await owner(`/forms/${id}/webhook`)).json()).toMatchObject({
+      webhook: { failing: false, lastStatus: 200 },
+    });
+  });
+
+  it("retries server errors, gives up on client errors, and never blocks the sheet", async () => {
+    const id = await publishedForm();
+    await owner(`/forms/${id}/webhook`, { method: "PUT", body: { url: HOOK } });
+    receiver(503);
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    const [sheetOutcome, hookOutcome] = await deliver();
+    expect(sheetOutcome?.acked).toBe(true);
+    expect(hookOutcome?.retryDelay).toBeGreaterThan(0);
+    expect(await (await owner(`/forms/${id}/webhook`)).json()).toMatchObject({
+      webhook: { failing: true, lastStatus: 503 },
+    });
+
+    receiver(404);
+    await submit(id, { fld_name: "Bo", fld_email: "bo@example.com" });
+    const [, final] = await deliver();
+    expect(final?.acked).toBe(true);
+  });
+
+  it("posts a test event on request and reports the receiver's status", async () => {
+    const id = await publishedForm();
+    await owner(`/forms/${id}/webhook`, { method: "PUT", body: { url: HOOK } });
+    const calls = receiver(204);
+    const res = await owner(`/forms/${id}/webhook/test`, { method: "POST" });
+    expect(await res.json()).toEqual({ status: 204, ok: true });
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toMatchObject({ test: true, submissionId: "TEST" });
+    expect((await owner(`/forms/${id}/webhook`, { method: "DELETE" })).status).toBe(204);
+    expect(await (await owner(`/forms/${id}/webhook`)).json()).toEqual({ webhook: null });
+  });
+});

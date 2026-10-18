@@ -8,6 +8,8 @@ export interface DeliveryMessage {
   submittedAt: number;
   /** Encrypted `{ values }`, bound to `submission:<submissionId>`. */
   payload: Envelope;
+  /** Set on the copy that goes to the form's webhook instead of its sheet (ADR 0021). */
+  webhookId?: string;
 }
 
 export interface Env {

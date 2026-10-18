@@ -986,3 +986,18 @@ button.small {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.secret {
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.secret p {
+  margin: 0 0 var(--s1);
+}
+.secret-value {
+  display: block;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

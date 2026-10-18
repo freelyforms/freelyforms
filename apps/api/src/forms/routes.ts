@@ -1,3 +1,4 @@
+import { decryptText, type Envelope } from "@freelyforms/crypto";
 import { parseForm, type Form } from "@freelyforms/form-schema";
 import {
   addMissingColumns,
@@ -11,6 +12,7 @@ import {
 import { Hono, type Context } from "hono";
 import type { Deps } from "../env.js";
 import { sheetsFor, spreadsheetUrl } from "../google-access.js";
+import { keyringFor } from "../keys.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
 import { embedSnippet } from "../public/embed.js";
@@ -18,6 +20,14 @@ import { templateBySlug } from "../site/templates.js";
 import { formPageCsp } from "../public/protect.js";
 import { renderForm, renderMessage } from "../public/render.js";
 import { newFormId, newId, randomToken, readBodyLimited } from "../util.js";
+import {
+  newSecret,
+  newWebhookId,
+  post as postWebhook,
+  sampleValues,
+  webhookBody,
+  webhookUrlProblem,
+} from "../delivery/webhook.js";
 
 interface FormRow {
   id: string;
@@ -107,6 +117,33 @@ async function insertDraft(c: Ctx, now: number, candidate: Form) {
   const form = await ownedForm(c, draft.id);
   return c.json(form && (await view(c, form, null)), 201);
 }
+
+interface WebhookRow {
+  id: string;
+  url: string;
+  secret: string;
+  failing: number;
+  last_status: number | null;
+  last_attempt_at: number | null;
+  last_ok_at: number | null;
+}
+
+const webhookRow = (c: Ctx, formId: string) =>
+  c.env.DB.prepare(
+    "SELECT id, url, secret, failing, last_status, last_attempt_at, last_ok_at FROM webhooks WHERE form_id = ?",
+  )
+    .bind(formId)
+    .first<WebhookRow>();
+
+/** What the owner sees of a webhook: never the secret. */
+const webhookView = (row: WebhookRow | null) =>
+  row && {
+    url: row.url,
+    failing: row.failing === 1,
+    lastStatus: row.last_status,
+    lastAttemptAt: row.last_attempt_at,
+    lastOkAt: row.last_ok_at,
+  };
 
 /** Google failures during publishing, as an owner-facing status. */
 function googleFailure(c: Ctx, err: unknown) {
@@ -416,6 +453,88 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       .run();
     const { resumed, more } = await resumeHeld(c.env, destination.id);
     return c.json({ resumed: resumed.length, more });
+  });
+
+  // Webhook destination (ADR 0021): the secret is shown only when created or rotated.
+  forms.get("/:id/webhook", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    return c.json({ webhook: webhookView(await webhookRow(c, form.id)) });
+  });
+
+  forms.put("/:id/webhook", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.json<{ url?: unknown }>().catch(() => ({ url: undefined }));
+    const url = typeof body.url === "string" ? body.url.trim() : "";
+    const problem = webhookUrlProblem(url);
+    if (problem) return c.json({ error: "invalid_webhook_url", reason: problem }, 422);
+    const now = deps.now();
+    const existing = await webhookRow(c, form.id);
+    if (existing) {
+      await c.env.DB.prepare(
+        "UPDATE webhooks SET url = ?, failing = 0, updated_at = ? WHERE id = ?",
+      )
+        .bind(url, now, existing.id)
+        .run();
+      return c.json({ webhook: webhookView(await webhookRow(c, form.id)) });
+    }
+    const id = newWebhookId();
+    const { secret, stored } = await newSecret(c.env, id);
+    await c.env.DB.prepare(
+      "INSERT INTO webhooks (id, form_id, url, secret, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(id, form.id, url, stored, now, now)
+      .run();
+    return c.json({ webhook: webhookView(await webhookRow(c, form.id)), secret }, 201);
+  });
+
+  forms.post("/:id/webhook/rotate", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const existing = await webhookRow(c, form.id);
+    if (!existing) return c.json({ error: "no_webhook" }, 409);
+    const { secret, stored } = await newSecret(c.env, existing.id);
+    await c.env.DB.prepare("UPDATE webhooks SET secret = ?, updated_at = ? WHERE id = ?")
+      .bind(stored, deps.now(), existing.id)
+      .run();
+    return c.json({ secret });
+  });
+
+  /** Posts a sample body (`"test": true`) now and reports the receiver's HTTP status. */
+  forms.post("/:id/webhook/test", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const existing = await webhookRow(c, form.id);
+    if (!existing) return c.json({ error: "no_webhook" }, 409);
+    const parsed = parseForm(JSON.parse(form.draft_json));
+    if (!parsed.success) return c.json({ error: "invalid_form", issues: parsed.issues }, 422);
+    const secret = await decryptText(
+      await keyringFor(c.env),
+      JSON.parse(existing.secret) as Envelope,
+      `webhook:${existing.id}`,
+    );
+    const now = deps.now();
+    const sample = {
+      submissionId: "TEST",
+      formId: form.id,
+      formVersion: form.published_version ?? 0,
+      submittedAt: now,
+    };
+    const status = await postWebhook(
+      deps,
+      { url: existing.url, secret },
+      webhookBody(parsed.form, sample, sampleValues(parsed.form), true),
+      "TEST",
+    );
+    return c.json({ status, ok: status >= 200 && status < 300 });
+  });
+
+  forms.delete("/:id/webhook", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    await c.env.DB.prepare("DELETE FROM webhooks WHERE form_id = ?").bind(form.id).run();
+    return c.body(null, 204);
   });
 
   forms.delete("/:id", async (c) => {

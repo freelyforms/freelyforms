@@ -59,7 +59,7 @@ Status: done (2026-10-18).
 - calculations;
 - rating/ranking/matrix fields (rating and scale/NPS done; ranking and matrix to do);
 - advanced logic/jumps;
-- webhook destinations;
+- webhook destinations (done: one signed webhook per form, ADR 0021);
 - custom domains;
 - payment provider connection;
 - basic collaboration/sharing.
