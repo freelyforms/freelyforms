@@ -79,7 +79,8 @@ export function customHostnames(
         ...init,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       });
-    } catch {
+    } catch (err) {
+      console.error("cloudflare_api_unreachable", err instanceof Error ? err.message : "unknown");
       throw new CustomHostnameError("cloudflare_unavailable");
     }
     const body = (await res.json().catch(() => ({ success: false }))) as ApiResponse<T>;

@@ -870,6 +870,9 @@ button.small {
 }
 
 /* Account */
+.account .card + .card {
+  margin-top: var(--s4);
+}
 .account .card + .zone {
   margin-top: var(--s6);
 }

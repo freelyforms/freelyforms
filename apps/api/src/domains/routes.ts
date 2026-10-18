@@ -33,7 +33,8 @@ export function domainsEnabled(env: Env): boolean {
 }
 
 export const hostnamesClient = (env: Env, deps: Deps) =>
-  customHostnames(deps.fetch, env.CF_ZONE_ID ?? "", env.CF_CUSTOM_HOSTNAMES_TOKEN ?? "");
+  // Trimmed: a secret piped in from a clipboard can end with a newline, which no header accepts.
+  customHostnames(deps.fetch, env.CF_ZONE_ID ?? "", (env.CF_CUSTOM_HOSTNAMES_TOKEN ?? "").trim());
 
 /** Hosts this service answers on itself, which can never be someone's custom domain. */
 export function isOwnHost(env: Env, host: string): boolean {
