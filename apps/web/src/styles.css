@@ -1067,3 +1067,7 @@ button.small {
 .responses-table td {
   min-width: 110px;
 }
+.editor-body.responses-only .editor-pane,
+.responses {
+  min-width: 0;
+}
