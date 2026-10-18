@@ -26,6 +26,9 @@ dist/
 .next/
 .wrangler/
 coverage/
+test-results/
+playwright-report/
+apps/api/e2e/.state/
 *.tsbuildinfo
 *.log
 

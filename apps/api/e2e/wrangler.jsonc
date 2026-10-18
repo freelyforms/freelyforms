@@ -1,0 +1,34 @@
+// End-to-end test Worker (e2e/worker.ts): local bindings only, Google replaced by a fake,
+// Turnstile test keys that always pass. Started by e2e/serve.ts; never deployed.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "freelyforms-e2e",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "../../web/dist/app", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "freelyforms-e2e",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../../../packages/db/migrations",
+    },
+  ],
+  "kv_namespaces": [{ "binding": "HOLD", "id": "00000000000000000000000000000000" }],
+  "queues": {
+    "producers": [{ "binding": "DELIVERY_QUEUE", "queue": "freelyforms-e2e-delivery" }],
+    "consumers": [
+      { "queue": "freelyforms-e2e-delivery", "max_batch_size": 10, "max_batch_timeout": 1 },
+    ],
+  },
+  // No rate limiters: tests submit the same form more often than real respondents would.
+  "vars": {
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    "TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
+    "GOOGLE_CLIENT_ID": "e2e.apps.googleusercontent.com",
+    "GOOGLE_CLIENT_SECRET": "e2e",
+    "ABUSE_EMAIL": "abuse@example.com",
+    "QUEUE_RETENTION_HOURS": "24",
+    "GOOGLE_CALL_BUDGET": "40",
+  },
+}

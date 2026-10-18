@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "pnpm --filter @freelyforms/web build && pnpm --filter @freelyforms/api e2e",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && ./scripts/check-private-not-tracked.sh"
   },
   "devDependencies": {

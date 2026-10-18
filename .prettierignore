@@ -5,3 +5,6 @@ dist/
 coverage/
 packages/form-schema/form-v1.schema.json
 apps/api/src/public/client.generated.ts
+test-results/
+playwright-report/
+apps/api/e2e/.state/

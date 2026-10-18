@@ -45,6 +45,8 @@ To check delivery against real Google Sheets with your own account, sign in at h
 
 The API tests apply the real migrations to a local D1 database (workerd) through Wrangler; no Cloudflare account is needed.
 
+End-to-end tests (`pnpm e2e`) build the builder and run Playwright against a test build of the Worker (`apps/api/e2e/worker.ts`) on a fresh local database: Google's token and Sheets endpoints are answered by an in-memory fake, Turnstile uses its always-passing test keys (the widget still loads from Cloudflare, so the tests need a network connection), and a test-only route signs you in. They cover publishing a template, browser-side validation, prefilled links, UTM capture, delivery to the sheet, an embedded form on another origin with a redirect, and a phone-sized dark-mode check. Install a browser once with `pnpm --filter @freelyforms/api exec playwright install chromium`, or set `E2E_CHANNEL=chrome` to use an installed Chrome. CI runs them on every push.
+
 The workspace installs only package versions published at least 14 days ago (`minimumReleaseAge` in `pnpm-workspace.yaml`).
 
 ## Repository hooks

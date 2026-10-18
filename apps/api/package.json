@@ -8,10 +8,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "build:client": "node scripts/build-form-client.ts"
+    "build:client": "node scripts/build-form-client.ts",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261002.1",
+    "@playwright/test": "^1.63.0",
     "esbuild": "^0.28.1",
     "wrangler": "^4.146.0"
   },

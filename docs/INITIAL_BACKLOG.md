@@ -40,7 +40,7 @@ Tracks the Phase 1 MVP ([ROADMAP.md](ROADMAP.md)). Last reviewed 2026-10-16.
 - [x] Preview with the real renderer.
 - [x] Publish flow with the public link, the sheet link and the embed code.
 - [x] Delivery status panel: destination state, counts by delivery state, "Resume" after a fix.
-- [ ] Browser tests of the builder (Playwright) once the UI settles.
+- [x] End-to-end browser tests (Playwright) of the owner and respondent paths, including embedding, against a test Worker with a fake Google.
 - [x] Export the form definition as JSON (CLAUDE.md: forms must be exportable).
 - [x] Saves never overlap; edits are saved when leaving the editor; an ended session is shown with a way to sign in again.
 - [ ] Import a form from JSON.

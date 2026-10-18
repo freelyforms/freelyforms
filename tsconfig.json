@@ -20,6 +20,9 @@
       "path": "apps/api/src/public/client"
     },
     {
+      "path": "apps/api/e2e"
+    },
+    {
       "path": "packages/google"
     },
     {
