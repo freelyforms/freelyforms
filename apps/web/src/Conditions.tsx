@@ -8,8 +8,10 @@ import { useId } from "react";
 import { hasOptions } from "./draft.js";
 
 interface Props {
-  /** What the conditions show: a question, or a whole page (ADR 0018). */
-  subject: "question" | "page";
+  /** Heading of the rule list, e.g. "Show this question only if". */
+  legend: string;
+  /** Label of the button that adds the first rule. */
+  addLabel: string;
   showIf: ShowIf | undefined;
   /** Fields above this one: the only ones a condition may test (ADR 0017). */
   earlier: readonly Field[];
@@ -66,7 +68,7 @@ function withValue(rule: ConditionRule, source: Field): ConditionRule {
 }
 
 /** "Show only if…" for one field: rules on earlier answers, matched all or any. */
-export function Conditions({ subject, showIf, earlier, onChange }: Props) {
+export function Conditions({ legend, addLabel, showIf, earlier, onChange }: Props) {
   const uid = useId();
   const sources = earlier;
   const last = sources[sources.length - 1];
@@ -81,7 +83,7 @@ export function Conditions({ subject, showIf, earlier, onChange }: Props) {
           onChange({ match: "all", rules: [defaultRule(last)] });
         }}
       >
-        + Show only if…
+        {addLabel}
       </button>
     );
   }
@@ -97,7 +99,7 @@ export function Conditions({ subject, showIf, earlier, onChange }: Props) {
   return (
     <fieldset className="conditions">
       <legend className="field-label">
-        Show this {subject} only if{" "}
+        {legend}{" "}
         {showIf.rules.length > 1 ? (
           <>
             <select

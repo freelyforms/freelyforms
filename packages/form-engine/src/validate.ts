@@ -260,6 +260,7 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
   const values: Record<string, AnswerValue> = {};
   const errors: FieldError[] = [];
   const shown = new Set<string>();
+  const required = new Set<string>();
   // Fields under a page break whose conditions fail are skipped with it (ADR 0018).
   let pageShown = true;
   for (const field of form.fields) {
@@ -271,12 +272,17 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
     if (!pageShown) continue;
     if (field.showIf && !isShown(field.showIf, values)) continue;
     shown.add(field.id);
+    // Required always, or only while its conditions hold (ADR 0019).
+    const mustAnswer =
+      field.required === true ||
+      (field.requiredIf !== undefined && isShown(field.requiredIf, values));
+    if (mustAnswer) required.add(field.id);
     const raw = Object.hasOwn(answers, field.id) ? answers[field.id] : undefined;
-    const outcome = validateField(field, raw);
+    const outcome = validateField(mustAnswer ? { ...field, required: true } : field, raw);
     if ("error" in outcome) errors.push({ fieldId: field.id, ...outcome.error });
     else if ("value" in outcome) values[field.id] = outcome.value;
   }
-  return { values, errors, shown };
+  return { values, errors, shown, required };
 }
 
 /**
@@ -288,6 +294,14 @@ export function visibleFields(
   answers: Readonly<Record<string, unknown>>,
 ): ReadonlySet<string> {
   return walk(form, answers).shown;
+}
+
+/** IDs of the shown fields that must be answered for these answers (`required` or `requiredIf`). */
+export function requiredFields(
+  form: Pick<Form, "fields">,
+  answers: Readonly<Record<string, unknown>>,
+): ReadonlySet<string> {
+  return walk(form, answers).required;
 }
 
 /**

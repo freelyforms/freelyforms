@@ -277,3 +277,33 @@ describe("page breaks (ADR 0018)", () => {
     );
   });
 });
+
+describe("requiredIf (ADR 0019)", () => {
+  const plan = {
+    id: "fld_plan",
+    type: "select",
+    label: "Plan",
+    options: [{ id: "opt_business", label: "Business" }],
+  };
+  const when = {
+    match: "all",
+    rules: [{ field: "fld_plan", op: "equals", value: "opt_business" }],
+  };
+
+  it("accepts conditions on earlier fields, like showIf", () => {
+    expect(
+      issuesOf(minimal([plan, { id: "fld_vat", type: "text", label: "VAT", requiredIf: when }])),
+    ).toEqual([]);
+  });
+
+  it("rejects it next to required, on hidden fields, and with bad rules", () => {
+    const both = { id: "fld_vat", type: "text", label: "VAT", required: true, requiredIf: when };
+    expect(issuesOf(minimal([plan, both])).join()).toContain("untick Required");
+    const hidden = { id: "fld_src", type: "hidden", label: "Source", requiredIf: when };
+    expect(issuesOf(minimal([plan, hidden])).join()).toContain("can't be required");
+    const later = { id: "fld_vat", type: "text", label: "VAT", requiredIf: when };
+    expect(issuesOf(minimal([later, plan]))).toEqual([
+      "fields.0.requiredIf.rules.0: Required only if: choose a question above this one",
+    ]);
+  });
+});

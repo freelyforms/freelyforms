@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { parseForm, type Field, type Form } from "@freelyforms/form-schema";
 import { describe, expect, it } from "vitest";
-import { validateSubmission, visibleFields, type ValidationResult } from "./index.js";
+import {
+  requiredFields,
+  validateSubmission,
+  visibleFields,
+  type ValidationResult,
+} from "./index.js";
 
 const loadFixture = (name: string): Form => {
   const url = new URL(`../../form-schema/fixtures/${name}.json`, import.meta.url);
@@ -419,5 +424,46 @@ describe("pages (ADR 0018)", () => {
       fld_page_end: "x",
     });
     expect(result).toEqual({ ok: true, values: { fld_kind: "opt_company", fld_vat: "X" } });
+  });
+});
+
+describe("requiredIf (ADR 0019)", () => {
+  const contact: Field = {
+    id: "fld_contact",
+    type: "checkboxes",
+    label: "Contact me by",
+    options: [
+      { id: "opt_email", label: "Email" },
+      { id: "opt_phone", label: "Phone" },
+    ],
+  };
+  const phone: Field = {
+    id: "fld_phone",
+    type: "phone",
+    label: "Phone",
+    requiredIf: {
+      match: "all",
+      rules: [{ field: "fld_contact", op: "contains", value: "opt_phone" }],
+    },
+  };
+  const form = { fields: [contact, phone] };
+
+  it("requires the field only while its conditions hold", () => {
+    expect(validateSubmission(form, { fld_contact: ["opt_email"] }).ok).toBe(true);
+    expect(validateSubmission(form, { fld_contact: ["opt_phone"] })).toMatchObject({
+      ok: false,
+      errors: [{ fieldId: "fld_phone", code: "required" }],
+    });
+    expect([...requiredFields(form, { fld_contact: ["opt_phone"] })]).toEqual(["fld_phone"]);
+    expect([...requiredFields(form, {})]).toEqual([]);
+  });
+
+  it("still validates an optional answer that was given", () => {
+    expect(
+      validateSubmission(form, { fld_contact: ["opt_email"], fld_phone: "abc" }),
+    ).toMatchObject({
+      ok: false,
+      errors: [{ fieldId: "fld_phone", code: "invalid_phone" }],
+    });
   });
 });

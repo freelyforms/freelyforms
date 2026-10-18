@@ -282,3 +282,37 @@ test("a multi-page form shows one page at a time and skips pages that don't appl
   expect(row?.[head?.indexOf("Short text") ?? -1] ?? "").toBe("");
   expect(row?.[head?.indexOf("Email") ?? -1]).toBe("pages@example.com");
 });
+
+test("a question can be required only when an earlier answer calls for it", async ({
+  page,
+  browser,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Call me back");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Checkboxes", exact: true }).click();
+  await page.getByRole("button", { name: "+ Phone", exact: true }).click();
+  const phone = page.locator("article").nth(1);
+  await phone.getByRole("button", { name: "+ Required only if…" }).click();
+  await expect(phone.getByText("Require an answer only if")).toBeVisible();
+  await expect(phone.getByLabel("Condition 1: test")).toHaveValue("contains");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  const star = r.locator("[data-req-if]");
+  await expect(star).toBeHidden();
+  await r.getByLabel("Option 1").check();
+  await expect(star).toBeVisible();
+  await expect(r.getByLabel("Phone")).toHaveAttribute("aria-required", "true");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText("This field is required.")).toBeVisible();
+
+  await r.getByLabel("Option 1").uncheck();
+  await expect(star).toBeHidden();
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+});

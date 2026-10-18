@@ -5,7 +5,12 @@
  *
  * Bundled into ../client.generated.ts by scripts/build-form-client.ts (`pnpm build:client`).
  */
-import { validateSubmission, visibleFields, type FieldError } from "@freelyforms/form-engine";
+import {
+  requiredFields,
+  validateSubmission,
+  visibleFields,
+  type FieldError,
+} from "@freelyforms/form-engine";
 import type { Form } from "@freelyforms/form-schema";
 import { errorMessage } from "../messages.js";
 
@@ -102,10 +107,26 @@ function setup(form: HTMLFormElement, schema: Fields) {
    * is skipped count as not shown (ADR 0018). Inputs of fields that are not shown are disabled, so
    * they are neither checked nor sent; the server applies the same rules.
    */
-  const dynamic = schema.fields.some((f) => f.showIf);
+  const dynamic = schema.fields.some((f) => f.showIf || ("requiredIf" in f && f.requiredIf));
   const applyVisibility = () => {
     if (!dynamic) return;
-    shown = visibleFields(schema, answersOf(form));
+    const answers = answersOf(form);
+    shown = visibleFields(schema, answers);
+    // Fields required only under conditions show the marker while those hold (ADR 0019).
+    const required = requiredFields(schema, answers);
+    for (const field of schema.fields) {
+      if (!("requiredIf" in field) || !field.requiredIf) continue;
+      const box = container(field.id);
+      const on = required.has(field.id);
+      const star = box?.querySelector<HTMLElement>("[data-req-if]");
+      if (star) star.hidden = !on;
+      const target =
+        box?.tagName === "FIELDSET"
+          ? box
+          : box?.querySelector<HTMLElement>(`[name="${CSS.escape(field.id)}"]`);
+      if (on) target?.setAttribute("aria-required", "true");
+      else target?.removeAttribute("aria-required");
+    }
     for (const field of schema.fields) {
       if (field.type === "page") continue;
       const visible = shown.has(field.id);

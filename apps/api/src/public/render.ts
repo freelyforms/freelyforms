@@ -135,6 +135,17 @@ const list = (v: unknown) => (Array.isArray(v) ? v.map(str) : typeof v === "stri
 
 type AnswerField = Exclude<Field, { type: "page" }>;
 
+/**
+ * The required marker. A field required only under conditions (ADR 0019) gets a hidden one that
+ * the form script shows while they hold.
+ */
+function starFor(field: AnswerField): Html | "" {
+  if (field.required === true) return html` <span class="req" aria-hidden="true">*</span>`;
+  if (field.requiredIf)
+    return html` <span class="req" aria-hidden="true" data-req-if hidden>*</span>`;
+  return "";
+}
+
 function control(field: AnswerField, value: unknown, describedBy: string | undefined): Html {
   const id = field.id;
   const req = field.required === true;
@@ -210,7 +221,7 @@ ${str(value)}</textarea>`;
           name="${id}"
           value="on"
           ${value === "on" || value === true ? raw(" checked") : ""}${req ? raw(" required") : ""}${aria}
-        />${field.label}${req ? html` <span class="req" aria-hidden="true">*</span>` : ""}</label
+        />${field.label}${starFor(field)}</label
       >`;
   }
 }
@@ -224,7 +235,7 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
     ? html`<p class="hint" id="${hintId}">${field.description}</p>`
     : "";
   const err = error ? html`<p class="error" id="${errId}">${errorMessage(error)}</p>` : "";
-  const star = field.required === true ? html` <span class="req" aria-hidden="true">*</span>` : "";
+  const star = starFor(field);
   if (field.type === "radio" || field.type === "checkboxes") {
     return html`<fieldset
       class="field"

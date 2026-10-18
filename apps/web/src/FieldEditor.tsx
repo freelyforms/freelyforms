@@ -309,7 +309,11 @@ export function FieldEditor(props: Props) {
                 type="checkbox"
                 checked={field.required === true}
                 onChange={(e) => {
-                  props.onChange({ required: e.target.checked || undefined });
+                  // Always required replaces "required only if" (ADR 0019).
+                  props.onChange({
+                    required: e.target.checked || undefined,
+                    ...(e.target.checked ? { requiredIf: undefined } : {}),
+                  });
                 }}
               />
               Required
@@ -410,7 +414,8 @@ export function FieldEditor(props: Props) {
 
       <div className="condition-toggle">
         <Conditions
-          subject={field.type === "page" ? "page" : "question"}
+          legend={`Show this ${field.type === "page" ? "page" : "question"} only if`}
+          addLabel="+ Show only if…"
           showIf={field.showIf}
           earlier={props.earlier.filter(isAnswerField)}
           onChange={(showIf) => {
@@ -418,6 +423,19 @@ export function FieldEditor(props: Props) {
           }}
         />
       </div>
+      {field.type !== "page" && field.type !== "hidden" && field.required !== true && (
+        <div className="condition-toggle">
+          <Conditions
+            legend="Require an answer only if"
+            addLabel="+ Required only if…"
+            showIf={field.requiredIf}
+            earlier={props.earlier.filter(isAnswerField)}
+            onChange={(requiredIf) => {
+              props.onChange({ requiredIf });
+            }}
+          />
+        </div>
+      )}
 
       {props.issues.map((m) => (
         <p key={m} className="issue" role="alert">

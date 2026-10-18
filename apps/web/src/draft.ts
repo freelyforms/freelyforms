@@ -8,6 +8,7 @@ import type {
   FieldOption,
   Form,
   FormSettings,
+  ShowIf,
 } from "@freelyforms/form-schema";
 import { MAX_FIELDS, MAX_OPTIONS, type FieldType } from "@freelyforms/form-schema/limits";
 
@@ -126,12 +127,18 @@ export function updateField(form: Form, id: string, patch: Record<string, unknow
 /** Drops condition rules that match `drop`; a field left without rules loses its `showIf`. */
 function withoutRules(form: Form, drop: (rule: ConditionRule) => boolean): Form {
   const fields = form.fields.map((f) => {
-    if (!f.showIf?.rules.some(drop)) return f;
-    const rules = f.showIf.rules.filter((r) => !drop(r));
-    return clean<Field>({
-      ...f,
-      showIf: rules.length ? { ...f.showIf, rules } : undefined,
-    });
+    let next: Field = f;
+    for (const key of ["showIf", "requiredIf"] as const) {
+      const set: ShowIf | undefined =
+        key === "showIf" ? next.showIf : "requiredIf" in next ? next.requiredIf : undefined;
+      if (!set?.rules.some(drop)) continue;
+      const rules = set.rules.filter((r) => !drop(r));
+      next = clean<Field>({
+        ...next,
+        [key]: rules.length ? { ...set, rules } : undefined,
+      });
+    }
+    return next;
   });
   return { ...form, fields };
 }
@@ -264,8 +271,12 @@ export function issuesByField(
     const match = /^fields\.(\d+)(?:\.(.+))?$/.exec(issue.path);
     const field = match ? form.fields[Number(match[1])] : undefined;
     const key = field?.id ?? "";
-    // Condition problems already say "Show only if: …".
-    const where = match ? (match[2]?.startsWith("showIf") ? "" : (match[2] ?? "")) : issue.path;
+    // Condition problems already say "Show only if: …" or "Required only if: …".
+    const where = match
+      ? /^(showIf|requiredIf)\b/.test(match[2] ?? "")
+        ? ""
+        : (match[2] ?? "")
+      : issue.path;
     const list = out.get(key) ?? [];
     list.push(where ? `${where}: ${issue.message}` : issue.message);
     out.set(key, list);

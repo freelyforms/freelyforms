@@ -64,7 +64,7 @@ Rules:
 | `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
 | `page`        | none (a page break, no column)   | `description` (shown under the page title)          |
 
-Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required` and optional `showIf` (see Conditions below). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
+Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required`, optional `showIf` and optional `requiredIf` (see Conditions below). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 
 A `hidden` field is not shown to respondents; its label is the column name in the sheet. Its value comes from the form link's query parameter `param` (default: the field ID), or, in an embed, from the same parameter in the address of the host page (the embed script passes only the parameter names the form asks for), or else `defaultValue`. It can't be `required`. Respondents can change it, so it is for attribution such as UTM tags, never for trust; validation never fails on it (unusable values are dropped, long ones shortened). The builder's "UTM tracking" adds hidden fields for `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` and `utm_content`.
 
@@ -106,6 +106,10 @@ Any field can be shown only when answers above it meet conditions ([ADR 0017](ad
 - Operators depend on the tested field: `equals`/`not_equals` (choice: an option ID; text: case-insensitive; number; date), `contains`/`not_contains` (text: case-insensitive substring; checkboxes and multi-select: an option ID), `greater_than`/`less_than` (number; date: after/before), `is_empty`/`is_not_empty` (any field; for consent: not ticked / ticked, with no `value`). `not_equals` and `not_contains` hold when the tested field is empty.
 - A field that is not shown is not validated (its `required` applies only when shown), and its answer is dropped on the server even if one is sent; its cell in the sheet stays empty. A field that depends on a field that is not shown sees it as empty, so hiding cascades.
 - The public form hides and disables such fields as the respondent answers, with the same evaluator (`visibleFields` in `form-engine`); without JavaScript every field is shown and the server applies the conditions.
+
+### Required only if (`requiredIf`)
+
+`requiredIf` has the same shape and rules as `showIf`, and makes a shown field required only while its conditions hold ([ADR 0019](adr/0019-conditional-required.md)). It can't be combined with `required`, and hidden fields and page breaks can't have it. The public form shows the required marker and sets `aria-required` while it applies; the server enforces it either way.
 
 ### Pages
 
@@ -154,10 +158,9 @@ Answers to choice fields are option IDs, so renaming an option label never break
 
 ## Logic model
 
-Conditions are data, never code: no executable JavaScript in form definitions. Showing a field when earlier answers match (`showIf`, above) is implemented; the same rule format is meant for later targets:
+Conditions are data, never code: no executable JavaScript in form definitions. Showing a field (`showIf`), requiring it (`requiredIf`) and skipping a page (`showIf` on a page break) are implemented with one rule format, meant for later targets too:
 
 ```text
-IF field A contains Y THEN require field C
 IF score > N THEN jump to page Z
 ```
 

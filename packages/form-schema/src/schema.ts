@@ -56,6 +56,8 @@ const base = {
   description: descriptionSchema.optional(),
   required: z.boolean().optional(),
   showIf: showIfSchema.optional(),
+  /** Required only when these conditions hold (ADR 0019); not together with `required`. */
+  requiredIf: showIfSchema.optional(),
 };
 
 const textual = {
@@ -154,8 +156,11 @@ export const fieldSchema = z
     const bad = (path: string, message: string) => {
       ctx.addIssue({ code: "custom", path: [path], message });
     };
-    if (field.type === "hidden" && field.required === true) {
+    if (field.type === "hidden" && (field.required === true || field.requiredIf)) {
       bad("required", "A hidden field can't be required: respondents can't see it");
+    }
+    if ("requiredIf" in field && field.requiredIf && field.required === true) {
+      bad("requiredIf", "Required only if: untick Required first, or remove these conditions");
     }
     if ("minLength" in field && field.minLength !== undefined && field.maxLength !== undefined) {
       if (field.minLength > field.maxLength) bad("minLength", "minLength exceeds maxLength");
@@ -247,16 +252,22 @@ export const formSchemaV1 = z
           message: `Duplicate field ID ${field.id}`,
         });
       }
-      field.showIf?.rules.forEach((rule, r) => {
-        const problem = ruleProblem(rule, earlier.get(rule.field));
-        if (problem) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["fields", index, "showIf", "rules", r],
-            message: problem,
-          });
-        }
-      });
+      const sets = [
+        ["showIf", "Show only if", field.showIf],
+        ["requiredIf", "Required only if", "requiredIf" in field ? field.requiredIf : undefined],
+      ] as const;
+      for (const [key, name, set] of sets) {
+        set?.rules.forEach((rule, r) => {
+          const problem = ruleProblem(rule, earlier.get(rule.field));
+          if (problem) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["fields", index, key, "rules", r],
+              message: `${name}: ${problem}`,
+            });
+          }
+        });
+      }
       if (field.type === "page") {
         const before = form.fields[index - 1];
         const problem =
@@ -278,32 +289,28 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Why a rule can't apply to its source field (only fields above it qualify), or null. */
 function ruleProblem(rule: z.infer<typeof conditionRuleSchema>, source: Field | undefined) {
-  if (!source) return "Show only if: choose a question above this one";
-  if (!isAnswerField(source)) return "Show only if: a page break has no answer to test";
+  if (!source) return "choose a question above this one";
+  if (!isAnswerField(source)) return "a page break has no answer to test";
   if (!OPERATORS_BY_TYPE[source.type].includes(rule.op)) {
-    return `Show only if: "${rule.op}" doesn't apply to this kind of question`;
+    return `"${rule.op}" doesn't apply to this kind of question`;
   }
   if (VALUELESS_OPERATORS.includes(rule.op)) {
-    return rule.value === undefined ? null : "Show only if: this test takes no value";
+    return rule.value === undefined ? null : "this test takes no value";
   }
   const { value } = rule;
-  if (value === undefined || value === "") return "Show only if: enter a value to compare with";
+  if (value === undefined || value === "") return "enter a value to compare with";
   if ("options" in source) {
     return typeof value === "string" && source.options.some((o) => o.id === value)
       ? null
-      : "Show only if: choose one of the question's options";
+      : "choose one of the question's options";
   }
   if (source.type === "number") {
-    return typeof value === "number" && Number.isFinite(value)
-      ? null
-      : "Show only if: enter a number";
+    return typeof value === "number" && Number.isFinite(value) ? null : "enter a number";
   }
   if (source.type === "date") {
-    return typeof value === "string" && ISO_DATE.test(value) ? null : "Show only if: enter a date";
+    return typeof value === "string" && ISO_DATE.test(value) ? null : "enter a date";
   }
-  return typeof value === "string" && /\S/.test(value)
-    ? null
-    : "Show only if: enter text to compare with";
+  return typeof value === "string" && /\S/.test(value) ? null : "enter text to compare with";
 }
 
 export type Form = z.infer<typeof formSchemaV1>;
