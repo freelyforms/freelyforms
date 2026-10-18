@@ -98,8 +98,10 @@ function setup(form: HTMLFormElement, schema: Fields) {
   };
 
   const sections = [...form.querySelectorAll<HTMLElement>(":scope > section.page")];
-  const paged = sections.length > 1;
-  const pageOf = (id: string) => sections.findIndex((s) => s.contains(container(id)));
+  // One question at a time when the owner chose the conversational mode; otherwise one page at a
+  // time when there are page breaks (ADR 0018). Without this script everything shows at once.
+  const conversational = form.dataset.mode === "conversational";
+  const paged = conversational || sections.length > 1;
   let shown: ReadonlySet<string> = new Set(schema.fields.map((f) => f.id));
 
   /**
@@ -141,21 +143,45 @@ function setup(form: HTMLFormElement, schema: Fields) {
     renderPage();
   };
 
-  // One page at a time, with Back and Next (ADR 0018). Without this script every page shows.
   let step = 0;
   const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
   const progress = document.createElement("p");
   const back = document.createElement("button");
   const next = document.createElement("button");
   const pagesInUse = () => sections.filter((s) => !s.dataset.field || shown.has(s.dataset.field));
+
+  /** What one step shows: a page, or in the conversational mode one question on its page. */
+  interface Step {
+    section: HTMLElement;
+    field?: HTMLElement;
+  }
+  const steps = (): Step[] =>
+    conversational
+      ? pagesInUse().flatMap((section) =>
+          [...section.querySelectorAll<HTMLElement>(":scope > [data-field]")]
+            .filter((field) => !field.hidden)
+            .map((field) => ({ section, field })),
+        )
+      : pagesInUse().map((section) => ({ section }));
+  const stepOf = (id: string) =>
+    steps().findIndex((s) => (s.field ?? s.section).contains(container(id)));
+
   function renderPage() {
     if (!paged) return;
-    const active = pagesInUse();
-    step = Math.min(step, active.length - 1);
-    const current = active[step];
-    for (const section of sections) section.hidden = section !== current;
-    const last = step === active.length - 1;
-    progress.textContent = `Page ${String(step + 1)} of ${String(active.length)}`;
+    const all = steps();
+    step = Math.max(0, Math.min(step, all.length - 1));
+    const current = all[step];
+    for (const section of sections) section.hidden = section !== current?.section;
+    if (conversational && current) {
+      // A page's title shows with its first question only.
+      const first = all.find((s) => s.section === current.section)?.field;
+      for (const el of current.section.querySelectorAll<HTMLElement>(":scope > *")) {
+        const isTitle = !el.dataset.field;
+        el.classList.toggle("step-off", isTitle ? current.field !== first : el !== current.field);
+      }
+    }
+    const last = step >= all.length - 1;
+    progress.textContent = `${conversational ? "Question" : "Page"} ${String(step + 1)} of ${String(all.length)}`;
     back.hidden = step === 0;
     next.hidden = last;
     if (submit) submit.hidden = !last;
@@ -163,10 +189,15 @@ function setup(form: HTMLFormElement, schema: Fields) {
   const goTo = (index: number) => {
     step = Math.max(0, index);
     renderPage();
-    const current = pagesInUse()[step];
-    const title = current?.querySelector<HTMLElement>(".page-title");
+    const current = steps()[step];
+    const title = conversational
+      ? null
+      : current?.section.querySelector<HTMLElement>(".page-title");
     if (form.getBoundingClientRect().top < 0) form.scrollIntoView({ block: "start" });
-    (title ?? current?.querySelector<HTMLElement>("input, select, textarea"))?.focus();
+    (
+      title ??
+      (current?.field ?? current?.section)?.querySelector<HTMLElement>("input, select, textarea")
+    )?.focus();
   };
 
   const focusField = (id: string) => {
@@ -177,14 +208,13 @@ function setup(form: HTMLFormElement, schema: Fields) {
     control?.focus();
   };
 
-  /** Checks the fields on the current page only; true when it can be left. */
+  /** Checks the fields of the current step only; true when it can be left. */
   const checkPage = () => {
     attempted = true;
-    const current = pagesInUse()[step];
+    const current = steps()[step];
+    const scope = current?.field ?? current?.section;
     const errors = errorsFor(schema.fields);
-    const here = schema.fields.filter(
-      (f) => f.type !== "page" && current?.contains(container(f.id)),
-    );
+    const here = schema.fields.filter((f) => f.type !== "page" && scope?.contains(container(f.id)));
     for (const field of here) show(field.id, errors.get(field.id));
     const first = here.find((f) => errors.has(f.id));
     summary(first !== undefined);
@@ -219,8 +249,8 @@ function setup(form: HTMLFormElement, schema: Fields) {
 
   form.addEventListener("submit", (event) => {
     attempted = true;
-    // Enter in a field on an earlier page means Next, not Submit.
-    if (paged && step < pagesInUse().length - 1) {
+    // Enter in a field before the last step means Next, not Submit.
+    if (paged && step < steps().length - 1) {
       event.preventDefault();
       if (checkPage()) goTo(step + 1);
       return;
@@ -232,9 +262,9 @@ function setup(form: HTMLFormElement, schema: Fields) {
       event.preventDefault();
       summary(true);
       if (paged) {
-        const page = pagesInUse().indexOf(sections[pageOf(first.id)] as HTMLElement);
-        if (page >= 0 && page !== step) {
-          step = page;
+        const at = stepOf(first.id);
+        if (at >= 0 && at !== step) {
+          step = at;
           renderPage();
         }
       }

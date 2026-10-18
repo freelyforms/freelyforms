@@ -376,3 +376,38 @@ test("an answer must fit the format the owner set", async ({ page, browser, requ
   await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
   expect((await rows(request, spreadsheetId))[1]).toContain("ab-1234");
 });
+
+test("the conversational layout asks one question at a time", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await formFromTemplate(page, "contact-form");
+  await page.getByRole("tab", { name: "Design" }).click();
+  await page.getByRole("button", { name: "One question at a time" }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  const progress = r.locator(".progress");
+  await expect(progress).toHaveText("Question 1 of 4");
+  await expect(r.getByLabel("Name")).toBeVisible();
+  await expect(r.getByLabel("Email")).toBeHidden();
+  // Next checks only the question on screen.
+  await r.getByRole("button", { name: "Next" }).click();
+  await expect(r.getByText("This field is required.")).toBeVisible();
+  await r.getByLabel("Name").fill("Grace Hopper");
+  await r.getByLabel("Name").press("Enter");
+  await expect(progress).toHaveText("Question 2 of 4");
+  await r.getByLabel("Email").fill("grace@example.com");
+  await r.getByRole("button", { name: "Next" }).click();
+  await r.getByRole("button", { name: "Next" }).click(); // the topic is optional
+  await expect(progress).toHaveText("Question 4 of 4");
+  await r.getByLabel("Message").fill("One question at a time works.");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Send message" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+});

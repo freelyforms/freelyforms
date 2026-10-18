@@ -29,7 +29,9 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .progress{color:var(--muted);font-size:.9rem;margin:0 0 16px}.pager{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
 .pager .back{background:transparent;color:var(--fg);border:1px solid var(--line)}
 .page{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}.page>*{grid-column:1/-1}
-.page>.half{grid-column:auto}@media (max-width:560px){.page>.half{grid-column:1/-1}}
+.page>.half{grid-column:auto}.step-off{display:none!important}
+form[data-mode=conversational] .field>label,form[data-mode=conversational] .field>legend{font-size:1.3rem;line-height:1.35;margin-bottom:12px}
+form[data-mode=conversational] .page>.half{grid-column:1/-1}@media (max-width:560px){.page>.half{grid-column:1/-1}}
 footer{max-width:620px;margin:0 auto;padding:16px 20px 32px;font-size:.8rem;color:var(--muted)}
 footer p{margin:0 0 4px}footer a{color:inherit}
 `;
@@ -318,9 +320,10 @@ export function renderForm(
   const errors = new Map((state.errors ?? []).map((e) => [e.fieldId, e]));
   const turnstile = opts.turnstileSiteKey && !opts.preview ? opts.turnstileSiteKey : undefined;
   // Multi-page forms keep the check out of sight unless it needs the respondent (ADR 0018).
-  const appearance = form.fields.some((f) => f.type === "page")
-    ? raw(' data-appearance="interaction-only"')
-    : "";
+  const appearance =
+    form.settings?.mode === "conversational" || form.fields.some((f) => f.type === "page")
+      ? raw(' data-appearance="interaction-only"')
+      : "";
   return page(
     form.title,
     html`<h1>${form.title}</h1>
@@ -333,7 +336,13 @@ export function renderForm(
           : ""
       }
       ${state.notice ? html`<p class="error" role="alert">${state.notice}</p>` : ""}
-      <form method="post" action="${action}" novalidate data-ff>
+      <form
+        method="post"
+        action="${action}"
+        novalidate
+        data-ff
+        ${form.settings?.mode === "conversational" ? raw(' data-mode="conversational"') : ""}
+      >
         ${pages(form).map(
           (p) =>
             html`<section

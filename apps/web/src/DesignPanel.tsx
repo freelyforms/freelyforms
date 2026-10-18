@@ -130,6 +130,37 @@ export function DesignPanel({ form, onChange }: { form: Form; onChange: (form: F
         <p className="helper">
           Fonts are the respondent's own system fonts; nothing is downloaded.
         </p>
+
+        <span className="field-label" id={`${uid}-mode-label`}>
+          Layout
+        </span>
+        <div className="segmented" role="group" aria-labelledby={`${uid}-mode-label`}>
+          {(
+            [
+              ["classic", "All questions"],
+              ["conversational", "One question at a time"],
+            ] as const
+          ).map(([value, label]) => {
+            const current = form.settings?.mode ?? "classic";
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={current === value}
+                className={current === value ? "selected" : undefined}
+                onClick={() => {
+                  onChange(updateSettings(form, { mode: value === "classic" ? undefined : value }));
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="helper">
+          One at a time shows each question on its own with Back and Next; page break titles show
+          with the first question of their page.
+        </p>
       </section>
 
       <section className="card">

@@ -251,6 +251,8 @@ export const themeSchema = z.strictObject({
 
 export const settingsSchema = z.strictObject({
   submitLabel: z.string().min(1).max(60).regex(nonBlank, "Must not be blank").optional(),
+  /** `conversational` shows one question at a time (the form script; without it, all show). */
+  mode: z.enum(["classic", "conversational"]).optional(),
   success: successSchema.optional(),
   theme: themeSchema.optional(),
 });

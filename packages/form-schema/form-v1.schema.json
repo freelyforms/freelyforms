@@ -31,6 +31,13 @@
           "maxLength": 60,
           "pattern": "\\S"
         },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "classic",
+            "conversational"
+          ]
+        },
         "success": {
           "oneOf": [
             {

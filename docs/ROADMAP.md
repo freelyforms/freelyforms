@@ -37,6 +37,8 @@ Release publicly as soon as this is trustworthy.
 
 ## Phase 2 — Better than basic Google Forms
 
+Status: done (2026-10-18).
+
 - sections and multi-page forms (done: page breaks, ADR 0018);
 - progress indicator (done);
 - conditional visibility (done: `showIf`, ADR 0017);
@@ -48,7 +50,7 @@ Release publicly as soon as this is trustworthy.
 - custom validation (done: answer formats and masks, ADR 0020);
 - redirects after submitting (done);
 - duplication (done) and templates (25 on the website, done);
-- conversational rendering mode.
+- conversational rendering mode (done: one question at a time).
 
 ## Phase 3 — Advanced building blocks
 
