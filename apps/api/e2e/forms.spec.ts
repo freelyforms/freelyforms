@@ -316,3 +316,37 @@ test("a question can be required only when an earlier answer calls for it", asyn
   await r.getByRole("button", { name: "Submit" }).click();
   await expect(r.getByText(/received/i)).toBeVisible();
 });
+
+test("a form exported as JSON imports back as a new draft with the same questions", async ({
+  page,
+}) => {
+  await signIn(page);
+  await formFromTemplate(page, "rsvp-form");
+  await page.getByRole("tab", { name: "Publish" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download JSON" }).click(),
+  ]);
+  const file = await download.path();
+  const exported = JSON.parse(await (await import("node:fs/promises")).readFile(file, "utf8")) as {
+    id: string;
+    fields: { label: string }[];
+  };
+
+  await page.goto("/app/");
+  await page.getByLabel("Import a form from a JSON file").setInputFiles(file);
+  await expect(page).toHaveURL(/\/app\/forms\/frm_/);
+  expect(page.url()).not.toContain(exported.id);
+  const questions = page.locator("article input[id$='-label']");
+  await expect(questions).toHaveCount(exported.fields.length);
+  await expect(questions.first()).toHaveValue(exported.fields[0]?.label ?? "");
+
+  // A file that isn't a form is explained, not imported.
+  await page.goto("/app/");
+  await page.getByLabel("Import a form from a JSON file").setInputFiles({
+    name: "notes.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"title": "No schema version"}'),
+  });
+  await expect(page.getByRole("alert")).toContainText("isn't a form Freely Forms can read");
+});

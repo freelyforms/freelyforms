@@ -92,6 +92,22 @@ async function view(c: Ctx, form: FormRow, destination: DestinationRow | null) {
   };
 }
 
+/**
+ * Stores a new draft form for the signed-in owner, in the schema's own key order (as saved drafts
+ * and published versions are, so an unchanged draft compares equal to its first published version).
+ */
+async function insertDraft(c: Ctx, now: number, candidate: Form) {
+  const parsed = parseForm(candidate);
+  const draft = parsed.success ? parsed.form : candidate;
+  await c.env.DB.prepare(
+    "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+  )
+    .bind(draft.id, c.var.user.id, draft.title, JSON.stringify(draft), now, now)
+    .run();
+  const form = await ownedForm(c, draft.id);
+  return c.json(form && (await view(c, form, null)), 201);
+}
+
 /** Google failures during publishing, as an owner-facing status. */
 function googleFailure(c: Ctx, err: unknown) {
   if (!(err instanceof GoogleApiError)) throw err;
@@ -155,18 +171,7 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     const candidate: Form = template
       ? { ...structuredClone(template.form), id, title: title.slice(0, 200) }
       : { schemaVersion: 1, id, title: title.slice(0, 200), fields: [] };
-    // Stored as the schema writes it, like saved drafts and published versions, so an unchanged
-    // template compares equal to its first published version.
-    const parsed = parseForm(candidate);
-    const draft = parsed.success ? parsed.form : candidate;
-    const now = deps.now();
-    await c.env.DB.prepare(
-      "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
-    )
-      .bind(id, c.var.user.id, draft.title, JSON.stringify(draft), now, now)
-      .run();
-    const form = await ownedForm(c, id);
-    return c.json(form && (await view(c, form, null)), 201);
+    return insertDraft(c, deps.now(), candidate);
   });
 
   /**
@@ -178,17 +183,31 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     if (!source) return c.json({ error: "not_found" }, 404);
     const id = newFormId();
     const title = `${source.title} (copy)`.slice(0, 200);
-    const candidate = { ...(JSON.parse(source.draft_json) as Form), id, title };
-    const parsed = parseForm(candidate);
-    const draft = parsed.success ? parsed.form : candidate;
-    const now = deps.now();
-    await c.env.DB.prepare(
-      "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
-    )
-      .bind(id, c.var.user.id, title, JSON.stringify(draft), now, now)
-      .run();
-    const form = await ownedForm(c, id);
-    return c.json(form && (await view(c, form, null)), 201);
+    return insertDraft(c, deps.now(), { ...(JSON.parse(source.draft_json) as Form), id, title });
+  });
+
+  /**
+   * Creates a draft from an exported form definition (forms are portable as JSON). The form gets a
+   * fresh ID; field and option IDs are kept, so conditions keep working. No spreadsheet yet.
+   */
+  forms.post("/import", async (c) => {
+    const bytes = await readBodyLimited(c.req.raw, MAX_DRAFT_BYTES);
+    if (!bytes) return c.json({ error: "too_large" }, 413);
+    let input: unknown;
+    try {
+      input = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      return c.json({ error: "invalid_json" }, 400);
+    }
+    if (typeof input !== "object" || input === null || Array.isArray(input)) {
+      return c.json(
+        { error: "invalid_form", issues: [{ path: "", message: "Expected a form object" }] },
+        422,
+      );
+    }
+    const parsed = parseForm({ ...input, id: newFormId() });
+    if (!parsed.success) return c.json({ error: "invalid_form", issues: parsed.issues }, 422);
+    return insertDraft(c, deps.now(), parsed.form);
   });
 
   forms.get("/:id", async (c) => {

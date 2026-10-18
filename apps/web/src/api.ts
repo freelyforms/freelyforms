@@ -87,6 +87,8 @@ export const api = {
     request<{ resumed: number; more: boolean }>(`/forms/${id}/deliveries/resume`, {
       method: "POST",
     }),
+  importForm: (definition: unknown) =>
+    request<FormView>("/forms/import", { method: "POST", body: definition }),
   duplicateForm: (id: string) => request<FormView>(`/forms/${id}/duplicate`, { method: "POST" }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
   pickerConfig: () =>

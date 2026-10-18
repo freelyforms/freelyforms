@@ -14,6 +14,7 @@ export function FormList() {
   const [creating, setCreating] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const [template, setTemplate] = useState(pendingTemplate);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.listForms().then(
@@ -61,6 +62,66 @@ export function FormList() {
     }
   };
 
+  /** A form exported with Download JSON (here or elsewhere) becomes a new draft. */
+  const importFile = async (file: File) => {
+    setError(null);
+    if (file.size > 256 * 1024) {
+      setError("That file is too large for a form (256 KB at most).");
+      return;
+    }
+    let definition: unknown;
+    try {
+      definition = JSON.parse(await file.text());
+    } catch {
+      setError("That file isn't valid JSON. Choose a form saved with Download JSON.");
+      return;
+    }
+    setCreating(true);
+    try {
+      const form = await api.importForm(definition);
+      navigate(`/forms/${form.id}`);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "invalid_form") {
+        const issues = (err.body.issues as { path: string; message: string }[] | undefined) ?? [];
+        const listed = issues
+          .slice(0, 3)
+          .map((i) => (i.path ? `${i.path}: ${i.message}` : i.message))
+          .join("; ");
+        setError(`That file isn't a form Freely Forms can read. ${listed}`);
+      } else {
+        setError("The form could not be imported. Please try again.");
+      }
+      setCreating(false);
+    }
+  };
+
+  const importButton = (
+    <>
+      <button
+        type="button"
+        className="ghost"
+        disabled={creating}
+        onClick={() => {
+          fileRef.current?.click();
+        }}
+      >
+        Import JSON
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json,application/json"
+        aria-label="Import a form from a JSON file"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void importFile(file);
+        }}
+      />
+    </>
+  );
+
   const newForm = (
     <button
       type="button"
@@ -80,7 +141,12 @@ export function FormList() {
           Forms
           {forms && forms.length > 0 && <span className="count">{forms.length}</span>}
         </h1>
-        {!creatingOpen && forms && forms.length > 0 && newForm}
+        {!creatingOpen && forms && forms.length > 0 && (
+          <div className="row">
+            {importButton}
+            {newForm}
+          </div>
+        )}
       </div>
 
       {template && (
@@ -158,7 +224,10 @@ export function FormList() {
             Build it here, share a link or embed it, and every response becomes a row in a Google
             Sheet in your Drive.
           </p>
-          {newForm}
+          <div className="row">
+            {newForm}
+            {importButton}
+          </div>
         </div>
       )}
       {forms && forms.length > 0 && (

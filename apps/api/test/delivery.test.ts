@@ -211,6 +211,45 @@ describe("owner forms API", () => {
     );
   });
 
+  it("imports an exported form as a new draft, keeping field IDs", async () => {
+    const exported = {
+      schemaVersion: 1,
+      id: "frm_elsewhere1",
+      title: "Imported",
+      fields: [
+        ...fields,
+        {
+          id: "fld_more",
+          type: "text",
+          label: "More",
+          showIf: {
+            match: "all",
+            rules: [{ field: "fld_topic", op: "equals", value: "opt_sales" }],
+          },
+        },
+      ],
+    };
+    const res = await owner("/forms/import", { method: "POST", body: exported });
+    expect(res.status).toBe(201);
+    const view = await res.json<{
+      id: string;
+      status: string;
+      destination: unknown;
+      draft: { id: string; fields: { id: string }[] };
+    }>();
+    expect(view.id).not.toBe("frm_elsewhere1");
+    expect(view).toMatchObject({ status: "draft", destination: null, draft: { id: view.id } });
+    expect(view.draft.fields.map((f) => f.id)).toEqual(exported.fields.map((f) => f.id));
+
+    const bad = await owner("/forms/import", {
+      method: "POST",
+      body: { ...exported, fields: [{ id: "fld_x", type: "nope", label: "X" }] },
+    });
+    expect(bad.status).toBe(422);
+    expect((await bad.json<{ error: string }>()).error).toBe("invalid_form");
+    expect((await owner("/forms/import", { method: "POST", body: [1] })).status).toBe(422);
+  });
+
   it("duplicates a form as a new draft without its spreadsheet", async () => {
     const id = await publishedForm();
     await owner(`/forms/${id}/draft`, {
