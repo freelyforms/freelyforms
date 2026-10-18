@@ -105,8 +105,22 @@ export async function resumeStragglers(env: Env): Promise<void> {
      WHERE x.held_at IS NOT NULL AND d.state = 'OK'
      GROUP BY x.destination_id ORDER BY oldest LIMIT 10`,
   ).all<{ id: string }>();
-  let budget = SWEEP_LIMIT;
-  for (const { id } of results) {
+  await resumeDestinations(
+    env,
+    results.map((r) => r.id),
+  );
+}
+
+/**
+ * Resumes held deliveries of the given destinations, at most `budget` in all; the hourly sweep
+ * picks up whatever is left.
+ */
+export async function resumeDestinations(
+  env: Env,
+  destinationIds: string[],
+  budget = SWEEP_LIMIT,
+): Promise<void> {
+  for (const id of destinationIds) {
     if (budget <= 0) break;
     const { resumed } = await resumeHeld(env, id, budget);
     budget -= Math.max(resumed.length, 1);

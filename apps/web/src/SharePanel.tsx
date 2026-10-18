@@ -148,7 +148,7 @@ export function SharePanel({
       setResumeNote(
         r.resumed === 0
           ? "Delivery resumed. Nothing was waiting."
-          : `${String(r.resumed)} response(s) sent to your sheet again.${r.more ? " More are on their way." : ""}`,
+          : `${String(r.resumed)} ${r.resumed === 1 ? "response" : "responses"} sent to your sheet again.${r.more ? " More are on their way." : ""}`,
       );
       loadDeliveries();
     } catch {

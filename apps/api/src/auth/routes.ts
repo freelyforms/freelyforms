@@ -2,6 +2,7 @@ import { decryptText, encrypt, type Envelope } from "@freelyforms/crypto";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Deps, Env } from "../env.js";
+import { resumeDestinations } from "../delivery/hold.js";
 import { keyringFor } from "../keys.js";
 import { base64Url, decodeBase64UrlText, newId, randomToken, safeEqual } from "../util.js";
 import {
@@ -161,14 +162,21 @@ export function authRoutes(deps: Deps): Hono<{ Bindings: Env }> {
         )
         .bind(newId("gc"), user.id, scopes, JSON.stringify(envelope), now, now)
         .run();
-      // Access is back: destinations blocked only for lack of it are OK again, and the hourly
-      // sweep resumes their held deliveries (ADR 0011).
-      await db
-        .prepare(
-          "UPDATE destinations SET state = 'OK', last_error_code = NULL, updated_at = ? WHERE state = 'ACCESS_REVOKED' AND form_id IN (SELECT id FROM forms WHERE owner_id = ?)",
-        )
-        .bind(now, user.id)
-        .run();
+      // Drive access is back: destinations blocked only for lack of it are OK again and their held
+      // deliveries go back to the queue now (ADR 0011); the hourly sweep sends any remainder.
+      // Without the Drive scope (the owner unticked it) they stay blocked.
+      if (tokens.scopes.includes(DRIVE_FILE_SCOPE)) {
+        const { results } = await db
+          .prepare(
+            "UPDATE destinations SET state = 'OK', last_error_code = NULL, updated_at = ? WHERE state = 'ACCESS_REVOKED' AND form_id IN (SELECT id FROM forms WHERE owner_id = ?) RETURNING id",
+          )
+          .bind(now, user.id)
+          .all<{ id: string }>();
+        await resumeDestinations(
+          c.env,
+          results.map((r) => r.id),
+        );
+      }
     } else {
       await db
         .prepare("UPDATE google_connections SET scopes = ?, updated_at = ? WHERE user_id = ?")

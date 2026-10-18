@@ -102,3 +102,5 @@ The UI must detect and explain:
 - destination schema manually altered.
 
 Never lose submissions silently. Failed delivery should be observable to the form owner. Destination states and owner-visible errors are defined in [ADR 0005](adr/0005-sheet-is-externally-mutable.md).
+
+While access is revoked or disconnected, responses wait encrypted in the hold store for up to 7 days ([ADR 0011](adr/0011-hold-store-for-blocked-deliveries.md)). When the owner signs in again and grants Drive access, their `ACCESS_REVOKED` destinations become `OK` and the held responses are queued straight away; the hourly sweep sends any that one sign-in did not cover. Signing in without the Drive scope leaves them held.

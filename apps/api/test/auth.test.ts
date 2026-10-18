@@ -2,7 +2,8 @@ import { generateMasterKeySecret } from "@freelyforms/crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pkceChallenge } from "../src/auth/google.js";
 import { createApp, type Env } from "../src/app.js";
-import type { Deps } from "../src/env.js";
+import { holdKey } from "../src/delivery/hold.js";
+import type { DeliveryMessage, Deps } from "../src/env.js";
 import { base64Url } from "../src/util.js";
 import { localD1 } from "./d1.js";
 import { fakeKv, fakeQueue } from "./fakes.js";
@@ -14,12 +15,13 @@ const REFRESH = "1//refresh-token-secret";
 
 let d1: Awaited<ReturnType<typeof localD1>>;
 let env: Env;
+const queue = fakeQueue();
 
 beforeAll(async () => {
   d1 = await localD1();
   env = {
     DB: d1.db,
-    DELIVERY_QUEUE: fakeQueue().queue,
+    DELIVERY_QUEUE: queue.queue,
     HOLD: fakeKv(() => NOW).kv,
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: "test-secret",
@@ -201,8 +203,37 @@ describe("GET /auth/google/callback", () => {
       ),
       env.DB.prepare("DELETE FROM google_connections"),
     ]);
+    const held = {
+      submissionId: "01HELDHELDHELDHELDHELDHELD",
+      formId: "frm_back01",
+      formVersion: 1,
+      submittedAt: NOW,
+      payload: { v: 1, kid: "k1", iv: "", ct: "" },
+    } as unknown as DeliveryMessage;
+    await env.DB.prepare(
+      "INSERT INTO deliveries (submission_id, form_id, form_version, destination_id, state, accepted_at, expires_at, held_at) VALUES (?, 'frm_back01', 1, 'dst_back01', 'blocked', ?, ?, ?)",
+    )
+      .bind(held.submissionId, NOW, NOW + 7 * 86_400_000, NOW)
+      .run();
+    await env.HOLD.put(holdKey("dst_back01", held.submissionId), JSON.stringify(held));
+
+    // Signing in without the Drive scope keeps the destination blocked and the delivery held.
+    await harness({
+      sub: "back-again",
+      refreshToken: REFRESH,
+      scope: "openid email profile",
+    }).signIn("?consent=1");
+    expect(await env.DB.prepare("SELECT state FROM destinations").first("state")).toBe(
+      "ACCESS_REVOKED",
+    );
+    expect(queue.sent).toHaveLength(0);
+
+    // With Drive access back, the held delivery is queued at once rather than at the next sweep.
     await harness({ sub: "back-again", refreshToken: REFRESH }).signIn("?consent=1");
     expect(await env.DB.prepare("SELECT state FROM destinations").first("state")).toBe("OK");
+    expect(queue.sent.map((m) => m.submissionId)).toEqual([held.submissionId]);
+    expect(await env.DB.prepare("SELECT state FROM deliveries").first("state")).toBe("queued");
+    expect(await env.HOLD.get(holdKey("dst_back01", held.submissionId))).toBeNull();
   });
 
   it("records missing Drive access when the user unticks it", async () => {
