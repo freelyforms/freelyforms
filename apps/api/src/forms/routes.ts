@@ -152,9 +152,13 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
         ? body.title.trim()
         : (template?.form.title ?? "Untitled form");
     const id = newFormId();
-    const draft: Form = template
+    const candidate: Form = template
       ? { ...structuredClone(template.form), id, title: title.slice(0, 200) }
       : { schemaVersion: 1, id, title: title.slice(0, 200), fields: [] };
+    // Stored as the schema writes it, like saved drafts and published versions, so an unchanged
+    // template compares equal to its first published version.
+    const parsed = parseForm(candidate);
+    const draft = parsed.success ? parsed.form : candidate;
     const now = deps.now();
     await c.env.DB.prepare(
       "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",

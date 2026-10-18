@@ -205,6 +205,14 @@ describe("owner forms API", () => {
     );
   });
 
+  it("does not report unpublished changes for a template published as it is", async () => {
+    const created = await owner("/forms", { method: "POST", body: { template: "contact-form" } });
+    const { id } = await created.json<{ id: string }>();
+    expect((await owner(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+    const view = await (await owner(`/forms/${id}`)).json<{ hasUnpublishedChanges: boolean }>();
+    expect(view.hasUnpublishedChanges).toBe(false);
+  });
+
   it("hides one owner's forms from another owner", async () => {
     const id = await publishedForm();
     const token = randomToken();
