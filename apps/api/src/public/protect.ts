@@ -51,7 +51,14 @@ export async function withinRateLimits(
 }
 
 /** CSP for a public form page. Forms may be embedded anywhere, so framing is allowed. */
-export function formPageCsp(nonce: string, turnstile: boolean): string {
+export function formPageCsp(nonce: string, turnstile: boolean, uploads = false): string {
+  // File fields ask this origin for upload slots and send the bytes straight to Google (ADR 0007).
+  const connect = [
+    uploads ? "'self' https://www.googleapis.com" : "",
+    turnstile ? "https://challenges.cloudflare.com" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return [
     "default-src 'none'",
     `style-src 'nonce-${nonce}'`,
@@ -60,7 +67,7 @@ export function formPageCsp(nonce: string, turnstile: boolean): string {
       ? `script-src 'nonce-${nonce}' https://challenges.cloudflare.com`
       : `script-src 'nonce-${nonce}'`,
     turnstile ? "frame-src https://challenges.cloudflare.com" : "",
-    turnstile ? "connect-src https://challenges.cloudflare.com" : "",
+    connect ? `connect-src ${connect}` : "",
     "img-src 'self' data:",
     "form-action 'self'",
     "base-uri 'none'",

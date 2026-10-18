@@ -17,7 +17,11 @@ import { fakeGoogle } from "../test/fake-google.js";
 const google = fakeGoogle();
 /** Webhook bodies sent to the test receiver (ADR 0021). */
 const hooks: { signature: string | null; body: unknown }[] = [];
-const GOOGLE_HOSTS = new Set(["oauth2.googleapis.com", "sheets.googleapis.com"]);
+const GOOGLE_HOSTS = new Set([
+  "oauth2.googleapis.com",
+  "sheets.googleapis.com",
+  "www.googleapis.com",
+]);
 
 const deps: Deps = {
   fetch: (input, init) => {
@@ -85,6 +89,16 @@ testRoutes.get("/__e2e/sheets/:id", (c) => {
   return sheet ? c.json(sheet.rows) : c.json({ error: "not_found" }, 404);
 });
 
+/**
+ * A Drive resumable session URI as the fake hands it out (ADR 0007): the browser PUTs the file
+ * here, as it would to Google, and gets the new file's resource back.
+ */
+testRoutes.put("/__e2e/drive-upload/:id", async (c) => {
+  const size = (await c.req.arrayBuffer()).byteLength;
+  const file = google.completeUpload(c.req.param("id"), size);
+  return file ? c.json(file) : c.json({ error: "no_session" }, 404);
+});
+
 /** Webhook bodies the test receiver got, oldest first. */
 testRoutes.get("/__e2e/webhooks", (c) => c.json(hooks));
 
@@ -102,5 +116,5 @@ export default {
       ? testRoutes.fetch(request, env, ctx)
       : app.fetch(request, env, ctx),
   queue: (batch: MessageBatch<DeliveryMessage>, env: Env) => processBatch(batch, env, deps),
-  scheduled: (_controller: ScheduledController, env: Env) => maintenance(env, Date.now()),
+  scheduled: (_controller: ScheduledController, env: Env) => maintenance(env, Date.now(), deps),
 } satisfies ExportedHandler<Env, DeliveryMessage>;

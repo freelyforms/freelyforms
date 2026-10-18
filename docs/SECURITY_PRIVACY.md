@@ -10,6 +10,7 @@ Freely Forms does not keep a central database of submission content. Engineering
 - encryption key must not live in the same plaintext database;
 - never send refresh tokens to the browser; the only token the browser ever gets is a short-lived access token for Google Picker while it is open (`GET /account/google/picker`, `no-store`);
 - never log access or refresh tokens;
+- uploaded files (ADR 0007) go from the respondent's browser straight to the owner's Drive; the platform hands out single-file upload slots bound to the forms origin, never sees or stores the bytes, keeps only the folder's ID, verifies each file's tags before linking it, and deletes files that were never sent with a response after a day;
 - webhooks (ADR 0021) send response content only to the `https://` address the owner chose; their signing secrets are encrypted like tokens, request bodies are never logged or stored, and URLs on `localhost`, IP literals or without a public host are refused;
 - support token revocation/disconnect (implemented: `POST /account/google/disconnect`, also part of account deletion);
 - minimise scopes;

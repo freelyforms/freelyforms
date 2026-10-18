@@ -181,6 +181,24 @@ function validNumber(field: Extract<Field, { type: "number" }>, raw: unknown): O
   return { value };
 }
 
+const FILE_ANSWER = /^[A-Za-z0-9_-]{10,200}:[A-Za-z0-9_-]{16,64}$/;
+
+/**
+ * Uploaded files (ADR 0007): `<fileId>:<token>` each, at most `maxFiles`. Only the shape is
+ * checked here; the delivery checks each file in Drive before writing its link.
+ */
+function validFiles(field: Extract<Field, { type: "file" }>, raw: unknown): Outcome {
+  const list = (Array.isArray(raw) ? (raw as unknown[]) : [raw])
+    .flatMap((v) => (typeof v === "string" ? v.split(/[\s,]+/) : [v]))
+    .filter((v) => v !== "");
+  if (!list.every((v): v is string => typeof v === "string" && FILE_ANSWER.test(v))) {
+    return fail("invalid_type");
+  }
+  const max = field.maxFiles ?? 1;
+  if (list.length > max) return fail("too_many_selected", { max });
+  return { value: [...new Set(list)] };
+}
+
 /**
  * A matrix answer: one column ID per row, in row order, "" for a blank row (ADR 0023). Required
  * means every row is answered.
@@ -329,6 +347,8 @@ function validateField(
       return validStep(raw, 1, field.max ?? DEFAULT_RATING_MAX);
     case "scale":
       return validStep(raw, field.min ?? DEFAULT_SCALE_MIN, field.max ?? DEFAULT_SCALE_MAX);
+    case "file":
+      return validFiles(field, raw);
     case "matrix":
       return validMatrix(field, raw);
     case "ranking":

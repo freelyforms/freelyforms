@@ -96,6 +96,8 @@ The builder is served at `/app/` by the same Worker (static assets from `apps/we
 
 ## Website pages
 
+`POST /f/:formId/uploads` (forms domain; ADR 0007) gives the form page an upload slot for one file: body `{ fieldId, name, size, type }`, only from the form's own origin (`403 forbidden_origin` otherwise), rate-limited per IP. `201 { uploadUrl, token }`: the browser PUTs the bytes to `uploadUrl` (a Google resumable session, a secret never logged) and answers the field with `<fileId>:<token>`. `422 unknown_field | file_too_large | file_type | file_name`, `503 uploads_unavailable` when the owner's Google access or Drive is unavailable.
+
 Server-rendered website on the app domain only (`apps/api/src/site`): `/`, `/how-it-works/`, `/why-free/`, `/security/`, `/integrations/google-sheets/`, `/features/embed/`, `/templates/` and `/templates/<slug>/` (with `/templates/<slug>/preview`, the template rendered by the public renderer), `/privacy`, `/terms`, `/sitemap.xml`, `/robots.txt`. Pages send `noindex` unless `SITE_INDEXABLE=1`. `POST /forms` with `{ template: "<slug>" }` copies a website template into a new draft (`422 unknown_template`).
 
 ## Operations

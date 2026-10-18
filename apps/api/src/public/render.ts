@@ -1,9 +1,11 @@
 import type { FieldError } from "@freelyforms/form-engine";
 import type { Field, Form, FormTheme } from "@freelyforms/form-schema";
 import {
+  DEFAULT_FILE_MAX_MB,
   DEFAULT_RATING_MAX,
   DEFAULT_SCALE_MAX,
   DEFAULT_SCALE_MIN,
+  FILE_TYPES,
 } from "@freelyforms/form-schema/limits";
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
@@ -47,6 +49,9 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .matrix input{width:20px;height:20px}
 .ranking{list-style:none;padding:0;margin:0;display:grid;gap:8px}.ranking li{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .ranking label{font-weight:400;margin:0}.ranking select{width:auto;min-width:110px}
+.file input[type=file]{font:inherit;max-width:100%}.file-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
+.file-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);font-size:.95rem}
+.file-list button{min-width:0;padding:4px 10px;background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:400}
 .calc{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .calc-label{font-weight:600}.calc output{font-size:1.4rem;font-weight:700;font-variant-numeric:tabular-nums}
 .scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}.step-off{display:none!important}
@@ -115,6 +120,8 @@ export interface PageOptions {
   privacyUrl?: string | undefined;
   /** Owner preview of a draft: shows a banner and disables submitting. */
   preview?: boolean;
+  /** The form has a file field: the page may talk to Google's upload endpoint (ADR 0007). */
+  uploads?: boolean;
 }
 
 function page(
@@ -303,6 +310,36 @@ ${str(value)}</textarea>`;
               </div>`
             : ""
         }
+      </div>`;
+    }
+    case "file": {
+      // The script uploads chosen files straight to the owner's Drive and fills the hidden input
+      // with `<fileId>:<token>` per file (ADR 0007).
+      const max = field.maxFiles ?? 1;
+      const accept =
+        field.accept && field.accept !== "any" ? FILE_TYPES[field.accept].join(",") : "";
+      return html`<div
+        class="file"
+        data-file
+        data-max-files="${max}"
+        data-max-bytes="${(field.maxSizeMb ?? DEFAULT_FILE_MAX_MB) * 1024 * 1024}"
+      >
+        <input
+          type="file"
+          id="${id}"
+          ${max > 1 ? raw(" multiple") : ""}${accept ? html` accept="${accept}"` : ""}${aria}${invalid}
+        />
+        <input
+          type="hidden"
+          name="${id}"
+          value="${Array.isArray(value) ? value.join(" ") : str(value)}"
+        />
+        <ul class="file-list" aria-live="polite"></ul>
+        <noscript><p class="hint">Uploading files needs JavaScript.</p></noscript>
+        <p class="hint">
+          Up to ${max} file${max > 1 ? "s" : ""}, ${field.maxSizeMb ?? DEFAULT_FILE_MAX_MB} MB each.
+          Files go to the form owner's Google Drive.
+        </p>
       </div>`;
     }
     case "matrix": {

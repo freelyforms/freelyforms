@@ -29,6 +29,7 @@ export function prefillValues(form: Pick<Form, "fields">, query: URLSearchParams
       case "calculation":
       case "matrix":
       case "ranking":
+      case "file":
         break;
       case "select":
       case "radio": {

@@ -11,6 +11,16 @@ interface Sheet {
   meta: Meta[];
 }
 
+export interface FakeFile {
+  id: string;
+  name: string;
+  size: string;
+  mimeType: string;
+  parents: string[];
+  appProperties: Record<string, string>;
+  createdTime: string;
+}
+
 export function fakeGoogle() {
   const sheets = new Map<string, Sheet>();
   const state = {
@@ -18,12 +28,98 @@ export function fakeGoogle() {
     /** Fail the next append: `before` = not written, `after` = written but the response was lost. */
     failNextAppend: null as null | { status: number | "network"; when: "before" | "after" },
     calls: [] as string[],
+    /** Clock for Drive creation times (ms). */
+    now: 0,
   };
   let n = 0;
 
   const json = (body: unknown, status = 200) => Promise.resolve(Response.json(body, { status }));
   const fail = (status: number) =>
     json({ error: { code: status, message: "fake", errors: [] } }, status);
+
+  /** Drive (ADR 0007): folders, resumable sessions, metadata, marking, clean-up queries. */
+  const files = new Map<string, FakeFile>();
+  const sessions = new Map<string, Omit<FakeFile, "id" | "size" | "createdTime">>();
+  const drive = (url: URL, init: RequestInit | undefined, body: Record<string, unknown>) => {
+    const method = init?.method ?? "GET";
+    const headers = new Headers(init?.headers);
+    if (url.pathname === "/upload/drive/v3/files" && method === "POST") {
+      const id = `s${String(++n)}`;
+      sessions.set(id, {
+        name: String(body.name),
+        mimeType: headers.get("x-upload-content-type") ?? "application/octet-stream",
+        parents: (body.parents as string[] | undefined) ?? [],
+        appProperties: (body.appProperties as Record<string, string> | undefined) ?? {},
+      });
+      // The browser uploads to this session URI; tests and the e2e Worker complete it.
+      return Promise.resolve(
+        new Response(null, {
+          status: 200,
+          headers: { location: `${headers.get("origin") ?? ""}/__e2e/drive-upload/${id}` },
+        }),
+      );
+    }
+    if (url.pathname === "/drive/v3/files" && method === "POST") {
+      const id = `fold${String(++n)}`;
+      files.set(id, {
+        id,
+        name: String(body.name),
+        size: "0",
+        mimeType: String(body.mimeType),
+        parents: [],
+        appProperties: {},
+        createdTime: new Date(state.now).toISOString(),
+      });
+      return json({ id });
+    }
+    if (url.pathname === "/drive/v3/files" && method === "GET") {
+      // Only the clean-up query is supported: folder, unattached, created before a time.
+      const q = url.searchParams.get("q") ?? "";
+      const folder = /'([^']+)' in parents/.exec(q)?.[1];
+      const before = /createdTime < '([^']+)'/.exec(q)?.[1] ?? "";
+      return json({
+        files: [...files.values()]
+          .filter(
+            (f) =>
+              f.parents.includes(folder ?? "") &&
+              f.appProperties.freelyAttached === "0" &&
+              f.createdTime < before,
+          )
+          .map((f) => ({ id: f.id })),
+      });
+    }
+    const id = decodeURIComponent(/^\/drive\/v3\/files\/(.+)$/.exec(url.pathname)?.[1] ?? "");
+    const file = files.get(id);
+    if (!file) return json({ error: { code: 404, message: "File not found" } }, 404);
+    if (method === "GET") return json(file);
+    if (method === "PATCH") {
+      file.appProperties = {
+        ...file.appProperties,
+        ...((body.appProperties as Record<string, string> | undefined) ?? {}),
+      };
+      return json({ id });
+    }
+    if (method === "DELETE") {
+      files.delete(id);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    return fail(400);
+  };
+
+  /** What the browser's PUT to a session URI does: creates the file; returns its resource. */
+  const completeUpload = (sessionId: string, size: number) => {
+    const session = sessions.get(sessionId);
+    if (!session) return null;
+    sessions.delete(sessionId);
+    const file: FakeFile = {
+      ...session,
+      id: `file${String(++n)}xyzabcdef`,
+      size: String(size),
+      createdTime: new Date(state.now).toISOString(),
+    };
+    files.set(file.id, file);
+    return file;
+  };
 
   const fetchFn: typeof fetch = (input, init) => {
     const url = new URL(
@@ -35,6 +131,7 @@ export function fakeGoogle() {
         : {};
     state.calls.push(`${init?.method ?? "GET"} ${url.pathname}`);
 
+    if (url.hostname === "www.googleapis.com") return drive(url, init, body);
     if (url.hostname === "oauth2.googleapis.com") {
       return state.revoked
         ? json({ error: "invalid_grant" }, 400)
@@ -159,5 +256,5 @@ export function fakeGoogle() {
     });
   };
 
-  return { fetchFn, sheets, state };
+  return { fetchFn, sheets, state, files, completeUpload };
 }

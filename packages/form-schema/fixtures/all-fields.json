@@ -192,6 +192,14 @@
       ]
     },
     {
+      "id": "fld_attach",
+      "type": "file",
+      "label": "Attachments",
+      "accept": "documents",
+      "maxSizeMb": 5,
+      "maxFiles": 2
+    },
+    {
       "id": "fld_total",
       "type": "calculation",
       "label": "Total score",

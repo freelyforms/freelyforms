@@ -35,6 +35,7 @@ export const FIELD_TYPES = [
   "calculation",
   "matrix",
   "ranking",
+  "file",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -86,6 +87,7 @@ export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOpe
   calculation: ["equals", "not_equals", "greater_than", "less_than", "is_empty", "is_not_empty"],
   matrix: ["is_empty", "is_not_empty"],
   ranking: ["is_empty", "is_not_empty"],
+  file: ["is_empty", "is_not_empty"],
 };
 
 /** Whether a field has an answer and a sheet column (page breaks don't, ADR 0018). */
@@ -111,3 +113,25 @@ export const SUMMABLE_TYPES: readonly FieldType[] = [
 ];
 /** Most fields one calculation adds up. */
 export const MAX_SUM_FIELDS = 50;
+
+/** File uploads (ADR 0007): default and largest size per file, in MB, and files per field. */
+export const DEFAULT_FILE_MAX_MB = 10;
+export const MAX_FILE_MB = 25;
+export const MAX_FILES = 5;
+/** MIME types a file field accepts for each `accept` setting; `any` takes everything. */
+export const FILE_TYPES = {
+  images: ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"],
+  documents: [
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+  ],
+} as const;

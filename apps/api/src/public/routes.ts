@@ -2,9 +2,12 @@ import { encrypt } from "@freelyforms/crypto";
 import { validateSubmission } from "@freelyforms/form-engine";
 import { parseForm, type Form } from "@freelyforms/form-schema";
 import { PAYLOAD_RETENTION_MS } from "@freelyforms/db";
+import { driveClient } from "@freelyforms/google";
 import { Hono, type Context } from "hono";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
+import { accessTokenFor } from "../google-access.js";
 import { keyringFor } from "../keys.js";
+import { uploadProblem } from "./uploads.js";
 import { randomToken, readBodyLimited, ulid } from "../util.js";
 import {
   formPageCsp,
@@ -41,6 +44,14 @@ async function published(c: Ctx, formId: string): Promise<Published | null> {
   return parsed.success ? { form: parsed.form, version: row.version } : null;
 }
 
+/** What the form script sends to get an upload slot (ADR 0007); every part is checked. */
+interface SlotRequest {
+  fieldId?: unknown;
+  name?: unknown;
+  size?: unknown;
+  type?: unknown;
+}
+
 /** Why a body was refused; each maps to a JSON error and status. */
 type BodyProblem = "too_large" | "invalid_body";
 
@@ -71,7 +82,7 @@ async function readAnswers(c: Ctx): Promise<Record<string, unknown> | BodyProble
   const answers: Record<string, unknown> = {};
   for (const key of new Set(form.keys())) {
     const values = form.getAll(key);
-    // Files are not accepted yet (ADR 0007 is still a proposal).
+    // Files never come with the answers: they go straight to the owner's Drive (ADR 0007).
     if (values.some((v) => typeof v !== "string")) return "invalid_body";
     answers[key] = values.length === 1 ? values[0] : values;
   }
@@ -98,7 +109,7 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
     await next();
     c.header("X-Robots-Tag", "noindex");
     c.header("Cache-Control", "no-store");
-    c.header("Content-Security-Policy", formPageCsp(nonce, turnstile));
+    c.header("Content-Security-Policy", formPageCsp(nonce, turnstile, c.var.page.uploads === true));
   });
 
   pub.get("/:formId", async (c) => {
@@ -114,7 +125,86 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
       );
     }
     const values = prefillValues(found.form, new URL(c.req.url).searchParams);
+    const uploads = found.form.fields.some((f) => f.type === "file");
+    if (uploads) c.set("page", { ...c.var.page, uploads });
     return c.html(renderForm(found.form, c.req.path, c.var.page, { values }));
+  });
+
+  /**
+   * An upload slot for one file (ADR 0007): checks it against the field, makes sure the form has
+   * a folder in the owner's Drive and returns a resumable session URI for this page's origin,
+   * plus the token the answer must carry. The bytes then go from the browser to Google.
+   */
+  pub.post("/:formId/uploads", async (c) => {
+    const found = await published(c, c.req.param("formId"));
+    if (!found) return c.json({ error: "not_found" }, 404);
+    // Only the form's own page may ask: the session is bound to that origin.
+    const origin = c.env.FORMS_HOST ? `https://${c.env.FORMS_HOST}` : new URL(c.req.url).origin;
+    if (c.req.header("origin") !== origin) return c.json({ error: "forbidden_origin" }, 403);
+    if (
+      !(await withinRateLimits(c.env, `upload:${found.form.id}`, c.req.header("cf-connecting-ip")))
+    ) {
+      c.header("Retry-After", "60");
+      return c.json({ error: "rate_limited" }, 429);
+    }
+    const body: SlotRequest = await c.req.json<SlotRequest>().catch((): SlotRequest => ({}));
+    const field = found.form.fields.find((f) => f.id === body.fieldId && f.type === "file");
+    if (!field || field.type !== "file") return c.json({ error: "unknown_field" }, 422);
+    const size = typeof body.size === "number" && Number.isInteger(body.size) ? body.size : 0;
+    const type = typeof body.type === "string" ? body.type.toLowerCase().slice(0, 200) : "";
+    // A plain file name: no control characters or path separators.
+    const name = Array.from(typeof body.name === "string" ? body.name : "")
+      .map((ch) => (ch < " " || ch === "/" || ch === "\\" ? "_" : ch))
+      .join("")
+      .trim()
+      .slice(0, 200);
+    const problem = uploadProblem(field, { size, type, name });
+    if (problem) return c.json({ error: problem }, 422);
+
+    const owner = await c.env.DB.prepare("SELECT owner_id FROM forms WHERE id = ?")
+      .bind(found.form.id)
+      .first<{ owner_id: string }>();
+    if (!owner) return c.json({ error: "not_found" }, 404);
+    try {
+      const drive = driveClient(
+        deps.fetch,
+        (await accessTokenFor(c.env, deps, owner.owner_id)).token,
+      );
+      const now = deps.now();
+      let folder = await c.env.DB.prepare("SELECT folder_id FROM drive_folders WHERE form_id = ?")
+        .bind(found.form.id)
+        .first<string>("folder_id");
+      if (folder) {
+        await c.env.DB.prepare("UPDATE drive_folders SET last_used_at = ? WHERE form_id = ?")
+          .bind(now, found.form.id)
+          .run();
+      } else {
+        folder = await drive.createFolder(`${found.form.title} — uploads`.slice(0, 200));
+        await c.env.DB.prepare(
+          "INSERT INTO drive_folders (form_id, folder_id, created_at, last_used_at) VALUES (?, ?, ?, ?) ON CONFLICT (form_id) DO UPDATE SET last_used_at = excluded.last_used_at",
+        )
+          .bind(found.form.id, folder, now, now)
+          .run();
+      }
+      const token = randomToken(24);
+      const uploadUrl = await drive.createUploadSession({
+        folderId: folder,
+        name,
+        size,
+        mimeType: type || "application/octet-stream",
+        origin,
+        tags: {
+          freelyForm: found.form.id,
+          freelyField: field.id,
+          freelyToken: token,
+          freelyAttached: "0",
+        },
+      });
+      return c.json({ uploadUrl, token }, 201);
+    } catch {
+      // The owner's Google connection or Drive is unavailable: the respondent can't upload now.
+      return c.json({ error: "uploads_unavailable" }, 503);
+    }
   });
 
   pub.post("/:formId", async (c) => {

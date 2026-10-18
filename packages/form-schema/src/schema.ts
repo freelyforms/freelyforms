@@ -8,6 +8,8 @@ import {
   MAX_HIDDEN_LENGTH,
   MAX_OPTIONS,
   MAX_TEXT_LENGTH,
+  MAX_FILE_MB,
+  MAX_FILES,
   MAX_SUM_FIELDS,
   OPERATORS_BY_TYPE,
   SUMMABLE_TYPES,
@@ -191,6 +193,18 @@ export const rankingFieldSchema = z.strictObject({
 });
 
 /**
+ * Files the respondent uploads straight to the owner's Drive (ADR 0007). The answer holds
+ * `<fileId>:<token>` per file; the delivery checks each file before writing its link.
+ */
+export const fileFieldSchema = z.strictObject({
+  type: z.literal("file"),
+  ...base,
+  accept: z.enum(["any", "images", "documents"]).optional(),
+  maxSizeMb: z.int().min(1).max(MAX_FILE_MB).optional(),
+  maxFiles: z.int().min(1).max(MAX_FILES).optional(),
+});
+
+/**
  * A number computed from earlier answers (ADR 0022): the sum of `sum`'s fields. Computed by the
  * server, never taken from the browser; `show` displays the running result to respondents.
  */
@@ -240,6 +254,7 @@ export const fieldSchema = z
     calculationFieldSchema,
     matrixFieldSchema,
     rankingFieldSchema,
+    fileFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {

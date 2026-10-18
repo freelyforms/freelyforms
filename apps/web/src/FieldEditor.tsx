@@ -483,6 +483,30 @@ export function FieldEditor(props: Props) {
                       />
                     </div>
                   ))}
+                {field.type === "file" && (
+                  <>
+                    <div className="mini">
+                      <label htmlFor={id("accept")}>Accept</label>
+                      <select
+                        id={id("accept")}
+                        value={field.accept ?? "any"}
+                        onChange={(e) => {
+                          const accept = e.target.value;
+                          props.onChange({
+                            accept:
+                              accept === "images" || accept === "documents" ? accept : undefined,
+                          });
+                        }}
+                      >
+                        <option value="any">Any file</option>
+                        <option value="images">Images</option>
+                        <option value="documents">Documents (PDF, Office, text)</option>
+                      </select>
+                    </div>
+                    {num("maxSizeMb", "Max size per file, MB (1–25)", field.maxSizeMb, true)}
+                    {num("maxFiles", "Max files (1–5)", field.maxFiles, true)}
+                  </>
+                )}
                 {field.type === "rating" && num("max", "Number of stars (3–10)", field.max, true)}
                 {field.type === "scale" && (
                   <>

@@ -5,7 +5,7 @@
 import { decryptText, encrypt, type Envelope } from "@freelyforms/crypto";
 import type { AnswerValue } from "@freelyforms/form-engine";
 import { answerFields, parseForm, type Field, type Form } from "@freelyforms/form-schema";
-import { combinedText } from "@freelyforms/google";
+import { combinedText, driveFileUrl } from "@freelyforms/google";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { keyringFor } from "../keys.js";
 import { base64Url, randomToken } from "../util.js";
@@ -69,8 +69,13 @@ export async function signature(secret: string, body: string, nowMs: number): Pr
 }
 
 /** What the sheet would show for an answer: option labels for choices, the value otherwise. */
+/** File answers carry `<fileId>:<token>`; receivers get the file ID only (ADR 0007). */
+const fileIds = (value: AnswerValue | undefined) =>
+  Array.isArray(value) ? (value as readonly string[]).map((v) => v.split(":")[0] ?? "") : [];
+
 function textOf(field: Field, value: AnswerValue | undefined): string {
   if (value === undefined) return "";
+  if (field.type === "file") return fileIds(value).map(driveFileUrl).join("\n");
   const combined = combinedText(field, value);
   if (combined !== null) return combined;
   if ("options" in field) {
@@ -95,13 +100,15 @@ export function webhookBody(
     submissionId: message.submissionId,
     submittedAt: new Date(message.submittedAt).toISOString(),
     answers: Object.fromEntries(
-      fields.filter((f) => values[f.id] !== undefined).map((f) => [f.id, values[f.id]]),
+      fields
+        .filter((f) => values[f.id] !== undefined)
+        .map((f) => [f.id, f.type === "file" ? fileIds(values[f.id]) : values[f.id]]),
     ),
     fields: fields.map((f) => ({
       id: f.id,
       label: f.label,
       type: f.type,
-      value: values[f.id] ?? null,
+      value: f.type === "file" ? fileIds(values[f.id]) : (values[f.id] ?? null),
       text: textOf(f, values[f.id]),
     })),
   });

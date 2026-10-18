@@ -59,6 +59,7 @@ describe("migrations on D1", () => {
       "column_map_cache",
       "deliveries",
       "destinations",
+      "drive_folders",
       "form_daily_stats",
       "form_versions",
       "forms",

@@ -82,14 +82,16 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     // old links working without putting form content next to the session cookie.
     if (c.env.FORMS_HOST && host !== c.env.FORMS_HOST && c.req.path.startsWith("/f/")) {
       const formId = c.req.path.slice(3);
-      if (!/^(frm_[A-Za-z0-9]{6,32}|embed\.js)$/.test(formId)) return c.text("Not found", 404);
+      if (!/^(frm_[A-Za-z0-9]{6,32}(\/uploads)?|embed\.js)$/.test(formId))
+        return c.text("Not found", 404);
       return c.redirect(`https://${c.env.FORMS_HOST}/${formId}`, 308);
     }
     if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
       const url = new URL(c.req.url);
       // The bare forms domain points people to the website.
       if (url.pathname === "/" && c.env.APP_ORIGIN) return c.redirect(c.env.APP_ORIGIN, 302);
-      if (!/^\/(frm_[A-Za-z0-9]{6,32}|embed\.js)$/.test(url.pathname))
+      // A form, its upload slots (ADR 0007) or the embed script.
+      if (!/^\/(frm_[A-Za-z0-9]{6,32}(\/uploads)?|embed\.js)$/.test(url.pathname))
         return c.text("Not found", 404);
       url.pathname = `/f${url.pathname}`;
       // No waitUntil is needed on this path, so the execution context is not forwarded.

@@ -54,7 +54,7 @@ Status: done (2026-10-18).
 
 ## Phase 3 — Advanced building blocks
 
-- file upload -> Google Drive;
+- file upload -> Google Drive (done: direct browser uploads, ADR 0007);
 - signature;
 - calculations (done: sums and option scores, ADR 0022);
 - rating/ranking/matrix fields (done: rating, scale/NPS, matrix, ranking);

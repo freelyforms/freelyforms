@@ -8,6 +8,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp, type Env } from "../src/app.js";
 import {
+  cleanUploads,
   healthReport,
   maintenance,
   processBatch,
@@ -1417,5 +1418,97 @@ describe("webhook destination (ADR 0021)", () => {
     expect(JSON.parse(calls[0]?.body ?? "{}")).toMatchObject({ test: true, submissionId: "TEST" });
     expect((await owner(`/forms/${id}/webhook`, { method: "DELETE" })).status).toBe(204);
     expect(await (await owner(`/forms/${id}/webhook`)).json()).toEqual({ webhook: null });
+  });
+});
+
+describe("file uploads (ADR 0007)", () => {
+  const fileField = {
+    id: "fld_cv",
+    type: "file",
+    label: "CV",
+    accept: "documents",
+    maxSizeMb: 2,
+  };
+  const slot = (formId: string, body: Record<string, unknown>, origin = "http://localhost") =>
+    app().request(
+      `/f/${formId}/uploads`,
+      {
+        method: "POST",
+        headers: { origin, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      env,
+    );
+  const pdf = { fieldId: "fld_cv", name: "cv.pdf", size: 1000, type: "application/pdf" };
+  /** Gets a slot and does what the respondent's browser does with it. */
+  async function uploaded(formId: string) {
+    const res = await slot(formId, pdf);
+    expect(res.status).toBe(201);
+    const { uploadUrl, token } = await res.json<{ uploadUrl: string; token: string }>();
+    const file = google.completeUpload(uploadUrl.split("/").at(-1) ?? "", 1000);
+    if (!file) throw new Error("no session");
+    return { fileId: file.id, token };
+  }
+
+  it("hands out upload slots only to the form's own page, within the field's limits", async () => {
+    const id = await publishedForm([fileField]);
+    google.state.now = clock;
+    expect((await slot(id, pdf, "https://elsewhere.example")).status).toBe(403);
+    expect(await (await slot(id, { ...pdf, size: 3 * 1024 * 1024 })).json()).toEqual({
+      error: "file_too_large",
+    });
+    expect(await (await slot(id, { ...pdf, type: "image/png" })).json()).toEqual({
+      error: "file_type",
+    });
+    expect((await slot(id, { ...pdf, fieldId: "fld_name" })).status).toBe(422);
+    await uploaded(id);
+    await uploaded(id);
+    // One folder per form, created on first use.
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM drive_folders").first("n")).toBe(1);
+  });
+
+  it("writes a link for each uploaded file and marks it attached; foreign files are refused", async () => {
+    const id = await publishedForm([fileField]);
+    google.state.now = clock;
+    const good = await uploaded(id);
+    await submit(id, {
+      fld_name: "Ada",
+      fld_email: "ada@example.com",
+      fld_cv: `${good.fileId}:${good.token}`,
+    });
+    await deliver();
+    const sheet = onlySheet();
+    const header = sheet.rows[0] as string[];
+    expect(sheet.rows[1]?.[header.indexOf("CV")]).toBe(
+      `cv.pdf – https://drive.google.com/file/d/${good.fileId}/view`,
+    );
+    expect(google.files.get(good.fileId)?.appProperties.freelyAttached).toBe("1");
+
+    const other = await uploaded(id);
+    await submit(id, {
+      fld_name: "Mallory",
+      fld_email: "m@example.com",
+      fld_cv: `${other.fileId}:${"x".repeat(32)}`,
+    });
+    await deliver();
+    expect(onlySheet().rows[2]?.[header.indexOf("CV")]).toBe("(file not accepted)");
+  });
+
+  it("deletes uploads never sent with a response, a day later", async () => {
+    const id = await publishedForm([fileField]);
+    google.state.now = clock;
+    const kept = await uploaded(id);
+    const forgotten = await uploaded(id);
+    await submit(id, {
+      fld_name: "Ada",
+      fld_email: "ada@example.com",
+      fld_cv: `${kept.fileId}:${kept.token}`,
+    });
+    await deliver();
+    await cleanUploads(env, deps, clock + 2 * 60 * 60 * 1000);
+    expect(google.files.has(forgotten.fileId)).toBe(true); // not a day old yet
+    await cleanUploads(env, deps, clock + 25 * 60 * 60 * 1000);
+    expect(google.files.has(forgotten.fileId)).toBe(false);
+    expect(google.files.has(kept.fileId)).toBe(true);
   });
 });

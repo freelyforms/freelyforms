@@ -10,7 +10,7 @@ Each ADR records one decision: the context, what we decided and what follows fro
 | [0004](0004-column-identity-developer-metadata.md)       | Column identity through Sheets developer metadata                  | Accepted (refined by 0013)       |
 | [0005](0005-sheet-is-externally-mutable.md)              | The owner's spreadsheet is an externally mutable database          | Accepted                         |
 | [0006](0006-oauth-scopes-drive-file-picker.md)           | OAuth scopes: `drive.file` and Google Picker only                  | Accepted (refined by 0016)       |
-| [0007](0007-direct-resumable-drive-uploads.md)           | File uploads go directly to the owner's Drive                      | Proposed (spike required)        |
+| [0007](0007-direct-resumable-drive-uploads.md)           | File uploads go directly to the owner's Drive                      | Accepted (spike 2026-10-18)      |
 | [0008](0008-queue-retention-and-encryption.md)           | Queue retention of at most 7 days, encrypted payloads              | Accepted                         |
 | [0009](0009-license-apache-2-and-cla.md)                 | Apache-2.0 licence with a Contributor License Agreement            | Accepted                         |
 | [0010](0010-separate-domain-for-public-forms.md)         | Public forms are served from a separate domain                     | Accepted                         |

@@ -7,12 +7,15 @@ import {
   buildRow,
   existingSubmissionIds,
   GoogleApiError,
+  driveClient,
   resolveColumns,
+  sheetsClient,
   SYSTEM_COLUMNS,
   type Destination,
 } from "@freelyforms/google";
-import type { DeliveryMessage, Deps, Env } from "../env.js";
-import { sheetsFor } from "../google-access.js";
+import { defaultDeps, type DeliveryMessage, type Deps, type Env } from "../env.js";
+import { accessTokenFor } from "../google-access.js";
+import { attachFiles, fileCount } from "./files.js";
 import { keyringFor } from "../keys.js";
 import { hold, resumeStragglers } from "./hold.js";
 import { deliverWebhook } from "./webhook.js";
@@ -103,7 +106,13 @@ async function loadVersions(
 }
 
 /** Delivers one form's messages from a batch: one append for all of them (ADR 0001). */
-async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[]): Promise<void> {
+async function deliverGroup(
+  env: Env,
+  deps: Deps,
+  formId: string,
+  messages: Msg[],
+  callsLeft: () => number = () => Number.POSITIVE_INFINITY,
+): Promise<void> {
   const now = deps.now();
   // One query for the whole group (D1 limits queries per invocation).
   const { results: rows } = await env.DB.prepare(
@@ -151,7 +160,9 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
   let appending = false;
   let toWrite = pending;
   try {
-    const sheets = await sheetsFor(env, deps, target.ownerId);
+    const { token } = await accessTokenFor(env, deps, target.ownerId);
+    const sheets = sheetsClient(deps.fetch, token);
+    const drive = driveClient(deps.fetch, token);
     const forms = await loadVersions(env, formId, new Set(pending.map((m) => m.body.formVersion)));
     let columns = await resolveColumns(sheets, target.dest);
     if (!SYSTEM_COLUMNS.every((key) => columns.has(key))) {
@@ -182,14 +193,26 @@ async function deliverGroup(env: Env, deps: Deps, formId: string, messages: Msg[
 
     const keyring = await keyringFor(env);
     const rows = [];
+    const deferred: Msg[] = [];
     for (const m of toWrite) {
       const form = forms.get(m.body.formVersion);
       if (!form) throw new GoogleApiError("INVALID_REQUEST", 0, "form_version_missing");
       const { values } = JSON.parse(
         await decryptText(keyring, m.body.payload, `submission:${m.body.submissionId}`),
       ) as { values: Record<string, AnswerValue> };
-      rows.push(buildRow(form, columns, { ...m.body, values }));
+      // Each uploaded file costs two Drive calls (ADR 0007); responses that don't fit this
+      // invocation's budget go back to the queue at once, like whole groups do.
+      const files = fileCount(form, values);
+      if (files > 0 && files * 2 + 1 > callsLeft()) {
+        deferred.push(m);
+        continue;
+      }
+      const checked = files > 0 ? await attachFiles(drive, form, values) : values;
+      rows.push(buildRow(form, columns, { ...m.body, values: checked }));
     }
+    for (const m of deferred) m.retry({ delaySeconds: 0 });
+    toWrite = toWrite.filter((m) => !deferred.includes(m));
+    if (rows.length === 0) return;
     appending = true;
     await appendRows(sheets, target.dest, rows);
 
@@ -293,7 +316,7 @@ export async function processBatch(
       for (const m of messages) m.retry({ delaySeconds: 0 });
       continue;
     }
-    await deliverGroup(env, counted, formId, messages);
+    await deliverGroup(env, counted, formId, messages, () => budget - calls);
   }
 }
 
@@ -302,7 +325,7 @@ export async function processBatch(
  * itself), drop expired sessions, prune old delivery records (metadata only) and finish resumes
  * that a lagging KV listing or the chunk limit left behind.
  */
-export async function maintenance(env: Env, now: number): Promise<void> {
+export async function maintenance(env: Env, now: number, deps: Deps = defaultDeps): Promise<void> {
   const db = env.DB;
   await db.batch([
     db
@@ -316,7 +339,40 @@ export async function maintenance(env: Env, now: number): Promise<void> {
       .bind(now - 30 * 24 * 60 * 60 * 1000),
   ]);
   await resumeStragglers(env);
+  await cleanUploads(env, deps, now);
   await healthReport(env, now);
+}
+
+/** Upload folders visited per hourly run, and files deleted, to stay inside the call budget. */
+const CLEANUP_FOLDERS = 5;
+const CLEANUP_FILES = 20;
+
+/**
+ * Deletes files uploaded through a form but never sent with a response (ADR 0007): still marked
+ * unattached a day after they were created, in folders used in the last two days.
+ */
+export async function cleanUploads(env: Env, deps: Deps, now: number): Promise<void> {
+  const day = 24 * 60 * 60 * 1000;
+  const { results } = await env.DB.prepare(
+    `SELECT u.folder_id, f.owner_id FROM drive_folders u JOIN forms f ON f.id = u.form_id
+     WHERE u.last_used_at > ? ORDER BY u.last_used_at DESC LIMIT ?`,
+  )
+    .bind(now - 2 * day, CLEANUP_FOLDERS)
+    .all<{ folder_id: string; owner_id: string }>();
+  let budget = CLEANUP_FILES;
+  for (const { folder_id: folder, owner_id: owner } of results) {
+    if (budget <= 0) break;
+    try {
+      const drive = driveClient(deps.fetch, (await accessTokenFor(env, deps, owner)).token);
+      const stale = await drive.staleUploads(folder, new Date(now - day).toISOString());
+      for (const id of stale.slice(0, budget)) {
+        await drive.deleteFile(id);
+        budget--;
+      }
+    } catch {
+      // The owner's access is gone or Drive is down: try again next hour.
+    }
+  }
 }
 
 /** A delivery not finished this long after it was accepted, and not held for its owner, is stuck. */

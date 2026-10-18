@@ -579,3 +579,39 @@ test("matrix and ranking answers reach the sheet as one readable cell each", asy
     "1. Second idea, 2. Third idea, 3. First idea",
   );
 });
+
+test("a respondent uploads a file straight to the owner's Drive and the sheet links it", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Applications");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ File upload", exact: true }).click();
+  await page.locator("article").first().getByLabel("Required").check();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText("This field is required.")).toBeVisible();
+  await r.getByLabel("Upload a file").setInputFiles({
+    name: "portfolio.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 a tiny test file"),
+  });
+  await expect(r.getByText("Uploaded")).toBeVisible();
+  await expect(r.getByRole("button", { name: "Remove portfolio.pdf" })).toBeVisible();
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Upload a file") ?? -1]).toMatch(
+    /^portfolio\.pdf – https:\/\/drive\.google\.com\/file\/d\/file\w+\/view$/,
+  );
+});

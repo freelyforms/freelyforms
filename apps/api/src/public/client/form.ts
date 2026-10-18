@@ -341,8 +341,135 @@ function askHostForParams() {
   ask();
 }
 
+/** PUTs a file to a Drive upload session with progress; resolves to the new file's ID. */
+function putFile(url: string, file: File, onProgress: (percent: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener("load", () => {
+      try {
+        const id = (JSON.parse(xhr.responseText) as { id?: unknown }).id;
+        if (xhr.status < 300 && typeof id === "string") resolve(id);
+        else reject(new Error(String(xhr.status)));
+      } catch {
+        reject(new Error("bad_response"));
+      }
+    });
+    xhr.addEventListener("error", () => {
+      reject(new Error("network"));
+    });
+    xhr.send(file);
+  });
+}
+
+const UPLOAD_ERRORS: Record<string, string> = {
+  file_too_large: "This file is too large.",
+  file_type: "This kind of file isn't accepted here.",
+  rate_limited: "Too many uploads. Please wait a minute.",
+  uploads_unavailable: "Uploads aren't available right now. Please try again later.",
+};
+
+/**
+ * File fields (ADR 0007): each chosen file gets an upload slot from this server and goes from
+ * the browser straight to the owner's Google Drive; the hidden input collects
+ * `<fileId>:<token>` per uploaded file. The submit button waits while uploads run.
+ */
+function setupUploads(form: HTMLFormElement) {
+  const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+  let running = 0;
+  const setRunning = (delta: number) => {
+    running += delta;
+    if (submit) submit.disabled = running > 0;
+  };
+  for (const box of form.querySelectorAll<HTMLElement>("[data-file]")) {
+    const picker = box.querySelector<HTMLInputElement>("input[type=file]");
+    const hidden = box.querySelector<HTMLInputElement>("input[type=hidden]");
+    const list = box.querySelector<HTMLUListElement>(".file-list");
+    if (!picker || !hidden || !list) continue;
+    const maxFiles = Number(box.dataset.maxFiles ?? "1");
+    const maxBytes = Number(box.dataset.maxBytes ?? "0");
+    const done: string[] = hidden.value ? hidden.value.split(" ") : [];
+    let pending = 0;
+    const sync = () => {
+      hidden.value = done.join(" ");
+      hidden.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const row = (name: string) => {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = name;
+      const status = document.createElement("span");
+      status.className = "hint";
+      li.append(label, status);
+      list.append(li);
+      return { li, status };
+    };
+    const upload = async (file: File) => {
+      const { li, status } = row(file.name);
+      if (done.length + pending >= maxFiles) {
+        status.textContent = `At most ${String(maxFiles)} file${maxFiles > 1 ? "s" : ""}.`;
+        return;
+      }
+      if (file.size > maxBytes) {
+        status.textContent = UPLOAD_ERRORS.file_too_large ?? "";
+        return;
+      }
+      pending++;
+      setRunning(1);
+      status.textContent = "Uploading…";
+      try {
+        const res = await fetch(`${form.getAttribute("action") ?? ""}/uploads`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            fieldId: hidden.name,
+            name: file.name,
+            size: file.size,
+            type: file.type || "application/octet-stream",
+          }),
+        });
+        const slot = (await res.json()) as { uploadUrl?: string; token?: string; error?: string };
+        if (!res.ok || !slot.uploadUrl || !slot.token) throw new Error(slot.error ?? "slot");
+        const fileId = await putFile(slot.uploadUrl, file, (p) => {
+          status.textContent = `Uploading… ${String(p)}%`;
+        });
+        const answer = `${fileId}:${slot.token}`;
+        done.push(answer);
+        status.textContent = "Uploaded";
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.setAttribute("aria-label", `Remove ${file.name}`);
+        remove.addEventListener("click", () => {
+          done.splice(done.indexOf(answer), 1);
+          li.remove();
+          sync();
+        });
+        li.append(remove);
+      } catch (err) {
+        status.textContent =
+          UPLOAD_ERRORS[err instanceof Error ? err.message : ""] ??
+          "Couldn't upload this file. Please try again.";
+      } finally {
+        pending--;
+        setRunning(-1);
+        sync();
+      }
+    };
+    picker.addEventListener("change", () => {
+      for (const file of picker.files ?? []) void upload(file);
+      picker.value = "";
+    });
+  }
+}
+
 askHostForParams();
 
 const form = document.querySelector<HTMLFormElement>("form[data-ff]");
 const data = document.getElementById("ff-fields");
 if (form && data?.textContent) setup(form, JSON.parse(data.textContent) as Fields);
+if (form) setupUploads(form);

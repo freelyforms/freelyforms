@@ -45,6 +45,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   calculation: "Calculation",
   matrix: "Matrix",
   ranking: "Ranking",
+  file: "File upload",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>
@@ -92,6 +93,8 @@ export function newField(type: FieldType): Field {
       return { id, type, label: "Source" };
     case "page":
       return { id, type, label: "Next page" };
+    case "file":
+      return { id, type, label: "Upload a file" };
     case "calculation":
       return { id, type, label: "Score", sum: [], show: true };
     default:
