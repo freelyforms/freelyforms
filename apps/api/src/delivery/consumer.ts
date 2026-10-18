@@ -306,4 +306,35 @@ export async function maintenance(env: Env, now: number): Promise<void> {
       .bind(now - 30 * 24 * 60 * 60 * 1000),
   ]);
   await resumeStragglers(env);
+  await healthReport(env, now);
+}
+
+/** A delivery not finished this long after it was accepted, and not held for its owner, is stuck. */
+export const STUCK_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * Hourly counts for operators, as one log line (no response content). `ops_alert` is logged at
+ * error level when deliveries are stuck: that points at the service, not at an owner's sheet, so
+ * an alert on it in Cloudflare's observability is worth waking up for. Held deliveries wait for
+ * owners and failures are shown to them, so those two are reported but don't alert.
+ */
+export async function healthReport(env: Env, now: number) {
+  const row = await env.DB.prepare(
+    `SELECT
+       COALESCE(SUM(CASE WHEN state NOT IN ('delivered', 'permanently_failed') AND held_at IS NULL
+                         AND accepted_at <= ?1 THEN 1 ELSE 0 END), 0) AS stuck,
+       COALESCE(SUM(CASE WHEN held_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS held,
+       COALESCE(SUM(CASE WHEN state = 'permanently_failed' AND accepted_at > ?2 THEN 1 ELSE 0 END), 0) AS failedLastDay
+     FROM deliveries`,
+  )
+    .bind(now - STUCK_AFTER_MS, now - 24 * 60 * 60 * 1000)
+    .first<{ stuck: number; held: number; failedLastDay: number }>();
+  const report = {
+    stuck: row?.stuck ?? 0,
+    held: row?.held ?? 0,
+    failedLastDay: row?.failedLastDay ?? 0,
+  };
+  if (report.stuck > 0) console.error("ops_alert", JSON.stringify(report));
+  else console.log("ops_health", JSON.stringify(report));
+  return report;
 }

@@ -7,7 +7,13 @@ import {
 } from "@freelyforms/crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp, type Env } from "../src/app.js";
-import { maintenance, processBatch, TRANSIENT_RETRY_WINDOW_MS } from "../src/delivery/consumer.js";
+import {
+  healthReport,
+  maintenance,
+  processBatch,
+  STUCK_AFTER_MS,
+  TRANSIENT_RETRY_WINDOW_MS,
+} from "../src/delivery/consumer.js";
 import { resumeHeld } from "../src/delivery/hold.js";
 import type { DeliveryMessage, Deps } from "../src/env.js";
 import { randomToken, sha256Base64Url } from "../src/util.js";
@@ -1088,6 +1094,19 @@ describe("maintenance", () => {
     await maintenance(env, clock);
     expect(await deliveryStates()).toEqual(["permanently_failed"]);
     expect(await env.DB.prepare("SELECT count(*) AS n FROM sessions").first("n")).toBe(0);
+  });
+
+  it("reports stuck deliveries for operators, and not deliveries held for their owner", async () => {
+    const id = await publishedForm();
+    await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
+    expect(await healthReport(env, clock)).toEqual({ stuck: 0, held: 0, failedLastDay: 0 });
+    // Never consumed: an hour later it is stuck.
+    expect(await healthReport(env, clock + STUCK_AFTER_MS + 1)).toMatchObject({ stuck: 1 });
+    await env.DB.prepare("UPDATE deliveries SET held_at = ?").bind(clock).run();
+    expect(await healthReport(env, clock + STUCK_AFTER_MS + 1)).toMatchObject({
+      stuck: 0,
+      held: 1,
+    });
   });
 });
 

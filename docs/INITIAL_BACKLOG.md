@@ -114,7 +114,7 @@ See `docs/SEO_PUBLIC_SURFACES.md`.
 - [x] Homepage at `/` that describes the app and links the privacy policy and terms (server-rendered, `noindex` until the website launches).
 - [x] "Sign in with Google" button following Google's branding guidelines.
 - [x] App logo, favicon and social image.
-- [ ] Measure consumer CPU time against the 10 ms Workers Free limit.
+- [x] First CPU measurement in production (ARCHITECTURE.md, Operations): within the 10 ms Workers Free limit so far, P99 9.8 ms; keep watching as traffic grows.
 - [x] Privacy policy (`/privacy`, includes the 7-day transient retention and Google's Limited Use statement) and terms (`/terms`), operator: the non-commercial Freely Forms project. Legal review before public launch.
-- [ ] Status/health checks; periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)).
+- [ ] Status/health checks: `/health` and the hourly `ops_health`/`ops_alert` log line are done; an alert rule and an external uptime check need the operator's accounts. Periodic destination health checks ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)) are still to do.
 - [ ] Minimal public docs.
