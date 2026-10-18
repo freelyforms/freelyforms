@@ -75,7 +75,9 @@ const fileIds = (value: AnswerValue | undefined) =>
 
 function textOf(field: Field, value: AnswerValue | undefined): string {
   if (value === undefined) return "";
-  if (field.type === "file") return fileIds(value).map(driveFileUrl).join("\n");
+  if (field.type === "file" || field.type === "signature") {
+    return fileIds(value).map(driveFileUrl).join("\n");
+  }
   const combined = combinedText(field, value);
   if (combined !== null) return combined;
   if ("options" in field) {
@@ -102,13 +104,19 @@ export function webhookBody(
     answers: Object.fromEntries(
       fields
         .filter((f) => values[f.id] !== undefined)
-        .map((f) => [f.id, f.type === "file" ? fileIds(values[f.id]) : values[f.id]]),
+        .map((f) => [
+          f.id,
+          f.type === "file" || f.type === "signature" ? fileIds(values[f.id]) : values[f.id],
+        ]),
     ),
     fields: fields.map((f) => ({
       id: f.id,
       label: f.label,
       type: f.type,
-      value: f.type === "file" ? fileIds(values[f.id]) : (values[f.id] ?? null),
+      value:
+        f.type === "file" || f.type === "signature"
+          ? fileIds(values[f.id])
+          : (values[f.id] ?? null),
       text: textOf(f, values[f.id]),
     })),
   });

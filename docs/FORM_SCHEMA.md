@@ -69,6 +69,7 @@ Rules:
 | `matrix`      | list of column IDs, one per row (`""` if blank)    | `rows` (1–20 `{ id: "row_…", label }`), `columns` (2–10 options, may have `score`); inputs named `<fieldId>.<rowId>` |
 | `ranking`     | list of option IDs, best first                     | `options` (2–10); each has a place select named `<fieldId>.<optionId>`; places all different                         |
 | `file`        | list of `<fileId>:<token>` (one per uploaded file) | `accept` (`any`, `images`, `documents`), `maxSizeMb` (1–25, default 10), `maxFiles` (1–5, default 1)                 |
+| `signature`   | `<fileId>:<token>` of a PNG                        | drawn on a pad, or a typed name drawn for the respondent; stored like an upload (PNG, at most 1 MB)                  |
 
 Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required`, optional `showIf` and optional `requiredIf` (see Conditions below), and optional `width` (`full` or `half`: two half-width fields share a row on screens wider than 560px). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 
@@ -131,7 +132,7 @@ A `matrix` asks the same question for several rows; a `ranking` puts options in 
 
 ### File uploads
 
-A `file` field lets respondents upload files straight to the owner's Google Drive ([ADR 0007](adr/0007-direct-resumable-drive-uploads.md)); it needs the form script. For each file the browser gets an upload slot from `POST /f/:formId/uploads`, sends the bytes to Google and puts `<fileId>:<token>` in the answer. The delivery checks each file in Drive (it must carry the form's, field's and slot's tags and fit the size and type) and writes `name – link` per file to the cell, or `(file not accepted)`. Files never sent with a response are deleted after a day. Conditions can test the field with `is_empty` / `is_not_empty`.
+A `file` field lets respondents upload files straight to the owner's Google Drive ([ADR 0007](adr/0007-direct-resumable-drive-uploads.md)); it needs the form script. For each file the browser gets an upload slot from `POST /f/:formId/uploads`, sends the bytes to Google and puts `<fileId>:<token>` in the answer. The delivery checks each file in Drive (it must carry the form's, field's and slot's tags and fit the size and type) and writes `name – link` per file to the cell, or `(file not accepted)`. Files never sent with a response are deleted after a day. A `signature` field works the same way with one PNG: respondents draw on a pad with a mouse, finger or stylus, or type their name to have it drawn (so keyboard users can sign too). Conditions can test both with `is_empty` / `is_not_empty`.
 
 ### Pages
 

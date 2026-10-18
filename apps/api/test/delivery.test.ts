@@ -1494,6 +1494,19 @@ describe("file uploads (ADR 0007)", () => {
     expect(onlySheet().rows[2]?.[header.indexOf("CV")]).toBe("(file not accepted)");
   });
 
+  it("takes a drawn signature only as a PNG of at most 1 MB", async () => {
+    const id = await publishedForm([{ id: "fld_sig", type: "signature", label: "Sign" }]);
+    google.state.now = clock;
+    const sig = { fieldId: "fld_sig", name: "signature.png", size: 2000, type: "image/png" };
+    expect((await slot(id, sig)).status).toBe(201);
+    expect(await (await slot(id, { ...sig, type: "image/jpeg" })).json()).toEqual({
+      error: "file_type",
+    });
+    expect(await (await slot(id, { ...sig, size: 2 * 1024 * 1024 })).json()).toEqual({
+      error: "file_too_large",
+    });
+  });
+
   it("deletes uploads never sent with a response, a day later", async () => {
     const id = await publishedForm([fileField]);
     google.state.now = clock;

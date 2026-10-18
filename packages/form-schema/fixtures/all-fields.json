@@ -200,6 +200,11 @@
       "maxFiles": 2
     },
     {
+      "id": "fld_sign",
+      "type": "signature",
+      "label": "Signature"
+    },
+    {
       "id": "fld_total",
       "type": "calculation",
       "label": "Total score",

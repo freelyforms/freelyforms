@@ -615,3 +615,43 @@ test("a respondent uploads a file straight to the owner's Drive and the sheet li
     /^portfolio\.pdf – https:\/\/drive\.google\.com\/file\/d\/file\w+\/view$/,
   );
 });
+
+test("a respondent signs on the page and the signature is linked in the sheet", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Agreement");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Signature", exact: true }).click();
+  await page.locator("article").first().getByLabel("Required").check();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  // Draw a stroke with the mouse.
+  const pad = await r.locator(".signature canvas").boundingBox();
+  if (!pad) throw new Error("no signature pad");
+  await r.mouse.move(pad.x + 20, pad.y + pad.height / 2);
+  await r.mouse.down();
+  for (let i = 1; i <= 10; i++) {
+    await r.mouse.move(pad.x + 20 + i * 25, pad.y + pad.height / 2 + (i % 2 ? -20 : 20));
+  }
+  await r.mouse.up();
+  await expect(r.getByText("Signature saved")).toBeVisible();
+  // Or by keyboard: typing a name draws it instead.
+  await r.getByLabel("Or type your name").fill("Ada Lovelace");
+  await expect(r.getByText("Signature saved")).toBeVisible();
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Sign here") ?? -1]).toMatch(
+    /^signature\.png – https:\/\/drive\.google\.com\/file\/d\/file\w+\/view$/,
+  );
+});

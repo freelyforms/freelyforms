@@ -36,6 +36,7 @@ export const FIELD_TYPES = [
   "matrix",
   "ranking",
   "file",
+  "signature",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -88,6 +89,7 @@ export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOpe
   matrix: ["is_empty", "is_not_empty"],
   ranking: ["is_empty", "is_not_empty"],
   file: ["is_empty", "is_not_empty"],
+  signature: ["is_empty", "is_not_empty"],
 };
 
 /** Whether a field has an answer and a sheet column (page breaks don't, ADR 0018). */
@@ -118,6 +120,8 @@ export const MAX_SUM_FIELDS = 50;
 export const DEFAULT_FILE_MAX_MB = 10;
 export const MAX_FILE_MB = 25;
 export const MAX_FILES = 5;
+/** A drawn signature is one PNG of at most this many bytes (ADR 0007). */
+export const MAX_SIGNATURE_BYTES = 1024 * 1024;
 /** MIME types a file field accepts for each `accept` setting; `any` takes everything. */
 export const FILE_TYPES = {
   images: ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"],

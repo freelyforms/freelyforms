@@ -7,7 +7,7 @@ import { Hono, type Context } from "hono";
 import type { DeliveryMessage, Deps, Env } from "../env.js";
 import { accessTokenFor } from "../google-access.js";
 import { keyringFor } from "../keys.js";
-import { uploadProblem } from "./uploads.js";
+import { uploadProblem, type FileField } from "./uploads.js";
 import { randomToken, readBodyLimited, ulid } from "../util.js";
 import {
   formPageCsp,
@@ -125,7 +125,7 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
       );
     }
     const values = prefillValues(found.form, new URL(c.req.url).searchParams);
-    const uploads = found.form.fields.some((f) => f.type === "file");
+    const uploads = found.form.fields.some((f) => f.type === "file" || f.type === "signature");
     if (uploads) c.set("page", { ...c.var.page, uploads });
     return c.html(renderForm(found.form, c.req.path, c.var.page, { values }));
   });
@@ -148,8 +148,10 @@ export function publicRoutes(deps: Deps): Hono<PublicEnv> {
       return c.json({ error: "rate_limited" }, 429);
     }
     const body: SlotRequest = await c.req.json<SlotRequest>().catch((): SlotRequest => ({}));
-    const field = found.form.fields.find((f) => f.id === body.fieldId && f.type === "file");
-    if (!field || field.type !== "file") return c.json({ error: "unknown_field" }, 422);
+    const field = found.form.fields.find(
+      (f): f is FileField => f.id === body.fieldId && (f.type === "file" || f.type === "signature"),
+    );
+    if (!field) return c.json({ error: "unknown_field" }, 422);
     const size = typeof body.size === "number" && Number.isInteger(body.size) ? body.size : 0;
     const type = typeof body.type === "string" ? body.type.toLowerCase().slice(0, 200) : "";
     // A plain file name: no control characters or path separators.

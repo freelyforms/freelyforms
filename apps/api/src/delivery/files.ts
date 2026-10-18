@@ -3,15 +3,12 @@
  * owner's Drive before its link goes into the sheet, then marked attached so the clean-up keeps it.
  */
 import type { AnswerValue } from "@freelyforms/form-engine";
-import { answerFields, type Field, type Form } from "@freelyforms/form-schema";
-import { DEFAULT_FILE_MAX_MB } from "@freelyforms/form-schema/limits";
+import { answerFields, type Form } from "@freelyforms/form-schema";
 import { driveFileUrl, type DriveClient } from "@freelyforms/google";
-import { acceptsType } from "../public/uploads.js";
-
-type FileField = Extract<Field, { type: "file" }>;
+import { acceptsType, maxBytes, type FileField } from "../public/uploads.js";
 
 const fileFields = (form: Form) =>
-  answerFields(form).filter((f): f is FileField => f.type === "file");
+  answerFields(form).filter((f): f is FileField => f.type === "file" || f.type === "signature");
 
 const answersOf = (value: AnswerValue | undefined): string[] =>
   Array.isArray(value) ? (value as readonly string[]).filter((v) => v !== "") : [];
@@ -44,7 +41,7 @@ export async function attachFiles(
         tags?.freelyForm === form.id &&
         tags.freelyField === field.id &&
         tags.freelyToken === token &&
-        Number(file.size ?? 0) <= (field.maxSizeMb ?? DEFAULT_FILE_MAX_MB) * 1024 * 1024 &&
+        Number(file.size ?? 0) <= maxBytes(field) &&
         acceptsType(field, file.mimeType);
       if (!ok) {
         lines.push("(file not accepted)");

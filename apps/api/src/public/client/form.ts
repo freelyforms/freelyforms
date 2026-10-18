@@ -342,7 +342,7 @@ function askHostForParams() {
 }
 
 /** PUTs a file to a Drive upload session with progress; resolves to the new file's ID. */
-function putFile(url: string, file: File, onProgress: (percent: number) => void): Promise<string> {
+function putFile(url: string, file: Blob, onProgress: (percent: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
@@ -385,6 +385,136 @@ function setupUploads(form: HTMLFormElement) {
     running += delta;
     if (submit) submit.disabled = running > 0;
   };
+  /** Gets a slot for one file and uploads it; resolves to the answer `<fileId>:<token>`. */
+  const send = async (
+    fieldId: string,
+    file: Blob,
+    name: string,
+    onProgress: (percent: number) => void,
+  ): Promise<string> => {
+    const type = file.type || "application/octet-stream";
+    const res = await fetch(`${form.getAttribute("action") ?? ""}/uploads`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fieldId, name, size: file.size, type }),
+    });
+    const slot = (await res.json()) as { uploadUrl?: string; token?: string; error?: string };
+    if (!res.ok || !slot.uploadUrl || !slot.token) throw new Error(slot.error ?? "slot");
+    const fileId = await putFile(slot.uploadUrl, file, onProgress);
+    return `${fileId}:${slot.token}`;
+  };
+  for (const pad of form.querySelectorAll<HTMLElement>("[data-signature]")) setupSignature(pad);
+
+  /**
+   * A signature pad: draw with a pointer, or type a name that is drawn for you. A second after
+   * the last change the picture is saved as a PNG through the same upload path as files.
+   */
+  function setupSignature(pad: HTMLElement) {
+    const canvas = pad.querySelector("canvas");
+    const hidden = pad.querySelector<HTMLInputElement>("input[type=hidden]");
+    const typed = pad.querySelector<HTMLInputElement>("input[type=text]");
+    const status = pad.querySelector<HTMLElement>("[data-status]");
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !hidden || !typed || !status || !ctx) return;
+    const ink = getComputedStyle(pad).color;
+    let drawn = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let version = 0;
+    const clear = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawn = false;
+    };
+    const point = (e: PointerEvent) => {
+      const box = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - box.left) / box.width) * canvas.width,
+        y: ((e.clientY - box.top) / box.height) * canvas.height,
+      };
+    };
+    const save = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const mine = ++version;
+        if (!drawn) {
+          hidden.value = "";
+          status.textContent = "";
+          hidden.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+        setRunning(1);
+        status.textContent = "Saving signature…";
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            setRunning(-1);
+            return;
+          }
+          send(hidden.name, blob, "signature.png", () => undefined)
+            .then(
+              (answer) => {
+                // A newer drawing replaced this one while it was uploading.
+                if (mine === version) {
+                  hidden.value = answer;
+                  status.textContent = "Signature saved";
+                }
+              },
+              () => {
+                if (mine === version)
+                  status.textContent = "Couldn't save the signature. Please try again.";
+              },
+            )
+            .finally(() => {
+              setRunning(-1);
+              hidden.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+        }, "image/png");
+      }, 1000);
+    };
+    let last: { x: number; y: number } | null = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      if (typed.value) {
+        typed.value = "";
+        clear();
+      }
+      last = point(e);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!last) return;
+      const next = point(e);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(next.x, next.y);
+      ctx.stroke();
+      last = next;
+      drawn = true;
+    });
+    const end = () => {
+      if (last && drawn) save();
+      last = null;
+    };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    typed.addEventListener("input", () => {
+      clear();
+      const name = typed.value.trim();
+      if (name) {
+        ctx.fillStyle = ink;
+        ctx.font = "italic 56px 'Brush Script MT', 'Segoe Script', cursive";
+        ctx.textBaseline = "middle";
+        ctx.fillText(name, 24, canvas.height / 2, canvas.width - 48);
+        drawn = true;
+      }
+      save();
+    });
+    pad.querySelector("[data-clear]")?.addEventListener("click", () => {
+      typed.value = "";
+      clear();
+      save();
+    });
+  }
   for (const box of form.querySelectorAll<HTMLElement>("[data-file]")) {
     const picker = box.querySelector<HTMLInputElement>("input[type=file]");
     const hidden = box.querySelector<HTMLInputElement>("input[type=hidden]");
@@ -422,22 +552,9 @@ function setupUploads(form: HTMLFormElement) {
       setRunning(1);
       status.textContent = "Uploading…";
       try {
-        const res = await fetch(`${form.getAttribute("action") ?? ""}/uploads`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            fieldId: hidden.name,
-            name: file.name,
-            size: file.size,
-            type: file.type || "application/octet-stream",
-          }),
-        });
-        const slot = (await res.json()) as { uploadUrl?: string; token?: string; error?: string };
-        if (!res.ok || !slot.uploadUrl || !slot.token) throw new Error(slot.error ?? "slot");
-        const fileId = await putFile(slot.uploadUrl, file, (p) => {
+        const answer = await send(hidden.name, file, file.name, (p) => {
           status.textContent = `Uploading… ${String(p)}%`;
         });
-        const answer = `${fileId}:${slot.token}`;
         done.push(answer);
         status.textContent = "Uploaded";
         const remove = document.createElement("button");

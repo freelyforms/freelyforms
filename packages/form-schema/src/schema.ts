@@ -204,6 +204,9 @@ export const fileFieldSchema = z.strictObject({
   maxFiles: z.int().min(1).max(MAX_FILES).optional(),
 });
 
+/** A signature drawn on the page, stored as a PNG in the owner's Drive like an upload (ADR 0007). */
+export const signatureFieldSchema = z.strictObject({ type: z.literal("signature"), ...base });
+
 /**
  * A number computed from earlier answers (ADR 0022): the sum of `sum`'s fields. Computed by the
  * server, never taken from the browser; `show` displays the running result to respondents.
@@ -255,6 +258,7 @@ export const fieldSchema = z
     matrixFieldSchema,
     rankingFieldSchema,
     fileFieldSchema,
+    signatureFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {

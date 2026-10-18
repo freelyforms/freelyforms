@@ -52,6 +52,9 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .file input[type=file]{font:inherit;max-width:100%}.file-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
 .file-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);font-size:.95rem}
 .file-list button{min-width:0;padding:4px 10px;background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:400}
+.signature canvas{display:block;width:100%;max-width:600px;aspect-ratio:600/180;border:1px dashed var(--line);border-radius:var(--radius);touch-action:none;background:transparent}
+.signature-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}.signature-tools input{flex:1 1 160px;width:auto}
+.signature-tools .choice{margin:0}.signature-tools button{min-width:0;padding:8px 14px;background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:400}
 .calc{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .calc-label{font-weight:600}.calc output{font-size:1.4rem;font-weight:700;font-variant-numeric:tabular-nums}
 .scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}.step-off{display:none!important}
@@ -342,6 +345,24 @@ ${str(value)}</textarea>`;
         </p>
       </div>`;
     }
+    case "signature":
+      // Drawn (or typed) on a canvas; the script stores it as a PNG in the owner's Drive and
+      // fills the hidden input with `<fileId>:<token>` (ADR 0007).
+      return html`<div class="signature" data-signature>
+        <canvas width="600" height="180" role="img" aria-label="Signature pad"></canvas>
+        <div class="signature-tools">
+          <label class="choice" for="${id}_typed">Or type your name</label>
+          <input type="text" id="${id}_typed" autocomplete="name" maxlength="80" />
+          <button type="button" data-clear>Clear</button>
+        </div>
+        <p class="hint" aria-live="polite" data-status></p>
+        <input
+          type="hidden"
+          name="${id}"
+          value="${Array.isArray(value) ? value.join(" ") : str(value)}"
+        />
+        <noscript><p class="hint">Signing needs JavaScript.</p></noscript>
+      </div>`;
     case "matrix": {
       const parts = (value ?? {}) as Record<string, unknown>;
       return html`<div class="matrix-wrap">
@@ -443,7 +464,8 @@ function fieldBlock(field: AnswerField, value: unknown, error: FieldError | unde
     field.type === "rating" ||
     field.type === "scale" ||
     field.type === "matrix" ||
-    field.type === "ranking"
+    field.type === "ranking" ||
+    field.type === "signature"
   ) {
     return html`<fieldset
       class="${fieldClass(field)}"
