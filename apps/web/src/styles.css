@@ -1001,3 +1001,8 @@ button.small {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+.option-row .score {
+  width: 80px;
+  flex: none;
+}

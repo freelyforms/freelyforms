@@ -56,9 +56,9 @@ Status: done (2026-10-18).
 
 - file upload -> Google Drive;
 - signature;
-- calculations;
+- calculations (done: sums and option scores, ADR 0022);
 - rating/ranking/matrix fields (rating and scale/NPS done; ranking and matrix to do);
-- advanced logic/jumps;
+- advanced logic/jumps (done: page and field conditions on answers and calculations);
 - webhook destinations (done: one signed webhook per form, ADR 0021);
 - custom domains;
 - payment provider connection;

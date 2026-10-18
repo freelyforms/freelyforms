@@ -1,5 +1,5 @@
 import type { AnswerFormat, Field } from "@freelyforms/form-schema";
-import { isAnswerField } from "@freelyforms/form-schema/limits";
+import { isAnswerField, SUMMABLE_TYPES } from "@freelyforms/form-schema/limits";
 import {
   useCallback,
   useEffect,
@@ -16,6 +16,8 @@ interface Props {
   field: Field;
   /** Fields above this one, which its conditions may test. */
   earlier: readonly Field[];
+  /** True when a calculation adds this choice field up, so its options take scores (ADR 0022). */
+  scored: boolean;
   index: number;
   count: number;
   issues: string[];
@@ -217,6 +219,30 @@ export function FieldEditor(props: Props) {
                     }
                   }}
                 />
+                {props.scored && (
+                  <input
+                    className="score"
+                    type="number"
+                    step="any"
+                    aria-label={`Score for ${option.label}`}
+                    placeholder="0"
+                    value={option.score ?? ""}
+                    onChange={(e) => {
+                      const n = e.target.value === "" ? undefined : Number(e.target.value);
+                      props.onChange({
+                        options: field.options.map((o) =>
+                          o.id === option.id
+                            ? Object.fromEntries(
+                                Object.entries({ ...o, score: n }).filter(
+                                  ([, v]) => v !== undefined && !Number.isNaN(v),
+                                ),
+                              )
+                            : o,
+                        ),
+                      });
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   className="icon"
@@ -248,7 +274,52 @@ export function FieldEditor(props: Props) {
         </fieldset>
       )}
 
-      {field.type === "page" ? (
+      {field.type === "calculation" ? (
+        <div className="more">
+          <fieldset className="options">
+            <legend className="field-label">Add up</legend>
+            {props.earlier.filter((f) => SUMMABLE_TYPES.includes(f.type)).length === 0 && (
+              <p className="muted small">
+                Add a number, rating, scale or choice question above this one first.
+              </p>
+            )}
+            {props.earlier
+              .filter((f) => SUMMABLE_TYPES.includes(f.type))
+              .map((f) => (
+                <label key={f.id} className="check">
+                  <input
+                    type="checkbox"
+                    checked={field.sum.includes(f.id)}
+                    onChange={(e) => {
+                      props.onChange({
+                        sum: e.target.checked
+                          ? props.earlier
+                              .filter((x) => x.id === f.id || field.sum.includes(x.id))
+                              .map((x) => x.id)
+                          : field.sum.filter((x) => x !== f.id),
+                      });
+                    }}
+                  />
+                  {f.label}
+                </label>
+              ))}
+          </fieldset>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={field.show === true}
+              onChange={(e) => {
+                props.onChange({ show: e.target.checked || undefined });
+              }}
+            />
+            Show the result to respondents
+          </label>
+          <p className="muted small">
+            Numbers, ratings and scales add their value; choices add the score of each chosen
+            option. The result is computed when the response arrives and goes to its own column.
+          </p>
+        </div>
+      ) : field.type === "page" ? (
         <div className="more">
           <label className="field-label" htmlFor={id("description")}>
             Text under the title <span className="muted">(optional)</span>
@@ -493,19 +564,22 @@ export function FieldEditor(props: Props) {
           }}
         />
       </div>
-      {field.type !== "page" && field.type !== "hidden" && field.required !== true && (
-        <div className="condition-toggle">
-          <Conditions
-            legend="Require an answer only if"
-            addLabel="+ Required only if…"
-            showIf={field.requiredIf}
-            earlier={props.earlier.filter(isAnswerField)}
-            onChange={(requiredIf) => {
-              props.onChange({ requiredIf });
-            }}
-          />
-        </div>
-      )}
+      {field.type !== "page" &&
+        field.type !== "hidden" &&
+        field.type !== "calculation" &&
+        field.required !== true && (
+          <div className="condition-toggle">
+            <Conditions
+              legend="Require an answer only if"
+              addLabel="+ Required only if…"
+              showIf={field.requiredIf}
+              earlier={props.earlier.filter(isAnswerField)}
+              onChange={(requiredIf) => {
+                props.onChange({ requiredIf });
+              }}
+            />
+          </div>
+        )}
 
       {props.issues.map((m) => (
         <p key={m} className="issue" role="alert">

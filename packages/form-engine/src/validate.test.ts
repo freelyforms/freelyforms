@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { parseForm, type Field, type Form } from "@freelyforms/form-schema";
 import { describe, expect, it } from "vitest";
 import {
+  formState,
   requiredFields,
   validateSubmission,
   visibleFields,
@@ -89,6 +90,8 @@ describe("validateSubmission with fixtures", () => {
         fld_sessions: ["opt_morning", "opt_evening"],
         fld_consent: true,
         fld_utm_source: "direct",
+        // Calculations always have a value; nothing to add up here (ADR 0022).
+        fld_total: 0,
       },
     });
   });
@@ -540,5 +543,59 @@ describe("rating and scale", () => {
     expect(errorOf(nps, "7.5")).toBe("not_a_number");
     expect(errorOf(nps, "-1")).toBe("not_a_number");
     expect(errorOf({ ...rating, max: 10 }, "9")).toBeUndefined();
+  });
+});
+
+describe("calculations (ADR 0022)", () => {
+  const level: Field = {
+    id: "fld_level",
+    type: "radio",
+    label: "Level",
+    options: [
+      { id: "opt_low", label: "Low", score: 1 },
+      { id: "opt_high", label: "High", score: 5 },
+      { id: "opt_none", label: "None" },
+    ],
+  };
+  const extras: Field = {
+    id: "fld_extras",
+    type: "checkboxes",
+    label: "Extras",
+    options: [
+      { id: "opt_a", label: "A", score: 2 },
+      { id: "opt_b", label: "B", score: 0.5 },
+    ],
+  };
+  const qty: Field = { id: "fld_qty", type: "number", label: "Qty" };
+  const total: Field = {
+    id: "fld_total",
+    type: "calculation",
+    label: "Total",
+    sum: ["fld_level", "fld_extras", "fld_qty"],
+  };
+  const advice: Field = {
+    id: "fld_advice",
+    type: "text",
+    label: "Advice",
+    showIf: { match: "all", rules: [{ field: "fld_total", op: "greater_than", value: 8 }] },
+  };
+  const form = { fields: [level, extras, qty, total, advice] };
+
+  it("adds numbers and the scores of chosen options; empty fields add 0", () => {
+    expect(
+      formState(form, { fld_level: "opt_high", fld_extras: ["opt_a", "opt_b"], fld_qty: "1" })
+        .values.fld_total,
+    ).toBe(8.5);
+    expect(formState(form, {}).values.fld_total).toBe(0);
+    expect(formState(form, { fld_level: "opt_none" }).values.fld_total).toBe(0);
+  });
+
+  it("ignores a value sent for the calculation and lets conditions test it", () => {
+    const result = validateSubmission(form, { fld_level: "opt_low", fld_total: "999" });
+    expect(result).toEqual({ ok: true, values: { fld_level: "opt_low", fld_total: 1 } });
+    expect(visibleFields(form, { fld_level: "opt_high", fld_qty: "4" }).has("fld_advice")).toBe(
+      true,
+    );
+    expect(visibleFields(form, { fld_level: "opt_high" }).has("fld_advice")).toBe(false);
   });
 });

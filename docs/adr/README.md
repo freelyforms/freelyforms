@@ -25,5 +25,6 @@ Each ADR records one decision: the context, what we decided and what follows fro
 | [0019](0019-conditional-required.md)                     | Questions required only under conditions                           | Accepted                         |
 | [0020](0020-answer-formats.md)                           | Answer formats instead of regular expressions                      | Accepted                         |
 | [0021](0021-webhook-destination.md)                      | Webhook destination                                                | Accepted                         |
+| [0022](0022-calculations-and-scores.md)                  | Calculations and option scores                                     | Accepted                         |
 
 Template: copy any ADR and keep the sections _Status_, _Context_, _Decision_, _Consequences_.

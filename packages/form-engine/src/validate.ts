@@ -257,7 +257,10 @@ function validHidden(field: Extract<Field, { type: "hidden" }>, raw: unknown): O
   return { value: Array.from(value).slice(0, MAX_HIDDEN_LENGTH).join("") };
 }
 
-function validateField(field: Exclude<Field, { type: "page" }>, raw: unknown): Outcome {
+function validateField(
+  field: Exclude<Field, { type: "page" | "calculation" }>,
+  raw: unknown,
+): Outcome {
   if (field.type === "hidden") return validHidden(field, raw);
   if (field.type !== "consent" && isEmpty(raw)) {
     return field.required === true ? fail("required") : { empty: true };
@@ -291,6 +294,30 @@ function validateField(field: Exclude<Field, { type: "page" }>, raw: unknown): O
           : { empty: true }
         : validConsent(field, raw);
   }
+}
+
+/**
+ * A calculation's value (ADR 0022): numbers, ratings, scales and earlier calculations add their
+ * value, choices the scores of the chosen options; empty or hidden fields add 0.
+ */
+function sumOf(
+  field: Extract<Field, { type: "calculation" }>,
+  values: Readonly<Record<string, AnswerValue>>,
+  byId: ReadonlyMap<string, Field>,
+): number {
+  let total = 0;
+  for (const id of field.sum) {
+    const source = byId.get(id);
+    const value = values[id];
+    if (!source || value === undefined) continue;
+    if (typeof value === "number") total += value;
+    else if ("options" in source) {
+      const chosen = Array.isArray(value) ? value : [value];
+      for (const option of source.options)
+        if (chosen.includes(option.id)) total += option.score ?? 0;
+    }
+  }
+  return Math.round(total * 1e6) / 1e6;
 }
 
 type ShowIf = NonNullable<Field["showIf"]>;
@@ -343,6 +370,7 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
   const errors: FieldError[] = [];
   const shown = new Set<string>();
   const required = new Set<string>();
+  const byId = new Map(form.fields.map((f) => [f.id, f]));
   // Fields under a page break whose conditions fail are skipped with it (ADR 0018).
   let pageShown = true;
   for (const field of form.fields) {
@@ -354,6 +382,11 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
     if (!pageShown) continue;
     if (field.showIf && !isShown(field.showIf, values)) continue;
     shown.add(field.id);
+    // Computed from the answers above it; anything the browser sent for it is ignored (ADR 0022).
+    if (field.type === "calculation") {
+      values[field.id] = sumOf(field, values, byId);
+      continue;
+    }
     // Required always, or only while its conditions hold (ADR 0019).
     const mustAnswer =
       field.required === true ||
@@ -376,6 +409,22 @@ export function visibleFields(
   answers: Readonly<Record<string, unknown>>,
 ): ReadonlySet<string> {
   return walk(form, answers).shown;
+}
+
+/**
+ * Everything the form script needs at once: normalised values (with calculations, ADR 0022), the
+ * fields shown and the fields required for these answers. Validation errors don't stop it.
+ */
+export function formState(
+  form: Pick<Form, "fields">,
+  answers: Readonly<Record<string, unknown>>,
+): {
+  values: Readonly<Record<string, AnswerValue>>;
+  shown: ReadonlySet<string>;
+  required: ReadonlySet<string>;
+} {
+  const { values, shown, required } = walk(form, answers);
+  return { values, shown, required };
 }
 
 /** IDs of the shown fields that must be answered for these answers (`required` or `requiredIf`). */

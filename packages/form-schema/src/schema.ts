@@ -8,7 +8,9 @@ import {
   MAX_HIDDEN_LENGTH,
   MAX_OPTIONS,
   MAX_TEXT_LENGTH,
+  MAX_SUM_FIELDS,
   OPERATORS_BY_TYPE,
+  SUMMABLE_TYPES,
   VALUELESS_OPERATORS,
   isAnswerField,
 } from "./limits.js";
@@ -35,6 +37,8 @@ const lengthSchema = z.int().min(0).max(MAX_TEXT_LENGTH);
 export const optionSchema = z.strictObject({
   id: optionIdSchema,
   label: z.string().min(1).max(200).regex(nonBlank, "Must not be blank"),
+  /** Points a calculation adds when this option is chosen (ADR 0022). */
+  score: z.number().min(-1_000_000).max(1_000_000).optional(),
 });
 
 /** One test on an earlier field's answer (ADR 0017). */
@@ -160,6 +164,24 @@ export const scaleFieldSchema = z.strictObject({
 });
 
 /**
+ * A number computed from earlier answers (ADR 0022): the sum of `sum`'s fields. Computed by the
+ * server, never taken from the browser; `show` displays the running result to respondents.
+ */
+export const calculationFieldSchema = z.strictObject({
+  type: z.literal("calculation"),
+  id: fieldIdSchema,
+  label: labelSchema,
+  description: descriptionSchema.optional(),
+  showIf: showIfSchema.optional(),
+  width: z.enum(["full", "half"]).optional(),
+  sum: z
+    .array(fieldIdSchema)
+    .min(1, "Calculation: choose at least one question to add up")
+    .max(MAX_SUM_FIELDS),
+  show: z.boolean().optional(),
+});
+
+/**
  * Starts a new page (ADR 0018): its label is the page title. Not an answer: no value, no sheet
  * column, never required. With `showIf`, the whole page is skipped when the conditions fail.
  */
@@ -188,6 +210,7 @@ export const fieldSchema = z
     pageFieldSchema,
     ratingFieldSchema,
     scaleFieldSchema,
+    calculationFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {
@@ -311,6 +334,18 @@ export const formSchemaV1 = z
           }
         });
       }
+      if (field.type === "calculation") {
+        field.sum.forEach((id, i) => {
+          const source = earlier.get(id);
+          const problem = !source
+            ? "Calculation: choose a question above this one"
+            : !SUMMABLE_TYPES.includes(source.type)
+              ? "Calculation: only numbers, ratings, scales, choices and calculations add up"
+              : null;
+          if (problem)
+            ctx.addIssue({ code: "custom", path: ["fields", index, "sum", i], message: problem });
+        });
+      }
       if (field.type === "page") {
         const before = form.fields[index - 1];
         const problem =
@@ -347,7 +382,12 @@ function ruleProblem(rule: z.infer<typeof conditionRuleSchema>, source: Field | 
       ? null
       : "choose one of the question's options";
   }
-  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
+  if (
+    source.type === "number" ||
+    source.type === "rating" ||
+    source.type === "scale" ||
+    source.type === "calculation"
+  ) {
     return typeof value === "number" && Number.isFinite(value) ? null : "enter a number";
   }
   if (source.type === "date") {

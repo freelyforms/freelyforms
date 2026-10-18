@@ -330,6 +330,9 @@ export function Editor({ id }: { id: string }) {
                     <FieldEditor
                       field={field}
                       earlier={form.fields.slice(0, index)}
+                      scored={form.fields.some(
+                        (f) => f.type === "calculation" && f.sum.includes(field.id),
+                      )}
                       index={index}
                       count={form.fields.length}
                       issues={issues.get(field.id) ?? []}

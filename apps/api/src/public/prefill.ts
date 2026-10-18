@@ -26,6 +26,7 @@ export function prefillValues(form: Pick<Form, "fields">, query: URLSearchParams
     switch (field.type) {
       case "consent":
       case "page":
+      case "calculation":
         break;
       case "select":
       case "radio": {

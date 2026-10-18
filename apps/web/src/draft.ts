@@ -10,7 +10,12 @@ import type {
   FormSettings,
   ShowIf,
 } from "@freelyforms/form-schema";
-import { MAX_FIELDS, MAX_OPTIONS, type FieldType } from "@freelyforms/form-schema/limits";
+import {
+  MAX_FIELDS,
+  MAX_OPTIONS,
+  SUMMABLE_TYPES,
+  type FieldType,
+} from "@freelyforms/form-schema/limits";
 
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -37,6 +42,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   page: "Page break",
   rating: "Rating",
   scale: "Scale",
+  calculation: "Calculation",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>
@@ -64,6 +70,8 @@ export function newField(type: FieldType): Field {
       return { id, type, label: "Source" };
     case "page":
       return { id, type, label: "Next page" };
+    case "calculation":
+      return { id, type, label: "Score", sum: [], show: true };
     default:
       return { id, type, label: FIELD_TYPE_LABELS[type] };
   }
@@ -115,7 +123,15 @@ export function addField(
   index = form.fields.length,
 ): { form: Form; id: string } {
   if (form.fields.length >= MAX_FIELDS) return { form, id: "" };
-  const field = newField(type);
+  let field = newField(type);
+  // A new calculation adds up everything above it that can be added up (ADR 0022).
+  if (field.type === "calculation") {
+    const sum = form.fields
+      .slice(0, index)
+      .filter((f) => SUMMABLE_TYPES.includes(f.type))
+      .map((f) => f.id);
+    field = { ...field, sum };
+  }
   const fields = [...form.fields];
   fields.splice(index, 0, field);
   return { form: { ...form, fields }, id: field.id };

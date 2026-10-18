@@ -18,6 +18,13 @@ interface Props {
   onChange: (showIf: ShowIf | undefined) => void;
 }
 
+/** Sources compared as numbers: numbers, ratings, scales and calculations. */
+const isNumeric = (source: Field) =>
+  source.type === "number" ||
+  source.type === "rating" ||
+  source.type === "scale" ||
+  source.type === "calculation";
+
 /** How an operator reads for a source field, e.g. "includes" for checkboxes. */
 function operatorLabel(op: ConditionOperator, source: Field): string {
   const multi = source.type === "checkboxes" || source.type === "multiselect";
@@ -61,7 +68,7 @@ function withValue(rule: ConditionRule, source: Field): ConditionRule {
     const kept = source.options.some((o) => o.id === rule.value) ? rule.value : undefined;
     return { field, op, value: kept ?? source.options[0]?.id ?? "" };
   }
-  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
+  if (isNumeric(source)) {
     const fallback = source.type === "rating" ? 1 : source.type === "scale" ? (source.min ?? 1) : 0;
     return { field, op, value: typeof rule.value === "number" ? rule.value : fallback };
   }
@@ -223,7 +230,7 @@ function RuleValue({
       </select>
     );
   }
-  if (source.type === "number" || source.type === "rating" || source.type === "scale") {
+  if (isNumeric(source)) {
     return (
       <input
         aria-label={label}

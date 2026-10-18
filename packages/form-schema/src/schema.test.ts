@@ -329,3 +329,17 @@ describe("answer formats (ADR 0020)", () => {
     expect(issuesOf(long)).not.toEqual([]);
   });
 });
+
+describe("calculations (ADR 0022)", () => {
+  const n = { id: "fld_n", type: "number", label: "N" };
+  const calc = (sum: string[]) => ({ id: "fld_c", type: "calculation", label: "C", sum });
+
+  it("adds up earlier numeric and choice fields only", () => {
+    expect(issuesOf(minimal([n, calc(["fld_n"])]))).toEqual([]);
+    expect(issuesOf(minimal([calc(["fld_n"]), n])).join()).toContain("choose a question above");
+    const t = { id: "fld_t", type: "text", label: "T" };
+    expect(issuesOf(minimal([t, calc(["fld_t"])])).join()).toContain("only numbers");
+    expect(issuesOf(minimal([n, calc([])])).join()).toContain("at least one question");
+    expect(issuesOf(minimal([n, { ...calc(["fld_n"]), required: true }]))).not.toEqual([]);
+  });
+});

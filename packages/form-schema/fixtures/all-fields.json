@@ -144,6 +144,13 @@
       "max": 10,
       "minLabel": "Not likely",
       "maxLabel": "Very likely"
+    },
+    {
+      "id": "fld_total",
+      "type": "calculation",
+      "label": "Total score",
+      "sum": ["fld_rating", "fld_nps"],
+      "show": true
     }
   ]
 }

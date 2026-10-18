@@ -488,3 +488,54 @@ test("an owner adds a webhook and each response arrives there, signed", async ({
   expect(real?.body.answers).toMatchObject({ fld_name: "Linus", fld_email: "linus@example.com" });
   expect(real?.signature).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/);
 });
+
+test("a quiz adds up option scores live and branches on the total", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Quiz");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "+ Single choice", exact: true }).click();
+  await page.getByRole("button", { name: "+ Single choice", exact: true }).click();
+  const cards = page.locator("article");
+  await cards.nth(0).getByLabel("Question", { exact: true }).fill("Q1");
+  await cards.nth(1).getByLabel("Question", { exact: true }).fill("Q2");
+  await page.getByRole("button", { name: "+ Calculation", exact: true }).click();
+  // The new calculation adds up both questions, so their options now take scores.
+  for (const i of [0, 1]) {
+    await cards.nth(i).getByLabel("Score for Option 1").fill("1");
+    await cards.nth(i).getByLabel("Score for Option 2").fill("5");
+  }
+  await page.getByRole("button", { name: "+ Page break", exact: true }).click();
+  await page.getByRole("button", { name: "+ Short text", exact: true }).click();
+  const pageBreak = cards.nth(3);
+  await pageBreak.getByRole("button", { name: "+ Show only if…" }).click();
+  await pageBreak.getByLabel("Condition 1: question").selectOption({ label: "Score" });
+  await pageBreak.getByLabel("Condition 1: test").selectOption({ label: "is more than" });
+  await pageBreak.getByLabel("Condition 1: value").fill("5");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  const score = r.locator("output[data-calc]");
+  await expect(score).toHaveText("–".replace("–", "0"));
+  await r.getByRole("group", { name: "Q1" }).getByLabel("Option 2").check();
+  await expect(score).toHaveText("5");
+  await expect(r.locator(".progress")).toHaveText("Page 1 of 1");
+  await r.getByRole("group", { name: "Q2" }).getByLabel("Option 2").check();
+  await expect(score).toHaveText("10");
+  await expect(r.locator(".progress")).toHaveText("Page 1 of 2");
+  await r.getByRole("button", { name: "Next" }).click();
+  await r.getByLabel("Short text").fill("High scorer");
+  await waitForTurnstile(r);
+  await r.getByRole("button", { name: "Submit" }).click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Score") ?? -1]).toBe(10);
+});

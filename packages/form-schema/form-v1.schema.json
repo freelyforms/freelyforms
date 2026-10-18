@@ -1340,6 +1340,11 @@
                       "minLength": 1,
                       "maxLength": 200,
                       "pattern": "\\S"
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": -1000000,
+                      "maximum": 1000000
                     }
                   },
                   "required": [
@@ -1525,6 +1530,11 @@
                       "minLength": 1,
                       "maxLength": 200,
                       "pattern": "\\S"
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": -1000000,
+                      "maximum": 1000000
                     }
                   },
                   "required": [
@@ -1710,6 +1720,11 @@
                       "minLength": 1,
                       "maxLength": 200,
                       "pattern": "\\S"
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": -1000000,
+                      "maximum": 1000000
                     }
                   },
                   "required": [
@@ -1905,6 +1920,11 @@
                       "minLength": 1,
                       "maxLength": 200,
                       "pattern": "\\S"
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": -1000000,
+                      "maximum": 1000000
                     }
                   },
                   "required": [
@@ -2686,6 +2706,115 @@
               "type",
               "id",
               "label"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "calculation"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^fld_[a-z0-9_]{1,48}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "\\S"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "showIf": {
+                "type": "object",
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "any"
+                    ]
+                  },
+                  "rules": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^fld_[a-z0-9_]{1,48}$"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "equals",
+                            "not_equals",
+                            "contains",
+                            "not_contains",
+                            "greater_than",
+                            "less_than",
+                            "is_empty",
+                            "is_not_empty"
+                          ]
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 1000
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "op"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "match",
+                  "rules"
+                ],
+                "additionalProperties": false
+              },
+              "width": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              },
+              "sum": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^fld_[a-z0-9_]{1,48}$"
+                }
+              },
+              "show": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "label",
+              "sum"
             ],
             "additionalProperties": false
           }

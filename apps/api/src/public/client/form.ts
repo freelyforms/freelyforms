@@ -5,12 +5,7 @@
  *
  * Bundled into ../client.generated.ts by scripts/build-form-client.ts (`pnpm build:client`).
  */
-import {
-  requiredFields,
-  validateSubmission,
-  visibleFields,
-  type FieldError,
-} from "@freelyforms/form-engine";
+import { formState, validateSubmission, type FieldError } from "@freelyforms/form-engine";
 import type { Form } from "@freelyforms/form-schema";
 import { errorMessage } from "../messages.js";
 
@@ -109,13 +104,23 @@ function setup(form: HTMLFormElement, schema: Fields) {
    * is skipped count as not shown (ADR 0018). Inputs of fields that are not shown are disabled, so
    * they are neither checked nor sent; the server applies the same rules.
    */
-  const dynamic = schema.fields.some((f) => f.showIf || ("requiredIf" in f && f.requiredIf));
+  const dynamic = schema.fields.some(
+    (f) => f.showIf || ("requiredIf" in f && f.requiredIf) || f.type === "calculation",
+  );
+  const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
   const applyVisibility = () => {
     if (!dynamic) return;
     const answers = answersOf(form);
-    shown = visibleFields(schema, answers);
+    const state = formState(schema, answers);
+    shown = state.shown;
+    // Shown calculations display the running result; the server computes the one that counts.
+    for (const output of form.querySelectorAll<HTMLOutputElement>("output[data-calc]")) {
+      const id = output.closest<HTMLElement>("[data-field]")?.dataset.field ?? "";
+      const value = state.values[id];
+      output.value = typeof value === "number" ? numberFormat.format(value) : "–";
+    }
     // Fields required only under conditions show the marker while those hold (ADR 0019).
-    const required = requiredFields(schema, answers);
+    const required = state.required;
     for (const field of schema.fields) {
       if (!("requiredIf" in field) || !field.requiredIf) continue;
       const box = container(field.id);

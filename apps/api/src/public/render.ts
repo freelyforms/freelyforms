@@ -42,6 +42,8 @@ button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacit
 .scale{display:inline-flex;flex-direction:column;max-width:100%}.scale-options{display:flex;gap:6px;flex-wrap:wrap}.scale-options label{margin:0;font-weight:600;cursor:pointer}
 .scale-options span{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius)}
 .scale-options label:has(input:checked) span{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.calc{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.calc-label{font-weight:600}.calc output{font-size:1.4rem;font-weight:700;font-variant-numeric:tabular-nums}
 .scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}.step-off{display:none!important}
 form[data-mode=conversational] .field>label,form[data-mode=conversational] .field>legend{font-size:1.3rem;line-height:1.35;margin-bottom:12px}
 form[data-mode=conversational] .page>.half{grid-column:1/-1}@media (max-width:560px){.page>.half{grid-column:1/-1}}
@@ -169,19 +171,20 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const list = (v: unknown) => (Array.isArray(v) ? v.map(str) : typeof v === "string" ? [v] : []);
 
 type AnswerField = Exclude<Field, { type: "page" }>;
+type InputField = Exclude<AnswerField, { type: "calculation" }>;
 
 /**
  * The required marker. A field required only under conditions (ADR 0019) gets a hidden one that
  * the form script shows while they hold.
  */
-function starFor(field: AnswerField): Html | "" {
+function starFor(field: InputField): Html | "" {
   if (field.required === true) return html` <span class="req" aria-hidden="true">*</span>`;
   if (field.requiredIf)
     return html` <span class="req" aria-hidden="true" data-req-if hidden>*</span>`;
   return "";
 }
 
-function control(field: AnswerField, value: unknown, describedBy: string | undefined): Html {
+function control(field: InputField, value: unknown, describedBy: string | undefined): Html {
   const id = field.id;
   const req = field.required === true;
   const aria = describedBy ? raw(` aria-describedby="${describedBy}"`) : "";
@@ -320,6 +323,15 @@ function scaleEnds(field: AnswerField): Html | "" {
 const fieldClass = (field: AnswerField) => (field.width === "half" ? "field half" : "field");
 
 function fieldBlock(field: AnswerField, value: unknown, error: FieldError | undefined): Html {
+  // A calculation is computed, never typed (ADR 0022); shown ones get a live result.
+  if (field.type === "calculation") {
+    return field.show === true
+      ? html`<div class="${fieldClass(field)} calc" data-field="${field.id}">
+          <span class="calc-label" id="${field.id}_label">${field.label}</span>
+          <output data-calc aria-labelledby="${field.id}_label" aria-live="polite">–</output>
+        </div>`
+      : html``;
+  }
   if (field.type === "hidden") return control(field, value, undefined);
   const hintId = field.description ? `${field.id}_hint` : undefined;
   const errId = error ? `${field.id}_err` : undefined;

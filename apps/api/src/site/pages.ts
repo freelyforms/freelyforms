@@ -759,7 +759,9 @@ export function templatePage(t: Template): Page {
             ${answerFields(t.form).map(
               (f) =>
                 html`<li>
-                  <b>${f.label}${f.required ? html`<span class="tag">required</span>` : ""}</b>
+                  <b
+                    >${f.label}${"required" in f && f.required ? html`<span class="tag">required</span>` : ""}</b
+                  >
                   <span class="muted">${t.why[f.id] ?? ""}</span>
                 </li>`,
             )}
