@@ -69,6 +69,21 @@ describe("constraints", () => {
     expect(() => insert.run(envelope, now, now)).not.toThrow();
   });
 
+  it("keeps form slugs lowercase, hyphenated and unique per owner (ADR 0025)", () => {
+    const set = db.prepare("UPDATE forms SET slug = ? WHERE id = 'frm_abc123'");
+    for (const bad of ["Upper", "-lead", "trail-", "under_score", "", "a".repeat(65)]) {
+      expect(() => set.run(bad)).toThrow();
+    }
+    expect(() => set.run("contact-us")).not.toThrow();
+    db.prepare(
+      `INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at)
+       VALUES ('frm_def456', 'usr_1', 'Other', 'draft', '{}', ?, ?)`,
+    ).run(now, now);
+    expect(() =>
+      db.prepare("UPDATE forms SET slug = 'contact-us' WHERE id = 'frm_def456'").run(),
+    ).toThrow();
+  });
+
   it("makes published form versions immutable", () => {
     db.prepare(
       "INSERT INTO form_versions (form_id, version, schema_json, published_at) VALUES ('frm_abc123', 1, '{}', ?)",

@@ -53,6 +53,7 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - Honeypot field (bots get the same response as people), 64 KB body limit counted while reading (a missing or false `Content-Length` does not bypass it), schema validation before anything is queued.
 - A Turnstile site key without its secret disables the challenge and logs `turnstile_secret_missing`.
 - When a forms domain is configured, `/f/<formId>` on the app domain redirects there, so form content never shares an origin with the session cookie.
+- Custom domains (ADR 0025) serve only a page that embeds the form from the forms domain; the app, API and session cookie are never reachable there, and other names under the forms domain answer 404. A hostname is registered only for the signed-in owner and only works once its DNS points at us; one never set up is released after 7 days, so names can't be held. The Cloudflare token can manage custom hostnames of the forms zone only and lives in a Worker secret.
 - Form pages: nonce-based CSP, no third-party scripts except the Turnstile widget, `noindex`, `no-store`; framing allowed for embeds. App pages: `frame-ancestors 'none'`.
 
 ## Web security baseline

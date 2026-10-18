@@ -20,6 +20,7 @@ import { sheetsFor, spreadsheetUrl } from "../google-access.js";
 import { keyringFor } from "../keys.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
+import { SLUG } from "../domains/serve.js";
 import { embedSnippet } from "../public/embed.js";
 import { templateBySlug } from "../site/templates.js";
 import { formPageCsp } from "../public/protect.js";
@@ -42,6 +43,7 @@ interface FormRow {
   draft_json: string;
   published_version: number | null;
   updated_at: number;
+  slug: string | null;
 }
 
 interface DestinationRow {
@@ -95,11 +97,18 @@ async function destinationOf(c: Ctx, formId: string): Promise<DestinationRow | n
 }
 
 /** Public URLs of a form: the forms domain in production, `/f/` on this origin in development. */
-function publicLinks(c: Ctx, form: FormRow) {
+async function publicLinks(c: Ctx, form: FormRow) {
   const base = c.env.FORMS_HOST ? `https://${c.env.FORMS_HOST}` : `${new URL(c.req.url).origin}/f`;
   const url = `${base}/${form.id}`;
+  // ADR 0025: the owner's custom domain, once Cloudflare has it running.
+  const domain = await c.env.DB.prepare(
+    "SELECT hostname FROM custom_domains WHERE owner_id = ? AND status = 'active'",
+  )
+    .bind(form.owner_id)
+    .first<string>("hostname");
   return {
     url,
+    customUrl: domain ? `https://${domain}/${form.slug ?? form.id}` : null,
     embedCode: embedSnippet(url, form.title, `${base}/embed.js`),
   };
 }
@@ -124,7 +133,8 @@ async function view(c: Ctx, form: FormRow & { role?: Role }, destination: Destin
     updatedAt: form.updated_at,
     draft: JSON.parse(form.draft_json) as unknown,
     hasUnpublishedChanges: published !== null && published !== form.draft_json,
-    public: form.status === "published" ? publicLinks(c, form) : null,
+    slug: form.slug,
+    public: form.status === "published" ? await publicLinks(c, form) : null,
     destination: destination && {
       state: destination.state,
       url: spreadsheetUrl(destination.spreadsheet_id, destination.sheet_id),
@@ -490,6 +500,26 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
       .run();
     const { resumed, more } = await resumeHeld(c.env, destination.id);
     return c.json({ resumed: resumed.length, more });
+  });
+
+  /** The form's path on the owner's custom domain (ADR 0025); null goes back to the form ID. */
+  forms.put("/:id/slug", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.json<{ slug?: unknown }>().catch(() => ({ slug: undefined }));
+    const slug = typeof body.slug === "string" ? body.slug.trim().toLowerCase() || null : body.slug;
+    if (slug !== null && (typeof slug !== "string" || !SLUG.test(slug))) {
+      return c.json({ error: "invalid_slug" }, 422);
+    }
+    const taken =
+      slug !== null &&
+      (await c.env.DB.prepare("SELECT 1 FROM forms WHERE owner_id = ? AND slug = ? AND id != ?")
+        .bind(form.owner_id, slug, form.id)
+        .first());
+    if (taken) return c.json({ error: "slug_taken" }, 409);
+    await c.env.DB.prepare("UPDATE forms SET slug = ? WHERE id = ?").bind(slug, form.id).run();
+    const updated = await ownedForm(c, form.id);
+    return c.json(updated && (await view(c, updated, await destinationOf(c, form.id))));
   });
 
   // Members (ADR 0024): only the owner sees and changes who else has access.

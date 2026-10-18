@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, ApiError, GRANT_DRIVE_URL, type Me } from "./api.js";
+import { CustomDomainCard } from "./Domain.js";
 
 /** Google connection and account deletion (docs/SECURITY_PRIVACY.md, Data deletion). */
 export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
@@ -129,6 +130,8 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
           </p>
         )}
       </section>
+
+      <CustomDomainCard />
 
       <section className="zone">
         <h2 className="section-title danger-text">Danger zone</h2>

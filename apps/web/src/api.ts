@@ -42,10 +42,27 @@ export interface Webhook {
   lastOkAt: number | null;
 }
 
+/** The owner's custom domain (ADR 0025), as Cloudflare last reported it. */
+export interface CustomDomain {
+  hostname: string;
+  status: "pending" | "active" | "failed";
+  detail: string | null;
+  checkedAt: number;
+}
+
+export interface DomainState {
+  available: boolean;
+  /** Where the owner's CNAME points. */
+  target?: string;
+  domain: CustomDomain | null;
+}
+
 export interface FormView extends FormSummary {
   draft: unknown;
   hasUnpublishedChanges: boolean;
-  public: { url: string; embedCode: string } | null;
+  /** Path on the owner's custom domain; the form ID when null. */
+  slug: string | null;
+  public: { url: string; customUrl: string | null; embedCode: string } | null;
   destination: { state: DestinationState; url: string } | null;
 }
 
@@ -118,6 +135,12 @@ export const api = {
     request<FormView>("/forms/import", { method: "POST", body: definition }),
   duplicateForm: (id: string) => request<FormView>(`/forms/${id}/duplicate`, { method: "POST" }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
+  setSlug: (id: string, slug: string | null) =>
+    request<FormView>(`/forms/${id}/slug`, { method: "PUT", body: { slug } }),
+  domain: () => request<DomainState>("/domain"),
+  setDomain: (hostname: string) =>
+    request<DomainState>("/domain", { method: "PUT", body: { hostname } }),
+  removeDomain: () => request<DomainState>("/domain", { method: "DELETE" }),
   members: (id: string) => request<{ members: Member[] }>(`/forms/${id}/members`),
   saveMember: (id: string, member: Member) =>
     request<Member>(`/forms/${id}/members`, { method: "PUT", body: member }),

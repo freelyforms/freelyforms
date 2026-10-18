@@ -5,7 +5,7 @@ import {
   generateMasterKeySecret,
   importMasterKey,
 } from "@freelyforms/crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, type Env } from "../src/app.js";
 import {
   cleanUploads,
@@ -1139,7 +1139,12 @@ describe("maintenance", () => {
   it("reports stuck deliveries for operators, and not deliveries held for their owner", async () => {
     const id = await publishedForm();
     await submit(id, { fld_name: "Ada", fld_email: "ada@example.com" });
-    expect(await healthReport(env, clock)).toEqual({ stuck: 0, held: 0, failedLastDay: 0 });
+    expect(await healthReport(env, clock)).toEqual({
+      stuck: 0,
+      held: 0,
+      failedLastDay: 0,
+      customDomains: 0,
+    });
     // Never consumed: an hour later it is stuck.
     expect(await healthReport(env, clock + STUCK_AFTER_MS + 1)).toMatchObject({ stuck: 1 });
     await env.DB.prepare("UPDATE deliveries SET held_at = ?").bind(clock).run();
@@ -1634,5 +1639,254 @@ describe("collaborators and the responses view (ADR 0024)", () => {
       body: { schemaVersion: 1, id, title: "Contact v2", fields },
     });
     expect((await editor(`/forms/${id}/publish`, { method: "POST" })).status).toBe(200);
+  });
+});
+
+describe("custom domains (ADR 0025)", () => {
+  const APP = "https://app.test";
+  let cf: {
+    calls: string[];
+    hostnames: Map<string, { hostname: string; status: string; ssl: string }>;
+  };
+  let domainEnv: Env;
+
+  beforeEach(() => {
+    cf = { calls: [], hostnames: new Map() };
+    const google = deps.fetch;
+    deps = {
+      ...deps,
+      fetch: async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.hostname !== "api.cloudflare.com") return google(input, init);
+        const method = init?.method ?? "GET";
+        cf.calls.push(`${method} ${url.pathname}`);
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer cf-token");
+        const id = url.pathname.split("/custom_hostnames/")[1];
+        const ok = (h: { hostname: string; status: string; ssl: string }, key: string) =>
+          Response.json({
+            success: true,
+            result: { id: key, hostname: h.hostname, status: h.status, ssl: { status: h.ssl } },
+          });
+        if (method === "POST") {
+          const { hostname } = JSON.parse(init?.body as string) as { hostname: string };
+          if (hostname === "taken.example.com")
+            return Response.json({ success: false, errors: [{ code: 1406 }] }, { status: 409 });
+          const h = { hostname, status: "pending", ssl: "pending_validation" };
+          const key = `ch_${String(cf.hostnames.size + 1)}`;
+          cf.hostnames.set(key, h);
+          return ok(h, key);
+        }
+        const h = id ? cf.hostnames.get(id) : undefined;
+        if (!h || !id) return Response.json({ success: false }, { status: 404 });
+        if (method === "DELETE") {
+          cf.hostnames.delete(id);
+          return Response.json({ success: true, result: { id } });
+        }
+        return ok(h, id);
+      },
+    };
+    domainEnv = {
+      ...env,
+      FORMS_HOST: "forms.test",
+      APP_ORIGIN: APP,
+      CF_ZONE_ID: "zone1",
+      CF_CUSTOM_HOSTNAMES_TOKEN: "cf-token",
+      CUSTOM_DOMAIN_TARGET: "domains.forms.test",
+    };
+  });
+
+  const ownerAt = (path: string, init: { method?: string; body?: unknown } = {}) =>
+    app().request(
+      `${APP}${path}`,
+      {
+        method: init.method ?? "GET",
+        headers: { cookie, origin: APP, "content-type": "application/json" },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      },
+      domainEnv,
+    );
+  const visit = (url: string, init?: RequestInit) => app().request(url, init, domainEnv);
+
+  it("registers one hostname per owner with Cloudflare and reports its state", async () => {
+    expect(await (await ownerAt("/domain")).json()).toEqual({
+      available: true,
+      target: "domains.forms.test",
+      domain: null,
+    });
+    const bad = await ownerAt("/domain", { method: "PUT", body: { hostname: "not a host" } });
+    expect(bad.status).toBe(422);
+    for (const own of ["forms.test", "x.forms.test", "app.test", "www.app.test"]) {
+      const res = await ownerAt("/domain", { method: "PUT", body: { hostname: own } });
+      expect(await res.json()).toEqual({ error: "hostname_not_allowed" });
+    }
+    const added = await ownerAt("/domain", {
+      method: "PUT",
+      body: { hostname: "https://Forms.Acme.com/" },
+    });
+    expect(added.status).toBe(201);
+    expect((await added.json<{ domain: unknown }>()).domain).toMatchObject({
+      hostname: "forms.acme.com",
+      status: "pending",
+    });
+    expect(cf.calls).toEqual(["POST /client/v4/zones/zone1/custom_hostnames"]);
+    const again = await ownerAt("/domain", { method: "PUT", body: { hostname: "b.example.com" } });
+    expect(await again.json()).toEqual({ error: "domain_exists" });
+
+    // Cloudflare finishes; the next look after the recheck interval picks it up.
+    const entry = cf.hostnames.get("ch_1");
+    if (entry) Object.assign(entry, { status: "active", ssl: "active" });
+    clock += 20_000;
+    expect((await (await ownerAt("/domain")).json<{ domain: unknown }>()).domain).toMatchObject({
+      status: "active",
+      detail: null,
+    });
+
+    const removed = await ownerAt("/domain", { method: "DELETE" });
+    expect((await removed.json<{ domain: unknown }>()).domain).toBeNull();
+    expect(cf.hostnames.size).toBe(0);
+  });
+
+  it("refuses a hostname Cloudflare already has", async () => {
+    const res = await ownerAt("/domain", {
+      method: "PUT",
+      body: { hostname: "taken.example.com" },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "hostname_taken" });
+  });
+
+  it("is unavailable without the Cloudflare settings", async () => {
+    const res = await app().request(
+      `${APP}/domain`,
+      { headers: { cookie } },
+      {
+        ...domainEnv,
+        CF_CUSTOM_HOSTNAMES_TOKEN: undefined,
+      },
+    );
+    expect(await res.json()).toEqual({ available: false, domain: null });
+  });
+
+  it("shows the owner's forms on the domain by slug or ID, and nothing else", async () => {
+    const id = await publishedForm();
+    await ownerAt("/domain", { method: "PUT", body: { hostname: "forms.acme.com" } });
+    const slug = await ownerAt(`/forms/${id}/slug`, {
+      method: "PUT",
+      body: { slug: "Contact-Us" },
+    });
+    expect(slug.status).toBe(200);
+    // Not active yet: the form's view has no custom link.
+    expect(
+      (await slug.json<{ slug: string; public: { customUrl: unknown } }>()).public.customUrl,
+    ).toBeNull();
+    await env.DB.prepare("UPDATE custom_domains SET status = 'active'").run();
+    const form = await (await ownerAt(`/forms/${id}`)).json<{ public: { customUrl: string } }>();
+    expect(form.public.customUrl).toBe("https://forms.acme.com/contact-us");
+
+    for (const path of ["/contact-us", `/${id}`, "/contact-us/"]) {
+      const page = await visit(`https://forms.acme.com${path}?fld_name=Ann`);
+      expect(page.status).toBe(200);
+      const body = await page.text();
+      expect(body).toContain(`src="https://forms.test/${id}?fld_name=Ann"`);
+      expect(body).toContain('src="https://forms.test/embed.js"');
+      expect(body).toContain("<title>Contact</title>");
+      expect(page.headers.get("content-security-policy")).toContain("frame-src https://forms.test");
+      expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    }
+    // Other paths, other people's forms, the app and the API are not served here.
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO users (id, google_sub, email, created_at) VALUES ('usr_x', 'sx', 'x@example.com', ?)",
+      ).bind(clock),
+      env.DB.prepare(
+        "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES ('frm_other123', 'usr_x', 'X', 'draft', '{}', ?, ?)",
+      ).bind(clock, clock),
+    ]);
+    for (const path of ["/", "/frm_other123", "/app/", "/forms", "/health", `/f/${id}`, "/nope"]) {
+      expect((await visit(`https://forms.acme.com${path}`)).status).toBe(404);
+    }
+    expect((await visit(`https://forms.acme.com/${id}`, { method: "POST" })).status).toBe(405);
+    expect((await visit("https://unknown.example.org/contact-us")).status).toBe(404);
+    expect((await visit("https://domains.forms.test/contact-us")).status).toBe(404);
+  });
+
+  it("keeps slugs valid and unique per owner", async () => {
+    const a = await publishedForm();
+    const b = await publishedForm();
+    for (const bad of ["-x", "x-", "a_b", "frm_abc", "a".repeat(65), 5]) {
+      const res = await ownerAt(`/forms/${a}/slug`, { method: "PUT", body: { slug: bad } });
+      expect(res.status).toBe(422);
+    }
+    await ownerAt(`/forms/${a}/slug`, { method: "PUT", body: { slug: "survey" } });
+    const clash = await ownerAt(`/forms/${b}/slug`, { method: "PUT", body: { slug: "survey" } });
+    expect(await clash.json()).toEqual({ error: "slug_taken" });
+    const cleared = await ownerAt(`/forms/${a}/slug`, { method: "PUT", body: { slug: "" } });
+    expect((await cleared.json<{ slug: unknown }>()).slug).toBeNull();
+  });
+
+  it("checks pending domains hourly and releases ones never set up within a week", async () => {
+    await ownerAt("/domain", { method: "PUT", body: { hostname: "forms.acme.com" } });
+    const entry = cf.hostnames.get("ch_1");
+    if (entry) Object.assign(entry, { status: "active", ssl: "active" });
+    await maintenance(domainEnv, clock + 60_000, deps);
+    expect(await env.DB.prepare("SELECT status FROM custom_domains").first("status")).toBe(
+      "active",
+    );
+
+    await env.DB.prepare("UPDATE custom_domains SET status = 'pending'").run();
+    await maintenance(domainEnv, clock + 8 * 24 * 60 * 60 * 1000, deps);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM custom_domains").first("n")).toBe(0);
+    expect(cf.hostnames.size).toBe(0);
+  });
+
+  it("alerts operators when a domain is added near Cloudflare's included 100", async () => {
+    const insert = env.DB.prepare(
+      "INSERT INTO custom_domains (owner_id, hostname, cf_id, status, checked_at, created_at) VALUES (?, ?, ?, 'active', ?, ?)",
+    );
+    const rows = Array.from({ length: 80 }, (_, i) =>
+      insert.bind(
+        `usr_d${String(i)}`,
+        `f${String(i)}.example.com`,
+        `ch_${String(i)}`,
+        clock,
+        clock - 2 * STUCK_AFTER_MS,
+      ),
+    );
+    await env.DB.batch([
+      ...Array.from({ length: 80 }, (_, i) =>
+        env.DB.prepare(
+          "INSERT INTO users (id, google_sub, email, created_at) VALUES (?, ?, 'd@example.com', ?)",
+        ).bind(`usr_d${String(i)}`, `sd${String(i)}`, clock),
+      ),
+      ...rows,
+    ]);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      // 80 registered but none new this hour: reported, no alert.
+      expect(await healthReport(env, clock)).toMatchObject({ customDomains: 80 });
+      expect(error).not.toHaveBeenCalled();
+      await env.DB.prepare("UPDATE custom_domains SET created_at = ? WHERE cf_id = 'ch_0'")
+        .bind(clock - 1000)
+        .run();
+      await healthReport(env, clock);
+      expect(error).toHaveBeenCalledWith(
+        "ops_alert",
+        expect.stringContaining('"customDomains":80'),
+      );
+    } finally {
+      error.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("removes the hostname from Cloudflare when the account is deleted", async () => {
+    await ownerAt("/domain", { method: "PUT", body: { hostname: "forms.acme.com" } });
+    const res = await ownerAt("/account", {
+      method: "DELETE",
+      body: { confirm: "owner@example.com" },
+    });
+    expect(res.status).toBe(200);
+    expect(cf.hostnames.size).toBe(0);
   });
 });

@@ -115,7 +115,7 @@ logs a health line (see below).
 ## Operations
 
 - `GET /health` answers `{ ok, schemaVersion, db }` for uptime checks; it reads only the database schema.
-- Each hourly run logs `ops_health` with counts only: deliveries **stuck** (not finished an hour after being accepted and not held for their owner), **held** (waiting for an owner's fix) and **failed in the last day**. When anything is stuck it logs `ops_alert` at error level instead: that points at the service rather than at an owner's sheet, so it is the line to alert on in Cloudflare's observability.
+- Each hourly run logs `ops_health` with counts only: deliveries **stuck** (not finished an hour after being accepted and not held for their owner), **held** (waiting for an owner's fix) and **failed in the last day**. It also reports the number of custom domains. When anything is stuck, or a custom domain was added in the last hour with 80 or more registered (Cloudflare for SaaS includes 100), it logs `ops_alert` at error level instead: that points at the service rather than at an owner's sheet, so it is the line to alert on in Cloudflare's observability.
 - CPU on Workers Free (ADR 0014): over the first day in production, including test submissions and deliveries, Cloudflare reported CPU time per invocation of P50 2.3 ms, P90 6.0 ms, P99 9.8 ms and P999 10.9 ms across all invocations, with no "exceeded CPU" errors. The consumer's share isn't broken out; watch the P99 as traffic grows.
 
 ## Idempotency
@@ -144,7 +144,7 @@ The public renderer could cache published definitions at the edge; today every f
 
 ## Custom domains
 
-Design routing so custom domains can be added later without restructuring form identity.
+Implemented with Cloudflare for SaaS on the forms zone ([ADR 0025](adr/0025-custom-domains.md)). An owner connects one hostname; its CNAME points at `CUSTOM_DOMAIN_TARGET`, Cloudflare validates it over HTTP and issues the certificate, and a `*/*` Worker route sends its traffic to this Worker. Requests whose host is neither the app nor the forms domain are looked up in `custom_domains`; the page there embeds the form from the forms domain, so Turnstile, uploads and submissions stay on one origin. Form identity is unchanged: a form keeps its ID, and an optional per-owner `slug` is only an alias on the owner's domain.
 
 ## Self-hosting
 

@@ -29,6 +29,14 @@ export interface Env {
   FORMS_HOST?: string;
   /** Origin of the website and app, e.g. `https://freelyforms.com`; the bare forms domain redirects there. */
   APP_ORIGIN?: string;
+  /**
+   * Custom domains (ADR 0025, Cloudflare for SaaS): the forms zone's ID, an API token that may
+   * manage its custom hostnames, and the hostname owners point their CNAME at. All three, plus
+   * FORMS_HOST and APP_ORIGIN, are needed; without them custom domains are unavailable.
+   */
+  CF_ZONE_ID?: string;
+  CF_CUSTOM_HOSTNAMES_TOKEN?: string;
+  CUSTOM_DOMAIN_TARGET?: string;
   /** "1" lets search engines index the website; anything else sends noindex. */
   SITE_INDEXABLE?: string;
   /** Where abuse reports go; every public form links to it (ADR 0010). */

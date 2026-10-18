@@ -1,5 +1,5 @@
 import type { Form } from "@freelyforms/form-schema";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
   api,
   ApiError,
@@ -243,6 +243,17 @@ export function SharePanel({
       {published && view.public && (
         <section className="card">
           <h2 className="section-title">Share</h2>
+          {view.public.customUrl && (
+            <>
+              <span className="field-label">Your domain</span>
+              <CopyField
+                label="Link on your domain"
+                value={view.public.customUrl}
+                openUrl={view.public.customUrl}
+              />
+              {owner && <SlugField view={view} onSaved={onPublished} />}
+            </>
+          )}
           <span className="field-label">Public link</span>
           <CopyField label="Public link" value={view.public.url} openUrl={view.public.url} />
           <span className="field-label">Embed on a website</span>
@@ -383,6 +394,70 @@ export function SharePanel({
         {owner && <DeleteForm id={view.id} onDeleted={onDeleted} />}
       </section>
     </div>
+  );
+}
+
+const SLUG_PROBLEMS: Record<string, string> = {
+  invalid_slug: "Use lowercase letters, numbers and hyphens, up to 64 characters.",
+  slug_taken: "Another of your forms already uses this address.",
+};
+
+/** The form's path on the owner's custom domain (ADR 0025). */
+function SlugField({ view, onSaved }: { view: FormView; onSaved: (view: FormView) => void }) {
+  const uid = useId();
+  const [slug, setSlug] = useState(view.slug ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.setSlug(view.id, slug.trim() || null));
+    } catch (err) {
+      setError(
+        (err instanceof ApiError && SLUG_PROBLEMS[err.code]) ||
+          "That didn't work. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <label className="field-label" htmlFor={`${uid}-slug`}>
+        Short address
+      </label>
+      <div className="row">
+        <input
+          id={`${uid}-slug`}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={view.id}
+          value={slug}
+          maxLength={64}
+          aria-describedby={`${uid}-slug-help`}
+          onChange={(e) => {
+            setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
+          }}
+        />
+        <button
+          type="button"
+          disabled={busy || slug.trim() === (view.slug ?? "")}
+          onClick={() => void save()}
+        >
+          Save
+        </button>
+      </div>
+      <p className="helper" id={`${uid}-slug-help`}>
+        Such as <code>contact</code>. Leave empty to use the form&apos;s ID. Changing it breaks the
+        old address on your domain.
+      </p>
+      {error && (
+        <p className="alert" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
 

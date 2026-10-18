@@ -57,6 +57,7 @@ describe("migrations on D1", () => {
     ).all<{ name: string }>();
     expect(results.map((r) => r.name)).toEqual([
       "column_map_cache",
+      "custom_domains",
       "deliveries",
       "destinations",
       "drive_folders",

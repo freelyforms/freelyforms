@@ -301,6 +301,24 @@ button.small {
 .status.warn::before {
   background: var(--warn);
 }
+.status.error::before {
+  background: var(--danger);
+}
+
+/* A DNS record to copy (custom domain) */
+.dns-record {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s1) var(--s3);
+  margin: var(--s2) 0;
+}
+.dns-record dt {
+  color: var(--muted);
+}
+.dns-record dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 
 .alert {
   background: var(--danger-soft);

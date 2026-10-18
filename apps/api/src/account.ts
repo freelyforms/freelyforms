@@ -6,6 +6,7 @@ import { SESSION_COOKIE } from "./auth/session.js";
 import type { Deps } from "./env.js";
 import { DRIVE_FILE_SCOPE } from "./auth/google.js";
 import { holdKey } from "./delivery/hold.js";
+import { domainsEnabled, hostnamesClient } from "./domains/routes.js";
 import { accessTokenFor } from "./google-access.js";
 import { keyringFor } from "./keys.js";
 import { requireUser, type OwnerEnv } from "./require-user.js";
@@ -115,10 +116,21 @@ export function accountRoutes(deps: Deps): Hono<OwnerEnv> {
     )
       .bind(userId)
       .all<{ destination_id: string; submission_id: string }>();
+    const domain = await c.env.DB.prepare("SELECT cf_id FROM custom_domains WHERE owner_id = ?")
+      .bind(userId)
+      .first<string>("cf_id");
     await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
     deleteCookie(c, SESSION_COOKIE, { prefix: "host", path: "/", secure: true });
 
     const revoked = await revoke(deps, token);
+    // The custom domain stops routing here once Cloudflare forgets it (ADR 0025).
+    if (domain && domainsEnabled(c.env)) {
+      await hostnamesClient(c.env, deps)
+        .remove(domain)
+        .catch(() => {
+          console.error("custom_domain_not_removed");
+        });
+    }
     for (const { destination_id, submission_id } of held) {
       await c.env.HOLD.delete(holdKey(destination_id, submission_id)).catch(() => undefined);
     }

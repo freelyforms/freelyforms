@@ -7,6 +7,8 @@ import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
 import { siteRoutes } from "./site/routes.js";
+import { domainRoutes } from "./domains/routes.js";
+import { isCustomHost, serveCustomDomain } from "./domains/serve.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
 export type { Env } from "./env.js";
@@ -74,6 +76,15 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     await next();
   });
 
+  // ADR 0025: owners' custom domains reach this Worker through Cloudflare for SaaS and only ever
+  // show forms. Other names under the forms domain (such as the CNAME target) serve nothing.
+  app.use(async (c, next) => {
+    const host = new URL(c.req.url).hostname;
+    if (c.env.FORMS_HOST && host.endsWith(`.${c.env.FORMS_HOST}`)) return c.text("Not found", 404);
+    if (isCustomHost(c.env, host)) return serveCustomDomain(c);
+    await next();
+  });
+
   // ADR 0010: on the forms domain every path is a public form (`/<formId>` → `/f/<formId>`), and
   // nothing else from this app is reachable there.
   app.use(async (c, next) => {
@@ -120,6 +131,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   app.route("/auth", authRoutes(deps));
   app.route("/", siteRoutes());
   app.route("/account", accountRoutes(deps));
+  app.route("/domain", domainRoutes(deps));
   app.route("/forms", formRoutes(deps));
   app.get("/f/embed.js", (c) => {
     c.header("Content-Type", "text/javascript; charset=utf-8");

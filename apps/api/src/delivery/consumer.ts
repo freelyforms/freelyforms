@@ -19,6 +19,7 @@ import { attachFiles, fileCount } from "./files.js";
 import { keyringFor } from "../keys.js";
 import { hold, resumeStragglers } from "./hold.js";
 import { deliverWebhook } from "./webhook.js";
+import { maintainDomains } from "../domains/routes.js";
 
 /** ADR 0008: transient errors are retried for up to 72 hours. */
 export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -340,6 +341,7 @@ export async function maintenance(env: Env, now: number, deps: Deps = defaultDep
   ]);
   await resumeStragglers(env);
   await cleanUploads(env, deps, now);
+  await maintainDomains(env, deps, now);
   await healthReport(env, now);
 }
 
@@ -378,11 +380,15 @@ export async function cleanUploads(env: Env, deps: Deps, now: number): Promise<v
 /** A delivery not finished this long after it was accepted, and not held for its owner, is stuck. */
 export const STUCK_AFTER_MS = 60 * 60 * 1000;
 
+/** Cloudflare for SaaS includes 100 custom hostnames; each one above costs money (ADR 0025). */
+export const DOMAINS_ALERT_AT = 80;
+
 /**
  * Hourly counts for operators, as one log line (no response content). `ops_alert` is logged at
  * error level when deliveries are stuck: that points at the service, not at an owner's sheet, so
  * an alert on it in Cloudflare's observability is worth waking up for. Held deliveries wait for
- * owners and failures are shown to them, so those two are reported but don't alert.
+ * owners and failures are shown to them, so those two are reported but don't alert. Custom
+ * domains alert in an hour when one was added with DOMAINS_ALERT_AT or more registered.
  */
 export async function healthReport(env: Env, now: number) {
   const row = await env.DB.prepare(
@@ -395,12 +401,19 @@ export async function healthReport(env: Env, now: number) {
   )
     .bind(now - STUCK_AFTER_MS, now - 24 * 60 * 60 * 1000)
     .first<{ stuck: number; held: number; failedLastDay: number }>();
+  const domains = await env.DB.prepare(
+    "SELECT count(*) AS total, COALESCE(SUM(created_at > ?), 0) AS added FROM custom_domains",
+  )
+    .bind(now - 60 * 60 * 1000)
+    .first<{ total: number; added: number }>();
   const report = {
     stuck: row?.stuck ?? 0,
     held: row?.held ?? 0,
     failedLastDay: row?.failedLastDay ?? 0,
+    customDomains: domains?.total ?? 0,
   };
-  if (report.stuck > 0) console.error("ops_alert", JSON.stringify(report));
+  const domainsNearLimit = report.customDomains >= DOMAINS_ALERT_AT && (domains?.added ?? 0) > 0;
+  if (report.stuck > 0 || domainsNearLimit) console.error("ops_alert", JSON.stringify(report));
   else console.log("ops_health", JSON.stringify(report));
   return report;
 }

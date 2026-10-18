@@ -60,7 +60,7 @@ Status: done (2026-10-18).
 - rating/ranking/matrix fields (done: rating, scale/NPS, matrix, ranking);
 - advanced logic/jumps (done: page and field conditions on answers and calculations);
 - webhook destinations (done: one signed webhook per form, ADR 0021);
-- custom domains;
+- custom domains (done: one per owner through Cloudflare for SaaS, short form addresses, ADR 0025);
 - payment provider connection;
 - basic collaboration/sharing (done: viewers and editors, responses view, ADR 0024).
 

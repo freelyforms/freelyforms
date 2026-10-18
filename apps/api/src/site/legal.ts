@@ -7,7 +7,7 @@ import { sitePage, type Html, type SiteContext } from "./layout.js";
  * Keep them in step with docs/SECURITY_PRIVACY.md and ADR 0008.
  */
 
-export const LEGAL_UPDATED = "16 October 2026";
+export const LEGAL_UPDATED = "18 October 2026";
 const CONTACT = "hello@freelyforms.com";
 
 export const legalPage = (ctx: SiteContext, path: string, title: string, body: Html): Html =>
@@ -66,6 +66,11 @@ export const privacyBody = html`
       delivery records for each response: an ID, the form and its version, the spreadsheet,
       timestamps, the delivery state, attempt counts and error codes. They contain no answers and
       are deleted after 30 days;
+    </li>
+    <li>the email addresses of people you share a form with, and their roles;</li>
+    <li>
+      if you connect your own domain: its name, the ID Cloudflare gives it and its status.
+      Cloudflare checks the domain and issues its certificate;
     </li>
     <li>a session record that holds only a hash of your session token, for at most 30 days.</li>
   </ul>
@@ -149,8 +154,8 @@ export const privacyBody = html`
   <ul>
     <li>
       <strong>Cloudflare</strong> runs our servers, database, delivery queue, temporary encrypted
-      storage and Turnstile. Its systems record request metadata (such as time, path and status) in
-      short-lived logs.
+      storage and Turnstile, and serves forms on owners' own domains. Its systems record request
+      metadata (such as time, path and status) in short-lived logs.
     </li>
     <li>
       <strong>Google</strong> provides sign-in and stores responses in the owner's Google Sheets

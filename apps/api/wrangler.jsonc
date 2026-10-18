@@ -68,6 +68,10 @@
         { "pattern": "freelyforms.com", "custom_domain": true },
         { "pattern": "freelyforms.link", "custom_domain": true },
         { "pattern": "www.freelyforms.com", "custom_domain": true },
+        // ADR 0025: owners' custom hostnames (Cloudflare for SaaS on the forms zone) reach the
+        // Worker through this route; their CNAME target domains.freelyforms.link is the zone's
+        // fallback origin (AAAA 100::, proxied).
+        { "pattern": "*/*", "zone_name": "freelyforms.link" },
       ],
       "d1_databases": [
         {
@@ -114,9 +118,13 @@
         "GOOGLE_CALL_BUDGET": "40",
         // Public site key of the "Freely Forms public forms" widget (hostname freelyforms.link).
         "TURNSTILE_SITE_KEY": "0x4AAAAAAFYiS9Jl1_JLR9CC",
+        // Custom domains (ADR 0025): the freelyforms.link zone and the owners' CNAME target.
+        "CF_ZONE_ID": "c44592243f37f1a3fb480646316d651c",
+        "CUSTOM_DOMAIN_TARGET": "domains.freelyforms.link",
       },
       // Secrets (wrangler secret put … --env production): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-      // MASTER_KEY_K1, TURNSTILE_SECRET_KEY.
+      // MASTER_KEY_K1, TURNSTILE_SECRET_KEY, CF_CUSTOM_HOSTNAMES_TOKEN (SSL and Certificates: Edit on
+      // the freelyforms.link zone only).
     },
   },
 }
