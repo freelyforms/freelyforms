@@ -1056,3 +1056,14 @@ button.small {
 .members li span:first-child {
   flex: 1;
 }
+
+.editor-body.responses-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+.editor-body.responses-only .preview-pane {
+  display: none;
+}
+.responses-table th,
+.responses-table td {
+  min-width: 110px;
+}

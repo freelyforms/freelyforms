@@ -262,7 +262,16 @@ export function Editor({ id }: { id: string }) {
         </button>
       </div>
 
-      <div className={showPreview ? "editor-body with-preview" : "editor-body"}>
+      <div
+        className={
+          // Responses need the full width; the form preview is for building (ADR 0024).
+          tab === "responses" || view.role === "viewer"
+            ? "editor-body responses-only"
+            : showPreview
+              ? "editor-body with-preview"
+              : "editor-body"
+        }
+      >
         <section
           id="editor-panel"
           className="editor-pane"
