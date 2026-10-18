@@ -1,3 +1,4 @@
+import { answerFields } from "@freelyforms/form-schema";
 import { headerLabels, SYSTEM_COLUMNS } from "@freelyforms/google";
 import { html } from "hono/html";
 import type { Html, PageMeta } from "./layout.js";
@@ -755,7 +756,7 @@ export function templatePage(t: Template): Page {
         <div class="wrap prose">
           <h2>What this form asks, and why</h2>
           <ul class="fields">
-            ${t.form.fields.map(
+            ${answerFields(t.form).map(
               (f) =>
                 html`<li>
                   <b>${f.label}${f.required ? html`<span class="tag">required</span>` : ""}</b>

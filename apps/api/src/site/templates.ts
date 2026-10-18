@@ -2093,7 +2093,7 @@ export const TEMPLATES: Template[] = [
       "One 'priority' dropdown: almost everyone picks 'high'. Who is affected plus whether they can work gives you priority without asking for it.",
       "Letting people send passwords: say on the form that you'll never ask for one, so a typed password doesn't end up in a shared sheet.",
       "Asking for screenshots: this form doesn't take attachments yet, so ask for the exact error text instead.",
-      "Questions that only fit one category: there is no conditional logic yet, so everyone sees every question. Keep questions that fit all requests, or publish a separate access-request form.",
+      "Questions that only fit one category: use \"Show only if…\" on them, so a hardware request never asks for an app name and an access request never asks for a device.",
     ],
   },
   {

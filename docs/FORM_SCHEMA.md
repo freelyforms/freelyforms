@@ -62,6 +62,7 @@ Rules:
 | `multiselect` | list of option IDs               | `options`, `minSelected`, `maxSelected`             |
 | `consent`     | `true`                           | the label is the statement the respondent agrees to |
 | `hidden`      | string (at most 1,000 chars)     | `param`, `defaultValue`                             |
+| `page`        | none (a page break, no column)   | `description` (shown under the page title)          |
 
 Every field also has `id`, `label` (at most 500 characters), optional `description` (2,000), optional `required` and optional `showIf` (see Conditions below). Placeholders are at most 200 characters, option labels 200, the form title 200, the form description 5,000 and the submit label 60. Cross-field rules: unique field and option IDs, `min` ≤ `max`, `minLength` ≤ `maxLength`, `minSelected` ≤ `maxSelected` and neither above the number of options.
 
@@ -105,6 +106,10 @@ Any field can be shown only when answers above it meet conditions ([ADR 0017](ad
 - Operators depend on the tested field: `equals`/`not_equals` (choice: an option ID; text: case-insensitive; number; date), `contains`/`not_contains` (text: case-insensitive substring; checkboxes and multi-select: an option ID), `greater_than`/`less_than` (number; date: after/before), `is_empty`/`is_not_empty` (any field; for consent: not ticked / ticked, with no `value`). `not_equals` and `not_contains` hold when the tested field is empty.
 - A field that is not shown is not validated (its `required` applies only when shown), and its answer is dropped on the server even if one is sent; its cell in the sheet stays empty. A field that depends on a field that is not shown sees it as empty, so hiding cascades.
 - The public form hides and disables such fields as the respondent answers, with the same evaluator (`visibleFields` in `form-engine`); without JavaScript every field is shown and the server applies the conditions.
+
+### Pages
+
+A `page` item is a page break ([ADR 0018](adr/0018-multi-page-forms.md)): the questions after it, up to the next break, form a page titled by its `label`; the questions before the first break form the first page. It has no answer and no sheet column (`answerFields(form)` lists the fields that do), can't be `required`, and conditions can't test it. It can't be first or last, and two can't follow each other. With `showIf` the whole page is skipped when its conditions fail, and its questions count as not shown. The public form shows one page at a time with Back, Next and "Page 2 of 3" (counting only pages that apply); Next checks the current page. Without JavaScript all pages appear in sequence.
 
 ### Prefilled links
 

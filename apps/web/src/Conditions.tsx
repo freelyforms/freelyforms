@@ -8,6 +8,8 @@ import { useId } from "react";
 import { hasOptions } from "./draft.js";
 
 interface Props {
+  /** What the conditions show: a question, or a whole page (ADR 0018). */
+  subject: "question" | "page";
   showIf: ShowIf | undefined;
   /** Fields above this one: the only ones a condition may test (ADR 0017). */
   earlier: readonly Field[];
@@ -38,9 +40,14 @@ function operatorLabel(op: ConditionOperator, source: Field): string {
   }
 }
 
-/** A rule that already passes the schema for this source: its first operator and value. */
+/**
+ * A rule that already passes the schema, so adding one never leaves the draft unsaved: "is <first
+ * option>" for choices, "is answered" for everything else (it needs no value).
+ */
 function defaultRule(source: Field): ConditionRule {
-  const op = OPERATORS_BY_TYPE[source.type][0] ?? "is_not_empty";
+  const op = hasOptions(source)
+    ? (OPERATORS_BY_TYPE[source.type][0] ?? "is_not_empty")
+    : "is_not_empty";
   return withValue({ field: source.id, op }, source);
 }
 
@@ -59,7 +66,7 @@ function withValue(rule: ConditionRule, source: Field): ConditionRule {
 }
 
 /** "Show only if…" for one field: rules on earlier answers, matched all or any. */
-export function Conditions({ showIf, earlier, onChange }: Props) {
+export function Conditions({ subject, showIf, earlier, onChange }: Props) {
   const uid = useId();
   const sources = earlier;
   const last = sources[sources.length - 1];
@@ -90,7 +97,7 @@ export function Conditions({ showIf, earlier, onChange }: Props) {
   return (
     <fieldset className="conditions">
       <legend className="field-label">
-        Show this question only if{" "}
+        Show this {subject} only if{" "}
         {showIf.rules.length > 1 ? (
           <>
             <select

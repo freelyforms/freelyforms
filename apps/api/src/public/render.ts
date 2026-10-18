@@ -25,6 +25,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 button:disabled{opacity:.6;cursor:not-allowed}.is-preview button:disabled{opacity:1;cursor:default}
 .cf-turnstile{margin:32px 0 24px}
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.req{color:var(--err)}
+.page-title{font-size:1.3rem;line-height:1.3;margin:8px 0 12px}.page-title:focus{outline:none}
+.progress{color:var(--muted);font-size:.9rem;margin:0 0 16px}.pager{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+.pager .back{background:transparent;color:var(--fg);border:1px solid var(--line)}
 footer{max-width:620px;margin:0 auto;padding:16px 20px 32px;font-size:.8rem;color:var(--muted)}
 footer p{margin:0 0 4px}footer a{color:inherit}
 `;
@@ -130,7 +133,9 @@ function page(
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const list = (v: unknown) => (Array.isArray(v) ? v.map(str) : typeof v === "string" ? [v] : []);
 
-function control(field: Field, value: unknown, describedBy: string | undefined): Html {
+type AnswerField = Exclude<Field, { type: "page" }>;
+
+function control(field: AnswerField, value: unknown, describedBy: string | undefined): Html {
   const id = field.id;
   const req = field.required === true;
   const aria = describedBy ? raw(` aria-describedby="${describedBy}"`) : "";
@@ -210,7 +215,7 @@ ${str(value)}</textarea>`;
   }
 }
 
-function fieldBlock(field: Field, value: unknown, error: FieldError | undefined): Html {
+function fieldBlock(field: AnswerField, value: unknown, error: FieldError | undefined): Html {
   if (field.type === "hidden") return control(field, value, undefined);
   const hintId = field.description ? `${field.id}_hint` : undefined;
   const errId = error ? `${field.id}_err` : undefined;
@@ -255,6 +260,18 @@ function clientScript(form: Form, nonce: string): Html {
     </script>`;
 }
 
+/** The form split at its page breaks (ADR 0018); the first page has no break of its own. */
+function pages(form: Form) {
+  const out: { breakField?: Extract<Field, { type: "page" }>; fields: AnswerField[] }[] = [
+    { fields: [] },
+  ];
+  for (const field of form.fields) {
+    if (field.type === "page") out.push({ breakField: field, fields: [] });
+    else out.at(-1)?.fields.push(field);
+  }
+  return out;
+}
+
 export function renderForm(
   form: Form,
   action: string,
@@ -263,6 +280,10 @@ export function renderForm(
 ): Html {
   const errors = new Map((state.errors ?? []).map((e) => [e.fieldId, e]));
   const turnstile = opts.turnstileSiteKey && !opts.preview ? opts.turnstileSiteKey : undefined;
+  // Multi-page forms keep the check out of sight unless it needs the respondent (ADR 0018).
+  const appearance = form.fields.some((f) => f.type === "page")
+    ? raw(' data-appearance="interaction-only"')
+    : "";
   return page(
     form.title,
     html`<h1>${form.title}</h1>
@@ -276,8 +297,32 @@ export function renderForm(
       }
       ${state.notice ? html`<p class="error" role="alert">${state.notice}</p>` : ""}
       <form method="post" action="${action}" novalidate data-ff>
-        ${form.fields.map((f) => fieldBlock(f, state.values?.[f.id], errors.get(f.id)))}
-        ${turnstile ? html`<div class="field cf-turnstile" data-sitekey="${turnstile}"></div>` : ""}
+        ${pages(form).map(
+          (p) =>
+            html`<section
+              class="page"
+              ${p.breakField ? raw(` data-field="${p.breakField.id}" aria-labelledby="${p.breakField.id}_title"`) : ""}
+            >
+              ${
+                p.breakField
+                  ? html`<h2 class="page-title" id="${p.breakField.id}_title" tabindex="-1">
+                        ${p.breakField.label}
+                      </h2>
+                      ${
+                        p.breakField.description
+                          ? html`<p class="desc">${p.breakField.description}</p>`
+                          : ""
+                      }`
+                  : ""
+              }
+              ${p.fields.map((f) => fieldBlock(f, state.values?.[f.id], errors.get(f.id)))}
+            </section>`,
+        )}
+        ${
+          turnstile
+            ? html`<div class="field cf-turnstile" data-sitekey="${turnstile}" ${appearance}></div>`
+            : ""
+        }
         <div class="hp" aria-hidden="true">
           <label>Leave empty<input name="_hp" tabindex="-1" autocomplete="off" /></label>
         </div>

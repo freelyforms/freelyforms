@@ -42,6 +42,12 @@
       "max": "2026-12-31"
     },
     {
+      "id": "fld_page_two",
+      "type": "page",
+      "label": "About you",
+      "description": "A few more details."
+    },
+    {
       "id": "fld_ticket",
       "type": "select",
       "label": "Ticket",

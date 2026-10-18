@@ -242,3 +242,38 @@ describe("showIf (ADR 0017)", () => {
     expect(issuesOf(minimal([plan, company({ match: "all", rules })]))).not.toEqual([]);
   });
 });
+
+describe("page breaks (ADR 0018)", () => {
+  const q = (id: string) => ({ id, type: "text", label: id });
+  const page = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    type: "page",
+    label: "Next page",
+    ...extra,
+  });
+
+  it("accepts page breaks between questions, with a condition", () => {
+    const skip = { match: "all", rules: [{ field: "fld_a", op: "is_not_empty" }] };
+    expect(issuesOf(minimal([q("fld_a"), page("fld_p", { showIf: skip }), q("fld_b")]))).toEqual(
+      [],
+    );
+  });
+
+  it("rejects empty pages, required page breaks and conditions that test a page break", () => {
+    expect(issuesOf(minimal([page("fld_p"), q("fld_a")])).join()).toContain("can't come first");
+    expect(issuesOf(minimal([q("fld_a"), page("fld_p")])).join()).toContain("can't come last");
+    expect(
+      issuesOf(minimal([q("fld_a"), page("fld_p"), page("fld_r"), q("fld_b")])).join(),
+    ).toContain("Two page breaks");
+    expect(
+      issuesOf(minimal([q("fld_a"), page("fld_p", { required: true }), q("fld_b")])),
+    ).not.toEqual([]);
+    const testsPage = {
+      ...q("fld_b"),
+      showIf: { match: "all", rules: [{ field: "fld_p", op: "is_empty" }] },
+    };
+    expect(issuesOf(minimal([q("fld_a"), page("fld_p"), testsPage])).join()).toContain(
+      "a page break has no answer",
+    );
+  });
+});

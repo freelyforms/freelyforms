@@ -27,6 +27,8 @@ describe("draft edits", () => {
   it("creates a valid default for every field type", () => {
     let form = empty;
     for (const type of FIELD_TYPES) form = addField(form, type).form;
+    // A page break can't be last; between questions every default is valid.
+    form = moveFieldTo(form, form.fields.find((f) => f.type === "page")?.id ?? "", 1);
     expect(valid(form)).toEqual([]);
     expect(new Set(form.fields.map((f) => f.id)).size).toBe(FIELD_TYPES.length);
   });

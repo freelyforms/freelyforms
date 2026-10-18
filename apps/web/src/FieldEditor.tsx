@@ -1,4 +1,5 @@
 import type { Field } from "@freelyforms/form-schema";
+import { isAnswerField } from "@freelyforms/form-schema/limits";
 import {
   useCallback,
   useEffect,
@@ -179,7 +180,9 @@ export function FieldEditor(props: Props) {
           ? "Statement the respondent agrees to"
           : field.type === "hidden"
             ? "Column name"
-            : "Question"}
+            : field.type === "page"
+              ? "Page title"
+              : "Question"}
       </label>
       <input
         ref={labelRef}
@@ -245,7 +248,25 @@ export function FieldEditor(props: Props) {
         </fieldset>
       )}
 
-      {field.type === "hidden" ? (
+      {field.type === "page" ? (
+        <div className="more">
+          <label className="field-label" htmlFor={id("description")}>
+            Text under the title <span className="muted">(optional)</span>
+          </label>
+          <input
+            id={id("description")}
+            value={field.description ?? ""}
+            maxLength={2000}
+            onChange={(e) => {
+              props.onChange({ description: e.target.value || undefined });
+            }}
+          />
+          <p className="muted small">
+            Questions below this start a new page. Respondents see one page at a time, with Back and
+            Next.
+          </p>
+        </div>
+      ) : field.type === "hidden" ? (
         <div className="more">
           <p className="muted small">
             Not shown to respondents. Filled from <code>?{field.param ?? field.id}=…</code> in the
@@ -389,8 +410,9 @@ export function FieldEditor(props: Props) {
 
       <div className="condition-toggle">
         <Conditions
+          subject={field.type === "page" ? "page" : "question"}
           showIf={field.showIf}
-          earlier={props.earlier}
+          earlier={props.earlier.filter(isAnswerField)}
           onChange={(showIf) => {
             props.onChange({ showIf });
           }}

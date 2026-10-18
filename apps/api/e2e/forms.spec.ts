@@ -219,3 +219,66 @@ test("a follow-up question appears only when its condition holds", async ({
   expect(row?.[head?.indexOf("Single choice") ?? -1]).toBe("Option 2");
   expect(row?.[head?.indexOf("Short text") ?? -1] ?? "").toBe("");
 });
+
+test("a multi-page form shows one page at a time and skips pages that don't apply", async ({
+  page,
+  browser,
+  request,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "+ New form" }).click();
+  await page.getByLabel("Form name").fill("Multi-page");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  for (const type of ["Single choice", "Page break", "Short text", "Page break", "Email"]) {
+    await page.getByRole("button", { name: `+ ${type}`, exact: true }).click();
+  }
+  const cards = page.locator("article");
+  // The middle page applies only to "Option 2"; its question is required.
+  await cards.nth(1).getByRole("button", { name: "+ Show only if…" }).click();
+  await expect(cards.nth(1).getByText("Show this page only if")).toBeVisible();
+  await cards.nth(1).getByLabel("Condition 1: value").selectOption({ label: "Option 2" });
+  await cards.nth(2).getByLabel("Required").check();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const { url, spreadsheetId } = await publish(page);
+  expect((await rows(request, spreadsheetId))[0]).not.toContain("Next page");
+
+  const r = await (await browser.newContext()).newPage();
+  await r.goto(url);
+  const progress = r.locator(".progress");
+  const next = r.getByRole("button", { name: "Next" });
+  const submit = r.getByRole("button", { name: "Submit" });
+  await expect(progress).toHaveText("Page 1 of 2");
+  await r.getByLabel("Option 2").check();
+  await expect(progress).toHaveText("Page 1 of 3");
+  await expect(submit).toBeHidden();
+
+  await next.click();
+  await expect(progress).toHaveText("Page 2 of 3");
+  await expect(r.getByLabel("Option 2")).toBeHidden();
+  await next.click();
+  await expect(r.getByText("This field is required.")).toBeVisible();
+  await expect(r.getByLabel("Short text")).toBeFocused();
+  await r.getByLabel("Short text").fill("only for option 2");
+  // Enter on a page before the last moves on instead of submitting.
+  await r.getByLabel("Short text").press("Enter");
+  await expect(progress).toHaveText("Page 3 of 3");
+  await expect(submit).toBeVisible();
+
+  await r.getByRole("button", { name: "Back" }).click();
+  await expect(r.getByLabel("Short text")).toHaveValue("only for option 2");
+  await r.getByRole("button", { name: "Back" }).click();
+  await r.getByLabel("Option 1").check();
+  await expect(progress).toHaveText("Page 1 of 2");
+  await next.click();
+  await expect(progress).toHaveText("Page 2 of 2");
+  await r.getByLabel("Email").fill("pages@example.com");
+  await waitForTurnstile(r);
+  await submit.click();
+  await expect(r.getByText(/received/i)).toBeVisible();
+
+  await expect.poll(async () => (await rows(request, spreadsheetId)).length).toBe(2);
+  const [head, row] = await rows(request, spreadsheetId);
+  expect(row?.[head?.indexOf("Single choice") ?? -1]).toBe("Option 1");
+  expect(row?.[head?.indexOf("Short text") ?? -1] ?? "").toBe("");
+  expect(row?.[head?.indexOf("Email") ?? -1]).toBe("pages@example.com");
+});

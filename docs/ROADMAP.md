@@ -37,8 +37,8 @@ Release publicly as soon as this is trustworthy.
 
 ## Phase 2 — Better than basic Google Forms
 
-- sections and multi-page forms;
-- progress indicator;
+- sections and multi-page forms (done: page breaks, ADR 0018);
+- progress indicator (done);
 - conditional visibility (done: `showIf`, ADR 0017);
 - conditional required state;
 - hidden fields (done);

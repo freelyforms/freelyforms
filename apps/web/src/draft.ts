@@ -33,6 +33,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   multiselect: "Multi-select list",
   consent: "Consent checkbox",
   hidden: "Hidden field",
+  page: "Page break",
 };
 
 export const hasOptions = (field: Field): field is Extract<Field, { options: FieldOption[] }> =>
@@ -58,6 +59,8 @@ export function newField(type: FieldType): Field {
       return { id, type, label: "I agree to the terms", required: true };
     case "hidden":
       return { id, type, label: "Source" };
+    case "page":
+      return { id, type, label: "Next page" };
     default:
       return { id, type, label: FIELD_TYPE_LABELS[type] };
   }

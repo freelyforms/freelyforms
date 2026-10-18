@@ -10,6 +10,7 @@ import {
   MAX_TEXT_LENGTH,
   OPERATORS_BY_TYPE,
   VALUELESS_OPERATORS,
+  isAnswerField,
 } from "./limits.js";
 
 /** At least one non-whitespace character. */
@@ -121,6 +122,18 @@ export const hiddenFieldSchema = z.strictObject({
   defaultValue: z.string().max(MAX_HIDDEN_LENGTH).optional(),
 });
 
+/**
+ * Starts a new page (ADR 0018): its label is the page title. Not an answer: no value, no sheet
+ * column, never required. With `showIf`, the whole page is skipped when the conditions fail.
+ */
+export const pageFieldSchema = z.strictObject({
+  type: z.literal("page"),
+  id: fieldIdSchema,
+  label: labelSchema,
+  description: descriptionSchema.optional(),
+  showIf: showIfSchema.optional(),
+});
+
 export const fieldSchema = z
   .discriminatedUnion("type", [
     textFieldSchema,
@@ -135,6 +148,7 @@ export const fieldSchema = z
     multiselectFieldSchema,
     consentFieldSchema,
     hiddenFieldSchema,
+    pageFieldSchema,
   ])
   .superRefine((field, ctx) => {
     const bad = (path: string, message: string) => {
@@ -243,6 +257,19 @@ export const formSchemaV1 = z
           });
         }
       });
+      if (field.type === "page") {
+        const before = form.fields[index - 1];
+        const problem =
+          index === 0
+            ? "A page break can't come first: the first page starts with the form"
+            : index === form.fields.length - 1
+              ? "A page break can't come last: add questions after it"
+              : before?.type === "page"
+                ? "Two page breaks in a row would leave an empty page"
+                : null;
+        if (problem)
+          ctx.addIssue({ code: "custom", path: ["fields", index, "type"], message: problem });
+      }
       earlier.set(field.id, field);
     });
   });
@@ -252,6 +279,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Why a rule can't apply to its source field (only fields above it qualify), or null. */
 function ruleProblem(rule: z.infer<typeof conditionRuleSchema>, source: Field | undefined) {
   if (!source) return "Show only if: choose a question above this one";
+  if (!isAnswerField(source)) return "Show only if: a page break has no answer to test";
   if (!OPERATORS_BY_TYPE[source.type].includes(rule.op)) {
     return `Show only if: "${rule.op}" doesn't apply to this kind of question`;
   }
@@ -285,6 +313,11 @@ export type FormSettings = z.infer<typeof settingsSchema>;
 export type FormTheme = z.infer<typeof themeSchema>;
 export type ShowIf = z.infer<typeof showIfSchema>;
 export type ConditionRule = z.infer<typeof conditionRuleSchema>;
+
+/** The fields that have answers and sheet columns, in order (page breaks left out). */
+export function answerFields(form: Pick<Form, "fields">): Exclude<Field, { type: "page" }>[] {
+  return form.fields.filter((f): f is Exclude<Field, { type: "page" }> => f.type !== "page");
+}
 
 export interface SchemaIssue {
   /** Location of the problem, e.g. `fields.2.options.0.id`. */

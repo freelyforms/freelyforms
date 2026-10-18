@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { parseForm, type Form } from "@freelyforms/form-schema";
+import { answerFields, parseForm, type Form } from "@freelyforms/form-schema";
 import { describe, expect, it } from "vitest";
 import {
   addMissingColumns,
@@ -157,7 +157,9 @@ describe("createResponseSpreadsheet", () => {
       (v) => v.userEnteredValue.stringValue,
     );
     expect(header?.slice(0, 3)).toEqual([...SYSTEM_COLUMNS]);
-    expect(header?.slice(3)).toEqual(form.fields.map((f) => f.label));
+    // Page breaks are not answers and get no column (ADR 0018).
+    expect(header?.slice(3)).toEqual(answerFields(form).map((f) => f.label));
+    expect(header).not.toContain("About you");
     expect(create.sheets[0]?.properties).toMatchObject({
       title: "Responses",
       gridProperties: { frozenRowCount: 1 },
@@ -169,7 +171,7 @@ describe("createResponseSpreadsheet", () => {
         requests: { createDeveloperMetadata: { developerMetadata: Record<string, unknown> } }[];
       }
     ).requests;
-    expect(requests).toHaveLength(3 + form.fields.length);
+    expect(requests).toHaveLength(3 + answerFields(form).length);
     expect(requests[3]?.createDeveloperMetadata.developerMetadata).toEqual({
       metadataKey: "app_field_id",
       metadataValue: form.fields[0]?.id,

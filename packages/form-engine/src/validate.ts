@@ -179,7 +179,7 @@ function validHidden(field: Extract<Field, { type: "hidden" }>, raw: unknown): O
   return { value: Array.from(value).slice(0, MAX_HIDDEN_LENGTH).join("") };
 }
 
-function validateField(field: Field, raw: unknown): Outcome {
+function validateField(field: Exclude<Field, { type: "page" }>, raw: unknown): Outcome {
   if (field.type === "hidden") return validHidden(field, raw);
   if (field.type !== "consent" && isEmpty(raw)) {
     return field.required === true ? fail("required") : { empty: true };
@@ -260,7 +260,15 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
   const values: Record<string, AnswerValue> = {};
   const errors: FieldError[] = [];
   const shown = new Set<string>();
+  // Fields under a page break whose conditions fail are skipped with it (ADR 0018).
+  let pageShown = true;
   for (const field of form.fields) {
+    if (field.type === "page") {
+      pageShown = !field.showIf || isShown(field.showIf, values);
+      if (pageShown) shown.add(field.id);
+      continue;
+    }
+    if (!pageShown) continue;
     if (field.showIf && !isShown(field.showIf, values)) continue;
     shown.add(field.id);
     const raw = Object.hasOwn(answers, field.id) ? answers[field.id] : undefined;
@@ -271,7 +279,10 @@ function walk(form: Pick<Form, "fields">, answers: Readonly<Record<string, unkno
   return { values, errors, shown };
 }
 
-/** IDs of the fields a respondent sees for these answers (conditions applied, ADR 0017). */
+/**
+ * IDs of the fields a respondent sees for these answers (conditions applied, ADR 0017), including
+ * the page breaks of pages that apply (ADR 0018).
+ */
 export function visibleFields(
   form: Pick<Form, "fields">,
   answers: Readonly<Record<string, unknown>>,

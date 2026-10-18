@@ -1,5 +1,5 @@
 import type { AnswerValue } from "@freelyforms/form-engine";
-import type { Field, Form } from "@freelyforms/form-schema";
+import { answerFields, type Field, type Form } from "@freelyforms/form-schema";
 import { errorFromResponse, GoogleApiError } from "./errors.js";
 
 const SHEETS = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -48,7 +48,7 @@ const text = (value: string): CellData => ({ userEnteredValue: { stringValue: va
 /** Header labels, disambiguated when two fields share a label. */
 export function headerLabels(form: Pick<Form, "fields">): string[] {
   const seen = new Map<string, number>();
-  return form.fields.map((field) => {
+  return answerFields(form).map((field) => {
     const count = (seen.get(field.label) ?? 0) + 1;
     seen.set(field.label, count);
     return count === 1 ? field.label : `${field.label} (${String(count)})`;
@@ -119,7 +119,7 @@ export async function createResponseSpreadsheet(
   });
   const sheetId = created.sheets[0]?.properties.sheetId;
   if (sheetId === undefined) throw new GoogleApiError("INVALID_REQUEST", 200, "no_sheet_created");
-  const keys = [...SYSTEM_COLUMNS, ...args.form.fields.map((f) => f.id)];
+  const keys = [...SYSTEM_COLUMNS, ...answerFields(args.form).map((f) => f.id)];
   await client.call(`/${created.spreadsheetId}:batchUpdate`, {
     method: "POST",
     body: { requests: keys.map((key, i) => columnMetadata(sheetId, key, i)) },
@@ -145,7 +145,7 @@ export async function addResponseTab(
   spreadsheetId: string,
   args: { title: string; form: Pick<Form, "fields"> },
 ): Promise<Destination> {
-  const columnCount = SYSTEM_COLUMNS.length + args.form.fields.length;
+  const columnCount = SYSTEM_COLUMNS.length + answerFields(args.form).length;
   const base = args.title.slice(0, 90);
   let sheetId: number | undefined;
   for (let attempt = 1; sheetId === undefined; attempt++) {
@@ -175,7 +175,7 @@ export async function addResponseTab(
       if (!taken || attempt >= 5) throw err;
     }
   }
-  const keys = [...SYSTEM_COLUMNS, ...args.form.fields.map((f) => f.id)];
+  const keys = [...SYSTEM_COLUMNS, ...answerFields(args.form).map((f) => f.id)];
   const dest = { spreadsheetId, sheetId };
   try {
     await client.call(`/${spreadsheetId}:batchUpdate`, {
@@ -225,9 +225,9 @@ export async function syncHeaders(
 ): Promise<void> {
   const labels = headerLabels(form);
   const before = new Map(
-    previous.fields.map((f, i) => [f.id, headerLabels(previous)[i] ?? f.label]),
+    answerFields(previous).map((f, i) => [f.id, headerLabels(previous)[i] ?? f.label]),
   );
-  const renamed = form.fields
+  const renamed = answerFields(form)
     .map((field, i) => ({ field, label: labels[i] ?? field.label, old: before.get(field.id) }))
     .filter((r) => r.old !== undefined && r.old !== r.label && columns.has(r.field.id));
   if (renamed.length === 0) return;
@@ -313,7 +313,7 @@ export async function addMissingColumns(
   columns: Map<string, number>,
 ): Promise<Map<string, number>> {
   const labels = headerLabels(form);
-  const missing = form.fields
+  const missing = answerFields(form)
     .map((field, i) => ({ field, label: labels[i] ?? field.label }))
     .filter(({ field }) => !columns.has(field.id));
   if (missing.length === 0) return columns;
@@ -389,7 +389,8 @@ export function buildRow(
   put("_submission_id", text(submission.submissionId));
   put("_submitted_at", text(new Date(submission.submittedAt).toISOString()));
   put("_form_version", { userEnteredValue: { numberValue: submission.formVersion } });
-  for (const field of form.fields) put(field.id, answerCell(field, submission.values[field.id]));
+  for (const field of answerFields(form))
+    put(field.id, answerCell(field, submission.values[field.id]));
   return cells;
 }
 

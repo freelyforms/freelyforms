@@ -372,3 +372,52 @@ describe("conditional visibility (ADR 0017)", () => {
     ).toBe(false);
   });
 });
+
+describe("pages (ADR 0018)", () => {
+  const kind: Field = {
+    id: "fld_kind",
+    type: "radio",
+    label: "Kind",
+    options: [
+      { id: "opt_person", label: "Person" },
+      { id: "opt_company", label: "Company" },
+    ],
+  };
+  const companyPage: Field = {
+    id: "fld_page_company",
+    type: "page",
+    label: "Company",
+    showIf: { match: "all", rules: [{ field: "fld_kind", op: "equals", value: "opt_company" }] },
+  };
+  const vat: Field = { id: "fld_vat", type: "text", label: "VAT", required: true };
+  const finalPage: Field = { id: "fld_page_end", type: "page", label: "Last" };
+  const note: Field = { id: "fld_note", type: "text", label: "Note" };
+  const form = { fields: [kind, companyPage, vat, finalPage, note] };
+
+  it("skips every field on a page whose condition fails, and resumes at the next page", () => {
+    expect([...visibleFields(form, { fld_kind: "opt_person", fld_vat: "X" })]).toEqual([
+      "fld_kind",
+      "fld_page_end",
+      "fld_note",
+    ]);
+    expect(
+      validateSubmission(form, { fld_kind: "opt_person", fld_vat: "X", fld_note: "hi" }),
+    ).toEqual({
+      ok: true,
+      values: { fld_kind: "opt_person", fld_note: "hi" },
+    });
+  });
+
+  it("validates the fields of a page that applies; page breaks never get a value", () => {
+    expect(validateSubmission(form, { fld_kind: "opt_company" })).toMatchObject({
+      ok: false,
+      errors: [{ fieldId: "fld_vat", code: "required" }],
+    });
+    const result = validateSubmission(form, {
+      fld_kind: "opt_company",
+      fld_vat: "X",
+      fld_page_end: "x",
+    });
+    expect(result).toEqual({ ok: true, values: { fld_kind: "opt_company", fld_vat: "X" } });
+  });
+});

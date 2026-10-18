@@ -21,5 +21,6 @@ Each ADR records one decision: the context, what we decided and what follows fro
 | [0015](0015-website-in-the-api-worker.md)                | The public website is server-rendered in the API Worker            | Accepted                         |
 | [0016](0016-google-verification-non-sensitive-scopes.md) | Google verification for the production app                         | Accepted                         |
 | [0017](0017-conditional-field-visibility.md)             | Conditional field visibility                                       | Accepted                         |
+| [0018](0018-multi-page-forms.md)                         | Multi-page forms                                                   | Accepted                         |
 
 Template: copy any ADR and keep the sections _Status_, _Context_, _Decision_, _Consequences_.

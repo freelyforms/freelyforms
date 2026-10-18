@@ -92,15 +92,22 @@ function setup(form: HTMLFormElement, schema: Fields) {
     if (!form.querySelector(".error")) summary(false);
   };
 
+  const sections = [...form.querySelectorAll<HTMLElement>(":scope > section.page")];
+  const paged = sections.length > 1;
+  const pageOf = (id: string) => sections.findIndex((s) => s.contains(container(id)));
+  let shown: ReadonlySet<string> = new Set(schema.fields.map((f) => f.id));
+
   /**
-   * Shows the fields whose conditions hold and hides the others (ADR 0017). Inputs of hidden
-   * fields are disabled, so they are neither checked nor sent; the server applies the same rules.
+   * Shows the fields whose conditions hold and hides the others (ADR 0017); fields on a page that
+   * is skipped count as not shown (ADR 0018). Inputs of fields that are not shown are disabled, so
+   * they are neither checked nor sent; the server applies the same rules.
    */
-  const conditional = schema.fields.filter((f) => f.showIf);
+  const dynamic = schema.fields.some((f) => f.showIf);
   const applyVisibility = () => {
-    if (!conditional.length) return;
-    const shown = visibleFields(schema, answersOf(form));
-    for (const field of conditional) {
+    if (!dynamic) return;
+    shown = visibleFields(schema, answersOf(form));
+    for (const field of schema.fields) {
+      if (field.type === "page") continue;
       const visible = shown.has(field.id);
       const box = container(field.id);
       if (box) box.hidden = !visible;
@@ -110,30 +117,114 @@ function setup(form: HTMLFormElement, schema: Fields) {
       for (const control of controls) control.disabled = !visible;
       if (!visible) show(field.id, undefined);
     }
+    renderPage();
   };
+
+  // One page at a time, with Back and Next (ADR 0018). Without this script every page shows.
+  let step = 0;
+  const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+  const progress = document.createElement("p");
+  const back = document.createElement("button");
+  const next = document.createElement("button");
+  const pagesInUse = () => sections.filter((s) => !s.dataset.field || shown.has(s.dataset.field));
+  function renderPage() {
+    if (!paged) return;
+    const active = pagesInUse();
+    step = Math.min(step, active.length - 1);
+    const current = active[step];
+    for (const section of sections) section.hidden = section !== current;
+    const last = step === active.length - 1;
+    progress.textContent = `Page ${String(step + 1)} of ${String(active.length)}`;
+    back.hidden = step === 0;
+    next.hidden = last;
+    if (submit) submit.hidden = !last;
+  }
+  const goTo = (index: number) => {
+    step = Math.max(0, index);
+    renderPage();
+    const current = pagesInUse()[step];
+    const title = current?.querySelector<HTMLElement>(".page-title");
+    if (form.getBoundingClientRect().top < 0) form.scrollIntoView({ block: "start" });
+    (title ?? current?.querySelector<HTMLElement>("input, select, textarea"))?.focus();
+  };
+
+  const focusField = (id: string) => {
+    const box = container(id);
+    const control =
+      box?.querySelector<HTMLElement>(`#${CSS.escape(id)}`) ??
+      box?.querySelector<HTMLElement>(`[name="${CSS.escape(id)}"]`);
+    control?.focus();
+  };
+
+  /** Checks the fields on the current page only; true when it can be left. */
+  const checkPage = () => {
+    attempted = true;
+    const current = pagesInUse()[step];
+    const errors = errorsFor(schema.fields);
+    const here = schema.fields.filter(
+      (f) => f.type !== "page" && current?.contains(container(f.id)),
+    );
+    for (const field of here) show(field.id, errors.get(field.id));
+    const first = here.find((f) => errors.has(f.id));
+    summary(first !== undefined);
+    if (first) focusField(first.id);
+    return first === undefined;
+  };
+
+  if (paged) {
+    progress.className = "progress";
+    progress.setAttribute("aria-live", "polite");
+    form.prepend(progress);
+    const bar = document.createElement("div");
+    bar.className = "pager";
+    back.type = "button";
+    back.className = "back";
+    back.textContent = "Back";
+    next.type = "button";
+    next.textContent = "Next";
+    back.addEventListener("click", () => {
+      summary(false);
+      goTo(step - 1);
+    });
+    next.addEventListener("click", () => {
+      if (checkPage()) goTo(step + 1);
+    });
+    submit?.before(bar);
+    bar.append(back, next);
+    if (submit) bar.append(submit);
+  }
   applyVisibility();
+  renderPage();
 
   form.addEventListener("submit", (event) => {
     attempted = true;
+    // Enter in a field on an earlier page means Next, not Submit.
+    if (paged && step < pagesInUse().length - 1) {
+      event.preventDefault();
+      if (checkPage()) goTo(step + 1);
+      return;
+    }
     const errors = errorsFor(schema.fields);
     for (const field of schema.fields) show(field.id, errors.get(field.id));
     const first = schema.fields.find((f) => errors.has(f.id));
     if (first) {
       event.preventDefault();
       summary(true);
-      const box = container(first.id);
-      const control =
-        box?.querySelector<HTMLElement>(`#${CSS.escape(first.id)}`) ??
-        box?.querySelector<HTMLElement>(`[name="${CSS.escape(first.id)}"]`);
-      control?.focus();
+      if (paged) {
+        const page = pagesInUse().indexOf(sections[pageOf(first.id)] as HTMLElement);
+        if (page >= 0 && page !== step) {
+          step = page;
+          renderPage();
+        }
+      }
+      focusField(first.id);
       return;
     }
     summary(false);
-    const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
-    if (button) {
+    if (submit) {
       // Stops a second click from sending the answers twice while the page is loading.
-      button.disabled = true;
-      button.setAttribute("aria-busy", "true");
+      submit.disabled = true;
+      submit.setAttribute("aria-busy", "true");
     }
   });
 

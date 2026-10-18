@@ -29,6 +29,7 @@ export const FIELD_TYPES = [
   "multiselect",
   "consent",
   "hidden",
+  "page",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -73,4 +74,9 @@ export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOpe
   checkboxes: ["contains", "not_contains", "is_empty", "is_not_empty"],
   multiselect: ["contains", "not_contains", "is_empty", "is_not_empty"],
   consent: ["is_empty", "is_not_empty"],
+  // A page break has no answer to test (ADR 0018).
+  page: [],
 };
+
+/** Whether a field has an answer and a sheet column (page breaks don't, ADR 0018). */
+export const isAnswerField = (field: { type: FieldType }): boolean => field.type !== "page";
