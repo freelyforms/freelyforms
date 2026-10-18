@@ -23,6 +23,6 @@
     "@freelyforms/form-engine": "workspace:*",
     "@freelyforms/form-schema": "workspace:*",
     "@freelyforms/google": "workspace:*",
-    "hono": "^4.13.12"
+    "hono": "^4.13.13"
   }
 }
