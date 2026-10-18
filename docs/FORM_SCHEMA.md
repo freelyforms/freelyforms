@@ -159,15 +159,10 @@ Answers to choice fields are option IDs, so renaming an option label never break
 ## Planned field types
 
 - address;
-- rating;
-- scale;
-- matrix;
-- ranking;
-- file upload;
-- signature;
 - currency;
-- calculated field;
 - section/content block.
+
+Rating, scale, matrix, ranking, file upload, signature and calculation are implemented (table above).
 
 ## Schema rules
 
