@@ -169,6 +169,28 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
     return c.json(form && (await view(c, form, null)), 201);
   });
 
+  /**
+   * Copies a form's current draft into a new draft form: same fields and settings, a fresh ID,
+   * no spreadsheet (its first publish creates one) and no responses.
+   */
+  forms.post("/:id/duplicate", async (c) => {
+    const source = await ownedForm(c, c.req.param("id"));
+    if (!source) return c.json({ error: "not_found" }, 404);
+    const id = newFormId();
+    const title = `${source.title} (copy)`.slice(0, 200);
+    const candidate = { ...(JSON.parse(source.draft_json) as Form), id, title };
+    const parsed = parseForm(candidate);
+    const draft = parsed.success ? parsed.form : candidate;
+    const now = deps.now();
+    await c.env.DB.prepare(
+      "INSERT INTO forms (id, owner_id, title, status, draft_json, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+    )
+      .bind(id, c.var.user.id, title, JSON.stringify(draft), now, now)
+      .run();
+    const form = await ownedForm(c, id);
+    return c.json(form && (await view(c, form, null)), 201);
+  });
+
   forms.get("/:id", async (c) => {
     const form = await ownedForm(c, c.req.param("id"));
     if (!form) return c.json({ error: "not_found" }, 404);

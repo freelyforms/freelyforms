@@ -154,3 +154,19 @@ test("a published form works at phone width in dark mode @phone", async ({ page,
   await expect(page.getByText("Please correct the highlighted fields.")).toBeVisible();
   await expect(page.getByLabel("Full name")).toBeFocused();
 });
+
+test("an owner copies a form into a new draft with the same fields", async ({ page }) => {
+  await signIn(page);
+  await formFromTemplate(page, "feedback-form");
+  await publish(page);
+  const original = page.url();
+  await page.getByRole("button", { name: "Make a copy" }).click();
+  await expect(page).not.toHaveURL(original);
+  await expect(page).toHaveURL(/\/app\/forms\/frm_/);
+  await expect(page.getByRole("textbox", { name: "Title" })).toHaveValue(/\(copy\)$/);
+  await page.getByRole("tab", { name: "Publish" }).click();
+  await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+
+  await page.goto("/app/");
+  await expect(page.getByRole("link", { name: /\(copy\)/ })).toBeVisible();
+});

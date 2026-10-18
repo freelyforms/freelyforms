@@ -10,6 +10,7 @@ import {
 } from "./api.js";
 import type { FlushResult } from "./Editor.js";
 import { pickSpreadsheet } from "./picker.js";
+import { navigate } from "./router.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
   ACCESS_REVOKED:
@@ -87,6 +88,8 @@ export function SharePanel({
   const [resumeNote, setResumeNote] = useState<string | null>(null);
   const [deliveriesError, setDeliveriesError] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const loadDeliveries = useCallback(() => {
     api.deliveries(view.id).then(
@@ -122,6 +125,30 @@ export function SharePanel({
       setError(PUBLISH_ERRORS[code] ?? "Publishing failed. Please try again.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Saves pending edits so the copy has them, then opens the copy. */
+  const duplicate = async () => {
+    setCopying(true);
+    setCopyError(null);
+    try {
+      let saved: FlushResult = "stale";
+      for (let i = 0; i < 3 && saved === "stale"; i++) saved = await flush();
+      if (saved !== "saved") {
+        setCopyError(
+          saved === "invalid"
+            ? "Fix the highlighted problems before making a copy."
+            : SAVE_ERRORS[saved === "stale" ? "error" : saved],
+        );
+        return;
+      }
+      const copy = await api.duplicateForm(view.id);
+      navigate(`/forms/${copy.id}`);
+    } catch {
+      setCopyError("The form could not be copied. Please try again.");
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -326,6 +353,23 @@ export function SharePanel({
               Download JSON
             </button>
           </div>
+          <div className="dest-row">
+            <span>
+              Make a copy{" "}
+              <span className="muted small">
+                (a new draft with the same fields; it gets its own sheet when published)
+              </span>
+            </span>
+            <span className="spacer" />
+            <button type="button" disabled={copying} onClick={() => void duplicate()}>
+              {copying ? "Copying…" : "Make a copy"}
+            </button>
+          </div>
+          {copyError && (
+            <p className="alert" role="alert">
+              {copyError}
+            </p>
+          )}
         </div>
         <DeleteForm id={view.id} onDeleted={onDeleted} />
       </section>

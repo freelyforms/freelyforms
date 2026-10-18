@@ -205,6 +205,34 @@ describe("owner forms API", () => {
     );
   });
 
+  it("duplicates a form as a new draft without its spreadsheet", async () => {
+    const id = await publishedForm();
+    await owner(`/forms/${id}/draft`, {
+      method: "PUT",
+      body: { schemaVersion: 1, id, title: "Contact v2", fields },
+    });
+    const res = await owner(`/forms/${id}/duplicate`, { method: "POST" });
+    expect(res.status).toBe(201);
+    const copy = await res.json<{
+      id: string;
+      title: string;
+      status: string;
+      publishedVersion: number | null;
+      destination: unknown;
+      draft: { id: string; title: string; fields: unknown[] };
+    }>();
+    expect(copy.id).not.toBe(id);
+    expect(copy).toMatchObject({
+      title: "Contact v2 (copy)",
+      status: "draft",
+      publishedVersion: null,
+      destination: null,
+      draft: { id: copy.id, title: "Contact v2 (copy)", fields },
+    });
+    expect((await owner(`/forms/${copy.id}/deliveries`)).status).toBe(200);
+    expect((await owner("/forms/frm_missing000/duplicate", { method: "POST" })).status).toBe(404);
+  });
+
   it("does not report unpublished changes for a template published as it is", async () => {
     const created = await owner("/forms", { method: "POST", body: { template: "contact-form" } });
     const { id } = await created.json<{ id: string }>();

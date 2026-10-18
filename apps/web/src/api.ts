@@ -87,6 +87,7 @@ export const api = {
     request<{ resumed: number; more: boolean }>(`/forms/${id}/deliveries/resume`, {
       method: "POST",
     }),
+  duplicateForm: (id: string) => request<FormView>(`/forms/${id}/duplicate`, { method: "POST" }),
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
   pickerConfig: () =>
     request<{ accessToken: string; apiKey: string; appId: string }>("/account/google/picker"),

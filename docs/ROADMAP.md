@@ -47,7 +47,7 @@ Release publicly as soon as this is trustworthy.
 - richer layout/themes;
 - custom validation;
 - redirects after submitting (done);
-- duplication/templates;
+- duplication (done) and templates (25 on the website, done);
 - conversational rendering mode.
 
 ## Phase 3 — Advanced building blocks
