@@ -1,12 +1,12 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { FORM_SCHEMA_VERSION } from "@freelyforms/form-schema/limits";
 import { accountRoutes } from "./account.js";
 import { authRoutes } from "./auth/routes.js";
 import { formRoutes } from "./forms/routes.js";
 import { EMBED_JS } from "./public/embed.js";
-import { publicRoutes } from "./public/routes.js";
-import { siteRoutes } from "./site/routes.js";
+import { formsNotFound, publicRoutes } from "./public/routes.js";
+import { siteError, siteNotFound, siteRoutes } from "./site/routes.js";
 import { domainRoutes } from "./domains/routes.js";
 import { notifyRoutes } from "./notify/routes.js";
 import { isCustomHost, serveCustomDomain } from "./domains/serve.js";
@@ -15,6 +15,12 @@ import { defaultDeps, type Deps, type Env } from "./env.js";
 export type { Env } from "./env.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** A browser navigation on the app domain gets a web page; API calls keep their JSON errors. */
+const wantsPage = (c: Context<{ Bindings: Env }>) =>
+  (c.req.method === "GET" || c.req.method === "HEAD") &&
+  (c.req.header("accept") ?? "").includes("text/html") &&
+  new URL(c.req.url).hostname !== c.env.FORMS_HOST;
 
 /** CSP for the builder: own scripts and styles only; it may frame its own previews. */
 function appCsp(env: Env): string {
@@ -50,7 +56,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   );
   app.use(async (c, next) => {
     await next();
-    // Same-origin by default; the embed script opts out so owners' sites can load it.
+    // Same-origin by default; the embed script and brand images opt out for other sites.
     if (!c.res.headers.has("Cross-Origin-Resource-Policy")) {
       c.header("Cross-Origin-Resource-Policy", "same-origin");
     }
@@ -81,7 +87,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   // show forms. Other names under the forms domain (such as the CNAME target) serve nothing.
   app.use(async (c, next) => {
     const host = new URL(c.req.url).hostname;
-    if (c.env.FORMS_HOST && host.endsWith(`.${c.env.FORMS_HOST}`)) return c.text("Not found", 404);
+    if (c.env.FORMS_HOST && host.endsWith(`.${c.env.FORMS_HOST}`)) return formsNotFound(c);
     if (isCustomHost(c.env, host)) return serveCustomDomain(c);
     await next();
   });
@@ -94,8 +100,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     // old links working without putting form content next to the session cookie.
     if (c.env.FORMS_HOST && host !== c.env.FORMS_HOST && c.req.path.startsWith("/f/")) {
       const formId = c.req.path.slice(3);
-      if (!/^(frm_[A-Za-z0-9]{6,32}(\/uploads)?|embed\.js)$/.test(formId))
-        return c.text("Not found", 404);
+      if (!/^(frm_[A-Za-z0-9]{6,32}(\/uploads)?|embed\.js)$/.test(formId)) return c.notFound();
       return c.redirect(`https://${c.env.FORMS_HOST}/${formId}`, 308);
     }
     if (c.env.FORMS_HOST && host === c.env.FORMS_HOST && !c.req.path.startsWith("/f/")) {
@@ -104,7 +109,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
       if (url.pathname === "/" && c.env.APP_ORIGIN) return c.redirect(c.env.APP_ORIGIN, 302);
       // A form, its upload slots (ADR 0007) or the embed script.
       if (!/^\/(frm_[A-Za-z0-9]{6,32}(\/uploads)?|embed\.js)$/.test(url.pathname))
-        return c.text("Not found", 404);
+        return formsNotFound(c);
       url.pathname = `/f${url.pathname}`;
       // No waitUntil is needed on this path, so the execution context is not forwarded.
       return app.fetch(new Request(url, c.req.raw), c.env);
@@ -162,6 +167,9 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     // Client-side routes (no file extension) all load the app shell.
     if (res.status === 404 && !/\.[a-z0-9]+$/i.test(c.req.path)) res = await asset("/");
     const out = new Response(res.body, res);
+    // Brand images appear in notification emails and link previews on other origins.
+    if (c.req.path.startsWith("/app/brand/"))
+      out.headers.set("Cross-Origin-Resource-Policy", "cross-origin");
     if (out.headers.get("content-type")?.includes("text/html")) {
       out.headers.set("Content-Security-Policy", appCsp(c.env));
       out.headers.set("Cache-Control", "no-cache");
@@ -169,12 +177,12 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
     return out;
   });
 
-  app.notFound((c) => c.json({ error: "not_found" }, 404));
+  app.notFound((c) => (wantsPage(c) ? siteNotFound(c) : c.json({ error: "not_found" }, 404)));
 
   app.onError((err, c) => {
     // Log the error type only: messages and stacks may contain request data.
     console.error("unhandled_error", err.name);
-    return c.json({ error: "internal_error" }, 500);
+    return wantsPage(c) ? siteError(c) : c.json({ error: "internal_error" }, 500);
   });
 
   return app;

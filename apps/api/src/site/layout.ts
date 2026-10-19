@@ -60,6 +60,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}
 .prose li{margin:6px 0}.prose h2{margin-top:48px}
 footer.site{border-top:1px solid var(--line);padding:48px 0;font-size:.92rem}footer.site .cols{display:grid;gap:24px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 footer.site h4{margin:0 0 10px;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}footer.site ul{list-style:none;padding:0;margin:0}footer.site li{margin:6px 0}footer.site a{color:var(--fg);text-decoration:none}footer.site a:hover{text-decoration:underline}
+.notice{max-width:560px;margin:0 auto}.notice h1{font-size:clamp(1.6rem,3.5vw,2.1rem)}.notice .actions{margin:24px 0 0}button.btn{background:none;font:inherit;font-weight:600;cursor:pointer}button.btn.primary{background:var(--accent)}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}.fine{margin-top:32px}
 @media (max-width:860px){nav.main{display:none}.demo{grid-template-columns:1fr}section{padding:56px 0}}
 @media (max-width:520px){.wrap{padding:0 16px}section{padding:44px 0}}
@@ -175,6 +176,9 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
     </html>`;
 }
 
-/** The CSP for website pages: our inline style only, no scripts; frames only our own previews. */
-export const siteCsp = (nonce: string) =>
-  `default-src 'none'; style-src 'nonce-${nonce}'; img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+/**
+ * The CSP for website pages: our inline style only, no scripts; frames only our own previews.
+ * Forms may post only where a page allows (by default nowhere).
+ */
+export const siteCsp = (nonce: string, formAction = "'none'") =>
+  `default-src 'none'; style-src 'nonce-${nonce}'; img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action ${formAction}; frame-ancestors 'none'`;

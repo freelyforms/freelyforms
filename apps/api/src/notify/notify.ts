@@ -55,6 +55,10 @@ interface Pending {
   sheet_id: number | null;
 }
 
+/** Inline text style; email clients drop <style> blocks and web fonts. */
+const font = (size: number, line: number, color = "#1b1b1f", weight = "normal") =>
+  `font-family:Arial,Helvetica,sans-serif;font-size:${String(size)}px;line-height:${String(line)}px;font-weight:${weight};color:${color};mso-line-height-rule:exactly`;
+
 export async function notificationEmail(
   env: Env,
   p: {
@@ -78,20 +82,119 @@ export async function notificationEmail(
     "You get this email because you turned on notifications for this form.",
     `Turn them off: ${p.unsubscribeUrl}`,
   ].join("\n");
+  const title = p.title.replace(/\s+/g, " ");
+  const heading = p.count === 1 ? "New response" : `${String(p.count)} new responses`;
+  const primary = p.sheetUrl
+    ? { href: p.sheetUrl, label: "Open the sheet" }
+    : { href: formUrl, label: "Open the form" };
+  // Email clients ignore <style> and most layout CSS: tables, inline styles and an Outlook-only
+  // fixed-width wrapper (Word-based Outlook ignores max-width).
   const body = html`<!doctype html>
     <html lang="en">
-      <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1b1b1f">
-        <p>Your form <strong>${p.title}</strong> received ${what}.</p>
-        <p>
-          ${p.sheetUrl ? html`<a href="${p.sheetUrl}">Open the sheet</a> · ` : ""}<a
-            href="${formUrl}"
-            >Open the form in Freely Forms</a
-          >
-        </p>
-        <p style="color:#5d5d66;font-size:13px">
-          You get this email because you turned on notifications for this form.
-          <a href="${p.unsubscribeUrl}">Turn them off</a>.
-        </p>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light only" />
+        <meta name="supported-color-schemes" content="light" />
+        <title>${subject}</title>
+      </head>
+      <body style="margin:0;padding:0;background-color:#f6f6f8">
+        <div
+          aria-hidden="true"
+          style="display:none;font-size:1px;line-height:1px;color:#f6f6f8;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all"
+        >
+          ${title} received ${what}.${p.sheetUrl ? " The answers are in your Google Sheet." : ""}
+        </div>
+        <table
+          role="presentation"
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          bgcolor="#f6f6f8"
+          style="width:100%;background-color:#f6f6f8"
+        >
+          <tr>
+            <td align="center" style="padding:24px 16px">
+              <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="width:100%;max-width:560px"
+              >
+                <tr>
+                  <td style="padding:0 4px 16px">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td width="24" valign="middle" style="width:24px">
+                          <img
+                            src="${app}/app/brand/apple-touch-icon.png"
+                            width="24"
+                            height="24"
+                            alt=""
+                            style="display:block;width:24px;height:24px;border:0;outline:none"
+                          />
+                        </td>
+                        <td width="8" style="width:8px;font-size:0;line-height:0">&nbsp;</td>
+                        <td valign="middle" style="${font(16, 24, "#1b1b1f", "bold")}">
+                          Freely Forms
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    bgcolor="#ffffff"
+                    style="background-color:#ffffff;border:1px solid #dcdce3;border-radius:12px;padding:24px"
+                  >
+                    <h1 style="margin:0 0 12px;${font(22, 30, "#1b1b1f", "bold")}">${heading}</h1>
+                    <p style="margin:0 0 24px;${font(16, 24)}">
+                      Your form <strong>${title}</strong> received
+                      ${what}.${p.sheetUrl ? " The answers are in your Google Sheet." : ""}
+                    </p>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td
+                          align="center"
+                          bgcolor="#1f5fd6"
+                          style="background-color:#1f5fd6;border-radius:8px;padding:12px 20px"
+                        >
+                          <a
+                            href="${primary.href}"
+                            style="display:inline-block;${font(15, 20, "#ffffff", "bold")};text-decoration:none"
+                            >${primary.label}</a
+                          >
+                        </td>
+                      </tr>
+                    </table>
+                    ${
+                      p.sheetUrl
+                        ? html`<p style="margin:20px 0 0;${font(14, 20, "#5d5d66")}">
+                            Or
+                            <a href="${formUrl}" style="color:#1f5fd6"
+                              >open the form in Freely Forms</a
+                            >.
+                          </p>`
+                        : ""
+                    }
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:20px 4px 0;${font(13, 20, "#5d5d66")}">
+                    You get this email because you turned on notifications for this form. It never
+                    contains the answers.
+                    <a href="${p.unsubscribeUrl}" style="color:#5d5d66">Turn them off</a>.
+                  </td>
+                </tr>
+              </table>
+              <!--[if mso]></td></tr></table><![endif]-->
+            </td>
+          </tr>
+        </table>
       </body>
     </html>`;
   return { subject, text, html: String(await body) };

@@ -7,7 +7,7 @@ Conventions:
 - JSON in and out unless stated otherwise.
 - Owner endpoints need the session cookie `__Host-ff_session` and return `401 {"error":"unauthenticated"}` without it.
 - Every non-`GET` request except public submissions must send an `Origin` header equal to the API origin, or it gets `403 {"error":"forbidden_origin"}`.
-- Errors are `{"error": "<code>", ...details}`. A form that belongs to someone else is reported as `404 not_found`, never `403`.
+- Errors are `{"error": "<code>", ...details}`. A form that belongs to someone else is reported as `404 not_found`, never `403`. A browser page load (`GET` with `Accept: text/html`) of an unknown path on the app domain gets the website's 404 page instead, and an unhandled error the website's error page; unknown paths on the forms domain get the forms' own "Page not found" page.
 
 ## Auth
 

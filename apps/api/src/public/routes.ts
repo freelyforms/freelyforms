@@ -89,6 +89,20 @@ async function readAnswers(c: Ctx): Promise<Record<string, unknown> | BodyProble
   return answers;
 }
 
+/** Any other address on the forms domain: the forms' own not-found page, not plain text. */
+export function formsNotFound(c: Context<{ Bindings: Env }>): Response | Promise<Response> {
+  const nonce = randomToken(16);
+  c.header("X-Robots-Tag", "noindex");
+  c.header("Content-Security-Policy", formPageCsp(nonce, false));
+  return c.html(
+    renderMessage("Page not found", "There is no form at this address.", {
+      nonce,
+      privacyUrl: `${c.env.APP_ORIGIN ?? ""}/privacy`,
+    }),
+    404,
+  );
+}
+
 const wantsJson = (c: Ctx) => (c.req.header("accept") ?? "").includes("application/json");
 
 export function publicRoutes(deps: Deps): Hono<PublicEnv> {

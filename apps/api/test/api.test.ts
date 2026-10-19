@@ -46,6 +46,16 @@ describe("api", () => {
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
   });
+
+  it("shows browsers the website's 404 page", async () => {
+    const res = await request("/nope/", { headers: { accept: "text/html,*/*" } });
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("Page not found");
+    // API calls keep JSON even from a browser.
+    const post = await request("/nope", { method: "POST", headers: { accept: "text/html" } });
+    expect(post.headers.get("content-type")).toContain("application/json");
+  });
 });
 
 describe("migrations on D1", () => {

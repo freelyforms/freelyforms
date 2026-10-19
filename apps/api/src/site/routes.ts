@@ -12,6 +12,7 @@ import {
   howItWorks,
   notFound,
   security,
+  serverError,
   templatePage,
   templatesHub,
   whyFree,
@@ -40,7 +41,7 @@ const PAGES: Page[] = [
  */
 const ALWAYS_INDEXABLE = new Set(["/", "/security/", "/privacy", "/terms"]);
 
-function context(c: Ctx, path?: string): SiteContext {
+export function siteContext(c: Ctx, path?: string): SiteContext {
   return {
     origin: c.env.APP_ORIGIN ?? new URL(c.req.url).origin,
     indexable: c.env.SITE_INDEXABLE === "1" || (path !== undefined && ALWAYS_INDEXABLE.has(path)),
@@ -48,13 +49,17 @@ function context(c: Ctx, path?: string): SiteContext {
   };
 }
 
-function send(c: Ctx, page: Page, status: 200 | 404 = 200) {
-  const ctx = context(c, status === 200 ? page.meta.path : undefined);
+function send(c: Ctx, page: Page, status: 200 | 404 | 500 = 200) {
+  const ctx = siteContext(c, status === 200 ? page.meta.path : undefined);
   c.header("Content-Security-Policy", siteCsp(ctx.nonce));
-  c.header("Cache-Control", "public, max-age=300");
+  c.header("Cache-Control", status === 500 ? "no-store" : "public, max-age=300");
   if (!ctx.indexable) c.header("X-Robots-Tag", "noindex");
   return c.html(sitePage(ctx, page.meta, page.body), status);
 }
+
+/** Website pages for browser navigations that reach no route, or fail, on the app domain. */
+export const siteNotFound = (c: Ctx) => send(c, notFound, 404);
+export const siteError = (c: Ctx) => send(c, serverError, 500);
 
 /** The public website on the app domain (not on the forms domain). */
 export function siteRoutes(): Hono<{ Bindings: Env }> {
@@ -97,7 +102,7 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
     ["/terms", "Terms of use", termsBody],
   ] as const) {
     site.get(path, (c) => {
-      const ctx = context(c, path);
+      const ctx = siteContext(c, path);
       c.header("Content-Security-Policy", siteCsp(ctx.nonce));
       return c.html(legalPage(ctx, path, title, body));
     });
@@ -108,7 +113,7 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
   site.get("/favicon.ico", (c) => c.redirect("/app/brand/favicon.svg", 301));
 
   site.get("/robots.txt", (c) => {
-    const ctx = context(c);
+    const ctx = siteContext(c);
     const body = ctx.indexable
       ? `User-agent: *\nAllow: /\nAllow: /app/brand/\nDisallow: /app/\nDisallow: /auth/\nDisallow: /forms/\nDisallow: /account/\n\nSitemap: ${ctx.origin}/sitemap.xml\n`
       : "User-agent: *\nAllow: /\n";
@@ -116,7 +121,7 @@ export function siteRoutes(): Hono<{ Bindings: Env }> {
   });
 
   site.get("/sitemap.xml", (c) => {
-    const ctx = context(c);
+    const ctx = siteContext(c);
     const paths = [
       ...PAGES.map((p) => p.meta.path),
       ...TEMPLATES.map((t) => `/templates/${t.slug}/`),

@@ -809,3 +809,21 @@ export const notFound: Page = {
     </div>
   </section>`,
 };
+
+export const serverError: Page = {
+  meta: {
+    title: "Something went wrong | Freely Forms",
+    description: "Something went wrong on our side.",
+    path: "/500",
+  },
+  body: html`<section>
+    <div class="wrap prose">
+      <h1>Something went wrong</h1>
+      <p class="lead">
+        Something failed on our side. Please try again in a moment; if it keeps happening, write to
+        <a href="mailto:hello@freelyforms.com">hello@freelyforms.com</a>.
+      </p>
+      <div class="actions"><a class="btn primary" href="/">Go to the homepage</a></div>
+    </div>
+  </section>`,
+};

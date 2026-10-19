@@ -610,7 +610,9 @@ describe("public form", () => {
     const id = await publishedForm();
     const formsEnv = { ...env, FORMS_HOST: "forms.test" };
     expect((await app().request(`http://forms.test/${id}`, {}, formsEnv)).status).toBe(200);
-    expect((await app().request("http://forms.test/auth/me", {}, formsEnv)).status).toBe(404);
+    const other = await app().request("http://forms.test/auth/me", {}, formsEnv);
+    expect(other.status).toBe(404);
+    expect(await other.text()).toContain("There is no form at this address.");
     const home = await app().request(
       "https://forms.test/",
       {},
@@ -1964,6 +1966,8 @@ describe("owner notifications (ADR 0026)", () => {
     expect(first?.text).toContain("https://docs.google.com/spreadsheets/d/");
     expect(first?.text).toContain(`${APP}/app/forms/${id}`);
     expect(first?.text).toMatch(/notifications\/off\?form=frm_\w+&token=[\w-]{32}/);
+    expect(first?.html).toMatch(/>Open the sheet<\/a\s*>/);
+    expect(first?.html).toMatch(/notifications\/off\?form=frm_\w+&amp;token=[\w-]{32}/);
     for (const m of sent) {
       expect(`${m.text}${m.html}`).not.toContain("Ada Secret");
       expect(`${m.text}${m.html}`).not.toContain("ada@example.com");
@@ -2002,7 +2006,11 @@ describe("owner notifications (ADR 0026)", () => {
 
     const page = await visit();
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("Turn off emails");
+    const body = await page.text();
+    expect(body).toContain("Turn off emails");
+    expect(body).toContain('class="site"'); // the website's layout, not a bare page
+    // The confirmation form posts back here; the website's default CSP forbids any form post.
+    expect(page.headers.get("content-security-policy")).toContain("form-action 'self'");
     expect(await enabled()).toBe(true);
     expect((await visit(undefined, `form=${id}&token=wrong`)).status).toBe(404);
 
