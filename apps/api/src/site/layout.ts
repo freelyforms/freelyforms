@@ -17,8 +17,8 @@ export interface PageMeta {
   path: string;
   /** The page shows form previews: add the script that sizes them (FIT_FRAMES). */
   fitFrames?: boolean;
-  /** Structured data (schema.org JSON-LD) for this page. */
-  jsonLd?: Record<string, unknown>;
+  /** Structured data (schema.org JSON-LD) for this page, built for the site's origin. */
+  jsonLd?: (origin: string) => Record<string, unknown>;
 }
 
 export interface SiteContext {
@@ -121,6 +121,20 @@ const FOOTER: [string, [string, string][]][] = [
   ],
 ];
 
+/** A BreadcrumbList matching the page's visible trail, which starts at the homepage. */
+export const breadcrumbs =
+  (trail: [name: string, path: string][]) =>
+  (origin: string): Record<string, unknown> => ({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [["Home", "/"] as const, ...trail].map(([name, path], i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name,
+      item: `${origin}${path}`,
+    })),
+  });
+
 export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
   const url = `${ctx.origin}${meta.path}`;
   return html`<!doctype html>
@@ -144,7 +158,7 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
         ${
           meta.jsonLd
             ? html`<script type="application/ld+json">
-                ${raw(JSON.stringify(meta.jsonLd).replace(/</g, "\\u003c"))}
+                ${raw(JSON.stringify(meta.jsonLd(ctx.origin)).replace(/</g, "\\u003c"))}
               </script>`
             : ""
         }

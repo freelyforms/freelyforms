@@ -1,7 +1,7 @@
 import { answerFields } from "@freelyforms/form-schema";
 import { headerLabels, SYSTEM_COLUMNS } from "@freelyforms/google";
 import { html } from "hono/html";
-import type { Html, PageMeta } from "./layout.js";
+import { breadcrumbs, type Html, type PageMeta } from "./layout.js";
 import { TEMPLATES, type Template } from "./templates.js";
 
 const REPO_URL = "https://github.com/freelyforms/freelyforms";
@@ -67,20 +67,42 @@ export const home: Page = {
       "Build and share online forms for free. Every response is written to a Google Sheet in your own Drive, not kept in another app's database.",
     path: "/",
     fitFrames: true,
-    jsonLd: {
+    // The organization, the site and the app, linked by @id; the author is described on their own site.
+    jsonLd: (origin) => ({
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "@id": "https://freelyforms.com/#software",
-      name: "Freely Forms",
-      url: "https://freelyforms.com/",
-      description:
-        "Free, open-source form builder. Every response is written to a Google Sheet in the form owner's own Drive.",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
-      isAccessibleForFree: true,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      author: { "@id": "https://grigoryfrolov.com/about/#person" },
-    },
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": `${origin}/#organization`,
+          name: "Freely Forms",
+          url: `${origin}/`,
+          logo: `${origin}/app/brand/icon-512.png`,
+          email: "hello@freelyforms.com",
+          sameAs: ["https://github.com/freelyforms"],
+        },
+        {
+          "@type": "WebSite",
+          "@id": `${origin}/#website`,
+          name: "Freely Forms",
+          url: `${origin}/`,
+          publisher: { "@id": `${origin}/#organization` },
+        },
+        {
+          "@type": "WebApplication",
+          "@id": `${origin}/#software`,
+          name: "Freely Forms",
+          url: `${origin}/`,
+          description:
+            "Free, open-source form builder. Every response is written to a Google Sheet in the form owner's own Drive.",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          isAccessibleForFree: true,
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          publisher: { "@id": `${origin}/#organization` },
+          author: { "@id": "https://grigoryfrolov.com/about/#person" },
+        },
+      ],
+    }),
   },
   body: html`
     <section>
@@ -709,6 +731,7 @@ export const templatesHub: Page = {
     description:
       "Forms for sales, events, feedback, HR, operations and rentals. Preview each one, see its sheet columns, then copy it into your own account.",
     path: "/templates/",
+    jsonLd: breadcrumbs([["Templates", "/templates/"]]),
   },
   body: html`<section>
     <div class="wrap">
@@ -745,6 +768,10 @@ export function templatePage(t: Template): Page {
       description: t.description,
       path: `/templates/${t.slug}/`,
       fitFrames: true,
+      jsonLd: breadcrumbs([
+        ["Templates", "/templates/"],
+        [t.name, `/templates/${t.slug}/`],
+      ]),
     },
     body: html`<section>
         <div class="wrap">

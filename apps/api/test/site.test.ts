@@ -29,20 +29,47 @@ describe("website", () => {
       // Only pages with form previews carry the script that sizes them, under the page's nonce.
       const previews = path === "/" || path === "/templates/contact-form/";
       expect(page.includes("<script nonce="), path).toBe(previews);
-      expect(page.replace(/<script nonce="[^"]+">[^<]*<\/script>/, "")).not.toContain("<script");
+      // Apart from it, only JSON-LD data blocks, which never run.
+      const other = page
+        .replace(/<script nonce="[^"]+">[^<]*<\/script>/, "")
+        .replace(/<script type="application\/ld\+json">[^<]*<\/script>/g, "");
+      expect(other).not.toContain("<script");
     }
     const open = await get("/how-it-works/", { ...env, SITE_INDEXABLE: "1" });
     expect(open.headers.get("x-robots-tag")).toBeNull();
     expect(await open.text()).not.toContain("noindex");
   });
 
-  it("describes the app on the homepage with JSON-LD", async () => {
-    const page = await (await get("/")).text();
-    const match = /<script type="application\/ld\+json">([^<]*)<\/script>/.exec(page);
-    const data = JSON.parse(match?.[1] ?? "{}") as Record<string, unknown>;
-    expect(data["@type"]).toBe("WebApplication");
-    expect(data["@id"]).toBe("https://freelyforms.com/#software");
-    expect(data.author).toEqual({ "@id": "https://grigoryfrolov.com/about/#person" });
+  it("links the organization, site and app on the homepage, and gives templates breadcrumbs", async () => {
+    const jsonLd = async (path: string) => {
+      const page = await (await get(path)).text();
+      const match = /<script type="application\/ld\+json">([^<]*)<\/script>/.exec(page);
+      return JSON.parse(match?.[1] ?? "{}") as Record<string, unknown>;
+    };
+    const graph = (await jsonLd("/"))["@graph"] as Record<string, unknown>[];
+    const byType: Record<string, Record<string, unknown> | undefined> = Object.fromEntries(
+      graph.map((n) => [String(n["@type"]), n]),
+    );
+    expect(byType.WebApplication?.["@id"]).toBe("https://site.test/#software");
+    expect(byType.WebApplication?.author).toEqual({
+      "@id": "https://grigoryfrolov.com/about/#person",
+    });
+    expect(byType.WebApplication?.publisher).toEqual({ "@id": byType.Organization?.["@id"] });
+    expect(byType.WebSite?.publisher).toEqual({ "@id": "https://site.test/#organization" });
+
+    const crumbs = await jsonLd("/templates/contact-form/");
+    expect(crumbs["@type"]).toBe("BreadcrumbList");
+    expect(
+      (crumbs.itemListElement as { position: number; name: string; item: string }[]).map((c) => [
+        c.position,
+        c.name,
+        c.item,
+      ]),
+    ).toEqual([
+      [1, "Home", "https://site.test/"],
+      [2, "Templates", "https://site.test/templates/"],
+      [3, "Contact form", "https://site.test/templates/contact-form/"],
+    ]);
   });
 
   it("keeps the homepage, security and legal pages indexable for Google's brand verification", async () => {
