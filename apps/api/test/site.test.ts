@@ -55,6 +55,7 @@ describe("website", () => {
       "@id": "https://grigoryfrolov.com/about/#person",
     });
     expect(byType.WebApplication?.publisher).toEqual({ "@id": byType.Organization?.["@id"] });
+    expect(byType.Person?.["@id"]).toBe("https://grigoryfrolov.com/about/#person");
     expect(byType.WebSite?.publisher).toEqual({ "@id": "https://site.test/#organization" });
 
     const crumbs = await jsonLd("/templates/contact-form/");

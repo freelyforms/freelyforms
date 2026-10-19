@@ -60,6 +60,8 @@ const templateCards = (list: Template[]) =>
     )}
   </ul>`;
 
+const AUTHOR = "https://grigoryfrolov.com/about/#person";
+
 export const home: Page = {
   meta: {
     title: "Free form builder — responses go to your Google Sheet | Freely Forms",
@@ -67,7 +69,7 @@ export const home: Page = {
       "Build and share online forms for free. Every response is written to a Google Sheet in your own Drive, not kept in another app's database.",
     path: "/",
     fitFrames: true,
-    // The organization, the site and the app, linked by @id; the author is described on their own site.
+    // The organization, the site, the app and its author, linked by @id.
     jsonLd: (origin) => ({
       "@context": "https://schema.org",
       "@graph": [
@@ -99,7 +101,14 @@ export const home: Page = {
           isAccessibleForFree: true,
           offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
           publisher: { "@id": `${origin}/#organization` },
-          author: { "@id": "https://grigoryfrolov.com/about/#person" },
+          author: { "@id": AUTHOR },
+        },
+        // The same node the author's site describes in full; the @id joins the two graphs.
+        {
+          "@type": "Person",
+          "@id": AUTHOR,
+          name: "Grigory Frolov",
+          url: "https://grigoryfrolov.com/about/",
         },
       ],
     }),
