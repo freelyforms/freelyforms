@@ -29,5 +29,6 @@ Each ADR records one decision: the context, what we decided and what follows fro
 | [0023](0023-matrix-and-ranking.md)                       | Matrix and ranking fields                                          | Accepted                         |
 | [0024](0024-collaborators-and-responses-view.md)         | Collaborators and the responses view                               | Accepted                         |
 | [0025](0025-custom-domains.md)                           | Custom domains                                                     | Accepted                         |
+| [0026](0026-owner-notifications.md)                      | Owner email notifications                                          | Accepted                         |
 
 Template: copy any ADR and keep the sections _Status_, _Context_, _Decision_, _Consequences_.

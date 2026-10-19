@@ -69,6 +69,10 @@ export const privacyBody = html`
     </li>
     <li>the email addresses of people you share a form with, and their roles;</li>
     <li>
+      which forms you asked to be emailed about, and when we last emailed you. These emails say how
+      many responses arrived and link to your sheet; they never contain answers;
+    </li>
+    <li>
       if you connect your own domain: its name, the ID Cloudflare gives it and its status.
       Cloudflare checks the domain and issues its certificate;
     </li>
@@ -154,8 +158,9 @@ export const privacyBody = html`
   <ul>
     <li>
       <strong>Cloudflare</strong> runs our servers, database, delivery queue, temporary encrypted
-      storage and Turnstile, and serves forms on owners' own domains. Its systems record request
-      metadata (such as time, path and status) in short-lived logs.
+      storage and Turnstile, serves forms on owners' own domains and sends notification emails to
+      owners. Its systems record request metadata (such as time, path and status) in short-lived
+      logs.
     </li>
     <li>
       <strong>Google</strong> provides sign-in and stores responses in the owner's Google Sheets

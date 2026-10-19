@@ -20,6 +20,7 @@ import { keyringFor } from "../keys.js";
 import { hold, resumeStragglers } from "./hold.js";
 import { deliverWebhook } from "./webhook.js";
 import { maintainDomains } from "../domains/routes.js";
+import { notifyForms, sweepNotifications } from "../notify/notify.js";
 
 /** ADR 0008: transient errors are retried for up to 72 hours. */
 export const TRANSIENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -319,6 +320,8 @@ export async function processBatch(
     }
     await deliverGroup(env, counted, formId, messages, () => budget - calls);
   }
+  // ADR 0026: owners who asked are told that responses arrived (after the sheet has them).
+  await notifyForms(env, deps, [...groups.keys()]);
 }
 
 /**
@@ -342,6 +345,7 @@ export async function maintenance(env: Env, now: number, deps: Deps = defaultDep
   await resumeStragglers(env);
   await cleanUploads(env, deps, now);
   await maintainDomains(env, deps, now);
+  await sweepNotifications(env, { ...deps, now: () => now });
   await healthReport(env, now);
 }
 

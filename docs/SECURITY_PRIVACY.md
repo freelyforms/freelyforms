@@ -69,6 +69,10 @@ Do not permanently proxy-store uploads unless technically unavoidable. Temporary
 - secret scanning: GitHub secret scanning and push protection are enabled on the repository;
 - security headers.
 
+## Owner notifications
+
+Notification emails (ADR 0026) carry the form title, a count and links, never answers. They go only to the owner's account email, only when the owner turned them on, through Cloudflare Email Service. Unsubscribe links are signed per form and act only on a POST.
+
 ## Operational data
 
 - Workers observability logs record request metadata (method, path, status, timing), never bodies; the code logs only error names and codes.

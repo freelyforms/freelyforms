@@ -37,6 +37,12 @@ export interface Env {
   CF_ZONE_ID?: string;
   CF_CUSTOM_HOSTNAMES_TOKEN?: string;
   CUSTOM_DOMAIN_TARGET?: string;
+  /**
+   * Owner notifications (ADR 0026): Cloudflare Email Service binding and the sender address on
+   * an onboarded domain. Without both (and APP_ORIGIN), notifications are unavailable.
+   */
+  EMAIL?: EmailSender;
+  NOTIFY_FROM?: string;
   /** "1" lets search engines index the website; anything else sends noindex. */
   SITE_INDEXABLE?: string;
   /** Where abuse reports go; every public form links to it (ADR 0010). */
@@ -61,6 +67,17 @@ export interface Env {
   QUEUE_RETENTION_HOURS?: string;
   /** Google API calls one consumer invocation may make (Workers Free allows 50). Default 40. */
   GOOGLE_CALL_BUDGET?: string;
+}
+
+/** The part of Cloudflare Email Service's `send_email` binding we use. */
+export interface EmailSender {
+  send(message: {
+    to: string;
+    from: string;
+    subject: string;
+    html: string;
+    text: string;
+  }): Promise<{ messageId: string }>;
 }
 
 /** External effects, injectable for tests. */

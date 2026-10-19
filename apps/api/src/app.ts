@@ -8,6 +8,7 @@ import { EMBED_JS } from "./public/embed.js";
 import { publicRoutes } from "./public/routes.js";
 import { siteRoutes } from "./site/routes.js";
 import { domainRoutes } from "./domains/routes.js";
+import { notifyRoutes } from "./notify/routes.js";
 import { isCustomHost, serveCustomDomain } from "./domains/serve.js";
 import { defaultDeps, type Deps, type Env } from "./env.js";
 
@@ -132,6 +133,7 @@ export function createApp(deps: Deps = defaultDeps): Hono<{ Bindings: Env }> {
   app.route("/", siteRoutes());
   app.route("/account", accountRoutes(deps));
   app.route("/domain", domainRoutes(deps));
+  app.route("/notifications", notifyRoutes());
   app.route("/forms", formRoutes(deps));
   app.get("/f/embed.js", (c) => {
     c.header("Content-Type", "text/javascript; charset=utf-8");

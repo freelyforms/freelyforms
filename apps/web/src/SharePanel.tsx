@@ -12,6 +12,7 @@ import type { FlushResult } from "./Editor.js";
 import { pickSpreadsheet } from "./picker.js";
 import { navigate } from "./router.js";
 import { Members } from "./Members.js";
+import { NotificationsCard } from "./Notifications.js";
 import { WebhookCard } from "./Webhook.js";
 
 const DESTINATION_PROBLEMS: Record<Exclude<DestinationState, "OK">, string> = {
@@ -352,6 +353,7 @@ export function SharePanel({
         )}
       </section>
 
+      {owner && published && <NotificationsCard formId={view.id} />}
       {owner && published && <WebhookCard formId={view.id} />}
       {owner && <Members formId={view.id} />}
 

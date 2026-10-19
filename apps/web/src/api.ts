@@ -42,6 +42,14 @@ export interface Webhook {
   lastOkAt: number | null;
 }
 
+/** Email to the owner when responses arrive (ADR 0026). */
+export interface Notifications {
+  available: boolean;
+  enabled: boolean;
+  /** Where the emails go: the owner's account email. */
+  email: string;
+}
+
 /** The owner's custom domain (ADR 0025), as Cloudflare last reported it. */
 export interface CustomDomain {
   hostname: string;
@@ -137,6 +145,9 @@ export const api = {
   deleteForm: (id: string) => request<undefined>(`/forms/${id}`, { method: "DELETE" }),
   setSlug: (id: string, slug: string | null) =>
     request<FormView>(`/forms/${id}/slug`, { method: "PUT", body: { slug } }),
+  notifications: (id: string) => request<Notifications>(`/forms/${id}/notifications`),
+  setNotifications: (id: string, enabled: boolean) =>
+    request<Notifications>(`/forms/${id}/notifications`, { method: "PUT", body: { enabled } }),
   domain: () => request<DomainState>("/domain"),
   setDomain: (hostname: string) =>
     request<DomainState>("/domain", { method: "PUT", body: { hostname } }),

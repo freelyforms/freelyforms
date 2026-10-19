@@ -122,6 +122,9 @@
         "CF_ZONE_ID": "c44592243f37f1a3fb480646316d651c",
         "CUSTOM_DOMAIN_TARGET": "domains.freelyforms.link",
       },
+      // Owner notifications (ADR 0026) need Workers Paid and freelyforms.com onboarded in Email
+      // Service; then add: "send_email": [{ "name": "EMAIL", "remote": true }] and the var
+      // "NOTIFY_FROM": "notifications@freelyforms.com". Without them the option stays hidden.
       // Secrets (wrangler secret put … --env production): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
       // MASTER_KEY_K1, TURNSTILE_SECRET_KEY, CF_CUSTOM_HOSTNAMES_TOKEN (SSL and Certificates: Edit on
       // the freelyforms.link zone only).

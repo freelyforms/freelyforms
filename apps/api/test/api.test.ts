@@ -63,6 +63,7 @@ describe("migrations on D1", () => {
       "drive_folders",
       "form_daily_stats",
       "form_members",
+      "form_notifications",
       "form_versions",
       "forms",
       "google_connections",

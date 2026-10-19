@@ -50,6 +50,8 @@ Conventions:
 | `DELETE /forms/:id/members/:email`         | Owner only. Removes a member. `204`.                                                                                                                                                                                                                                                                                            |
 | `GET /forms/:id/responses?page=`           | Owner and members. A page of 50 responses, newest first, read from the owner's sheet now and never stored: `{ columns: [{ key, label, editable }], rows: [{ submissionId, cells }], total, page, pages }`. `Cache-Control: no-store`.                                                                                           |
 | `PATCH /forms/:id/responses/:submissionId` | Owner and editors. Body `{ key, value }`: writes one answer cell (`RAW`), found by `_submission_id`; system columns can't be edited.                                                                                                                                                                                            |
+| `GET /forms/:id/notifications`             | Owner only (ADR 0026): `{ available, enabled, email }`. `available` is false when the deployment can't send email.                                                                                                                                                                                                              |
+| `PUT /forms/:id/notifications`             | Owner only. Body `{ enabled }`. `503 notifications_unavailable` without email sending.                                                                                                                                                                                                                                          |
 | `GET /forms/:id/webhook`                   | The form's webhook (ADR 0021) or `null`: `{ url, failing, lastStatus, lastAttemptAt, lastOkAt }`. Never the secret.                                                                                                                                                                                                             |
 | `PUT /forms/:id/webhook`                   | Body `{ url }`: a public `https://` address. Creates the webhook (`201` with the signing `secret`, shown only now) or changes its URL (`200`). `422 invalid_webhook_url` with `reason`.                                                                                                                                         |
 | `POST /forms/:id/webhook/rotate`           | A new signing secret: `{ secret }`. `409 no_webhook`.                                                                                                                                                                                                                                                                           |
@@ -60,6 +62,10 @@ Conventions:
 Publish errors: `422 no_fields`, `422 invalid_form`, `409 google_access_required` (sign in again with Drive access), `409 destination_missing` with `kind` (the sheet or tab is gone), `409 publish_conflict` (another publish of the same form won), `503 google_unavailable` with `kind` (retry later).
 
 Destination states: `OK`, `ACCESS_REVOKED`, `SHEET_DELETED`, `TAB_MISSING`, `COLUMN_MISSING`, `QUOTA` ([ADR 0005](adr/0005-sheet-is-externally-mutable.md)). Delivery states: `accepted`, `queued`, `delivering`, `delivered`, `retrying`, `unknown`, `blocked`, `permanently_failed` ([ADR 0003](adr/0003-delivery-states-and-reconciliation.md)).
+
+## Notification emails
+
+`GET /notifications/off?form=&token=` (the link in every notification email) shows a confirmation button; `POST /notifications/off` with the same `form` and `token` turns that form's emails off. A wrong token is `404`.
 
 ## Public forms
 

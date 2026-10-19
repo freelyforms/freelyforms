@@ -21,6 +21,7 @@ import { keyringFor } from "../keys.js";
 import { requireUser, type OwnerEnv } from "../require-user.js";
 import { resumeHeld } from "../delivery/hold.js";
 import { SLUG } from "../domains/serve.js";
+import { notificationsAvailable } from "../notify/notify.js";
 import { embedSnippet } from "../public/embed.js";
 import { templateBySlug } from "../site/templates.js";
 import { formPageCsp } from "../public/protect.js";
@@ -644,6 +645,36 @@ export function formRoutes(deps: Deps): Hono<OwnerEnv> {
   });
 
   // Webhook destination (ADR 0021): the secret is shown only when created or rotated.
+  /** Email to the owner when responses arrive (ADR 0026); only the owner turns it on or off. */
+  forms.get("/:id/notifications", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const row = await c.env.DB.prepare("SELECT 1 FROM form_notifications WHERE form_id = ?")
+      .bind(form.id)
+      .first();
+    return c.json({
+      available: notificationsAvailable(c.env),
+      enabled: row !== null,
+      email: c.var.user.email,
+    });
+  });
+
+  forms.put("/:id/notifications", async (c) => {
+    const form = await ownedForm(c, c.req.param("id"));
+    if (!form) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.json<{ enabled?: unknown }>().catch(() => ({ enabled: undefined }));
+    if (typeof body.enabled !== "boolean") return c.json({ error: "invalid_body" }, 422);
+    if (!notificationsAvailable(c.env)) return c.json({ error: "notifications_unavailable" }, 503);
+    await c.env.DB.prepare(
+      body.enabled
+        ? "INSERT INTO form_notifications (form_id, created_at) VALUES (?, ?) ON CONFLICT DO NOTHING"
+        : "DELETE FROM form_notifications WHERE form_id = ? AND ? IS NOT NULL",
+    )
+      .bind(form.id, deps.now())
+      .run();
+    return c.json({ available: true, enabled: body.enabled, email: c.var.user.email });
+  });
+
   forms.get("/:id/webhook", async (c) => {
     const form = await ownedForm(c, c.req.param("id"));
     if (!form) return c.json({ error: "not_found" }, 404);

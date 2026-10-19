@@ -1890,3 +1890,135 @@ describe("custom domains (ADR 0025)", () => {
     expect(cf.hostnames.size).toBe(0);
   });
 });
+
+describe("owner notifications (ADR 0026)", () => {
+  const APP = "https://app.test";
+  let sent: { to: string; from: string; subject: string; html: string; text: string }[];
+  const email = {
+    send: (m: (typeof sent)[number]) => {
+      sent.push(m);
+      return Promise.resolve({ messageId: `m${String(sent.length)}` });
+    },
+  };
+  const withEmail = () => {
+    Object.assign(env, { EMAIL: email, NOTIFY_FROM: "notify@app.test", APP_ORIGIN: APP });
+  };
+
+  beforeEach(() => {
+    sent = [];
+  });
+
+  const ownerAt = (path: string, init: { method?: string; body?: unknown } = {}) =>
+    app().request(
+      `${APP}${path}`,
+      {
+        method: init.method ?? "GET",
+        headers: { cookie, origin: APP, "content-type": "application/json" },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      },
+      env,
+    );
+
+  it("lets the owner turn emails on and off when sending is configured", async () => {
+    const id = await publishedForm();
+    withEmail();
+    expect(await (await ownerAt(`/forms/${id}/notifications`)).json()).toEqual({
+      available: true,
+      enabled: false,
+      email: "owner@example.com",
+    });
+    const on = await ownerAt(`/forms/${id}/notifications`, {
+      method: "PUT",
+      body: { enabled: true },
+    });
+    expect(await on.json()).toMatchObject({ enabled: true });
+    expect(
+      (await (await ownerAt(`/forms/${id}/notifications`)).json<{ enabled: boolean }>()).enabled,
+    ).toBe(true);
+    await ownerAt(`/forms/${id}/notifications`, { method: "PUT", body: { enabled: false } });
+    expect(
+      (await (await ownerAt(`/forms/${id}/notifications`)).json<{ enabled: boolean }>()).enabled,
+    ).toBe(false);
+
+    Object.assign(env, { EMAIL: undefined });
+    const off = await ownerAt(`/forms/${id}/notifications`, {
+      method: "PUT",
+      body: { enabled: true },
+    });
+    expect(off.status).toBe(503);
+  });
+
+  it("emails the owner a count and links after delivery, at most every 15 minutes, never answers", async () => {
+    const id = await publishedForm();
+    await env.DB.prepare("INSERT INTO form_notifications (form_id, created_at) VALUES (?, ?)")
+      .bind(id, clock - 1)
+      .run();
+    await submit(id, { fld_name: "Ada Secret", fld_email: "ada@example.com" });
+    withEmail();
+    await deliver();
+    expect(sent).toHaveLength(1);
+    const [first] = sent;
+    expect(first?.to).toBe("owner@example.com");
+    expect(first?.from).toBe("notify@app.test");
+    expect(first?.subject).toBe("New response: Contact");
+    expect(first?.text).toContain("https://docs.google.com/spreadsheets/d/");
+    expect(first?.text).toContain(`${APP}/app/forms/${id}`);
+    expect(first?.text).toMatch(/notifications\/off\?form=frm_\w+&token=[\w-]{32}/);
+    for (const m of sent) {
+      expect(`${m.text}${m.html}`).not.toContain("Ada Secret");
+      expect(`${m.text}${m.html}`).not.toContain("ada@example.com");
+    }
+
+    // Two more within the window: no email now; the hourly sweep sends one with both.
+    clock += 60_000;
+    Object.assign(env, { APP_ORIGIN: undefined });
+    await submit(id, { fld_name: "B", fld_email: "b@example.com" });
+    await submit(id, { fld_name: "C", fld_email: "c@example.com" });
+    withEmail();
+    await deliver();
+    expect(sent).toHaveLength(1);
+    clock += 15 * 60_000;
+    await maintenance(env, clock, deps);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.subject).toBe("2 new responses: Contact");
+    // Nothing new: nothing sent.
+    clock += 60 * 60_000;
+    await maintenance(env, clock, deps);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("turns emails off only from a POST with the signed link", async () => {
+    const id = await publishedForm();
+    withEmail();
+    await env.DB.prepare("INSERT INTO form_notifications (form_id, created_at) VALUES (?, ?)")
+      .bind(id, clock)
+      .run();
+    const { unsubscribeToken } = await import("../src/notify/notify.js");
+    const token = await unsubscribeToken(env, id);
+    const visit = (init?: RequestInit, query = `form=${id}&token=${token}`) =>
+      app().request(`${APP}/notifications/off?${query}`, init, env);
+    const enabled = async () =>
+      (await env.DB.prepare("SELECT count(*) AS n FROM form_notifications").first("n")) === 1;
+
+    const page = await visit();
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Turn off emails");
+    expect(await enabled()).toBe(true);
+    expect((await visit(undefined, `form=${id}&token=wrong`)).status).toBe(404);
+
+    const post = (t: string) =>
+      app().request(
+        `${APP}/notifications/off`,
+        {
+          method: "POST",
+          headers: { origin: APP, "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ form: id, token: t }).toString(),
+        },
+        env,
+      );
+    expect((await post("x".repeat(32))).status).toBe(404);
+    expect(await enabled()).toBe(true);
+    expect((await post(token)).status).toBe(200);
+    expect(await enabled()).toBe(false);
+  });
+});
