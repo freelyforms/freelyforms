@@ -2,7 +2,8 @@ import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 
 /**
- * Website layout (server-rendered, no JavaScript). Pages stay `noindex` until the deployment sets
+ * Website layout (server-rendered, no JavaScript except the few lines that size form previews on
+ * pages that show them, see FIT_FRAMES). Pages stay `noindex` until the deployment sets
  * SITE_INDEXABLE=1, so the site can be reviewed in production before search engines see it.
  */
 
@@ -14,6 +15,8 @@ export interface PageMeta {
   description: string;
   /** Path of the page, e.g. `/templates/contact-form/`. */
   path: string;
+  /** The page shows form previews: add the script that sizes them (FIT_FRAMES). */
+  fitFrames?: boolean;
 }
 
 export interface SiteContext {
@@ -65,6 +68,12 @@ footer.site h4{margin:0 0 10px;font-size:.85rem;text-transform:uppercase;letter-
 @media (max-width:860px){nav.main{display:none}.demo{grid-template-columns:1fr}section{padding:56px 0}}
 @media (max-width:520px){.wrap{padding:0 16px}section{padding:44px 0}}
 `;
+
+/**
+ * Form previews report their height (the renderer's embed script); this sizes each preview frame
+ * to its form so it never scrolls inside the page. Without it a frame keeps its CSS height.
+ */
+const FIT_FRAMES = `addEventListener("message",function(e){if(e.origin!==location.origin||!e.data||e.data.type!=="freelyforms:height")return;for(const f of document.querySelectorAll(".frame iframe"))if(f.contentWindow===e.source&&e.data.height>0)f.style.height=Math.ceil(e.data.height)+"px"})`;
 
 const NAV: [string, string][] = [
   ["/templates/", "Templates"],
@@ -153,6 +162,13 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
           </div>
         </header>
         <main>${body}</main>
+        ${
+          meta.fitFrames
+            ? html`<script nonce="${ctx.nonce}">
+                ${raw(FIT_FRAMES)};
+              </script>`
+            : ""
+        }
         <footer class="site">
           <div class="wrap">
             <div class="cols">
@@ -177,8 +193,8 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
 }
 
 /**
- * The CSP for website pages: our inline style only, no scripts; frames only our own previews.
+ * The CSP for website pages: our inline style and script only; frames only our own previews.
  * Forms may post only where a page allows (by default nowhere).
  */
 export const siteCsp = (nonce: string, formAction = "'none'") =>
-  `default-src 'none'; style-src 'nonce-${nonce}'; img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action ${formAction}; frame-ancestors 'none'`;
+  `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action ${formAction}; frame-ancestors 'none'`;

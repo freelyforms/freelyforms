@@ -26,7 +26,10 @@ describe("website", () => {
       const page = await res.text();
       expect(page).toContain(`<link rel="canonical" href="https://site.test${path}"`);
       expect(page).toContain('name="robots" content="noindex"');
-      expect(page).not.toContain("<script");
+      // Only pages with form previews carry the script that sizes them, under the page's nonce.
+      const previews = path === "/" || path === "/templates/contact-form/";
+      expect(page.includes("<script nonce="), path).toBe(previews);
+      expect(page.replace(/<script nonce="[^"]+">[^<]*<\/script>/, "")).not.toContain("<script");
     }
     const open = await get("/how-it-works/", { ...env, SITE_INDEXABLE: "1" });
     expect(open.headers.get("x-robots-tag")).toBeNull();

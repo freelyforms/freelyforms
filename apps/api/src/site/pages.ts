@@ -66,6 +66,7 @@ export const home: Page = {
     description:
       "Build and share online forms for free. Every response is written to a Google Sheet in your own Drive, not kept in another app's database.",
     path: "/",
+    fitFrames: true,
   },
   body: html`
     <section>
@@ -725,7 +726,12 @@ export function templatePage(t: Template): Page {
   const columns = [...SYSTEM_COLUMNS, ...headerLabels(t.form)];
   const useUrl = `/app/?template=${encodeURIComponent(t.slug)}`;
   return {
-    meta: { title: t.title, description: t.description, path: `/templates/${t.slug}/` },
+    meta: {
+      title: t.title,
+      description: t.description,
+      path: `/templates/${t.slug}/`,
+      fitFrames: true,
+    },
     body: html`<section>
         <div class="wrap">
           <p class="crumbs"><a href="/templates/">Templates</a> / ${t.name}</p>
