@@ -12,7 +12,8 @@ const PROBLEMS: Record<string, string> = {
 
 const STATUS = {
   active: { label: "Active", tone: "ok" },
-  pending: { label: "Waiting for DNS", tone: "warn" },
+  // Cloudflare first waits for the CNAME, then issues the certificate.
+  pending: { label: "Setting up", tone: "warn" },
   failed: { label: "Not working", tone: "error" },
 } as const;
 
