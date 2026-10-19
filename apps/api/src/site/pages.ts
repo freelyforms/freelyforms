@@ -54,7 +54,7 @@ const templateCards = (list: Template[]) =>
             ><strong>${t.name}</strong
             ><span class="muted small"
               >${t.form.fields.length} fields · ${t.intro.split(". ")[0]}.</span
-            ></a
+            ><span class="go" aria-hidden="true">View template →</span></a
           >
         </li>`,
     )}
@@ -219,7 +219,7 @@ export const home: Page = {
         <h2>Start from a template</h2>
         <p class="lead">Each template is a real form you can copy and change.</p>
         ${templateCards(TEMPLATES.slice(0, 6))}
-        <p><a href="/templates/">All templates</a></p>
+        <p><a class="btn" href="/templates/">Browse all templates</a></p>
       </div>
     </section>
 

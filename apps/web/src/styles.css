@@ -503,7 +503,7 @@ button.small {
     background 0.12s;
 }
 .form-card:hover {
-  border-color: var(--line-strong);
+  border-color: var(--accent);
   background: var(--surface-2);
 }
 .form-title {
@@ -516,6 +516,7 @@ button.small {
   align-items: center;
   color: var(--muted);
   font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 .status.draft::before {
   background: var(--line-strong);
@@ -669,6 +670,10 @@ button.small {
 }
 .field-card {
   padding: var(--s4) var(--s5) var(--s5);
+}
+/* The card being edited stands out from the rest of the list. */
+.field-card:focus-within {
+  border-color: var(--accent);
 }
 .field-head {
   display: flex;
