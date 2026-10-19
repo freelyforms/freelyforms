@@ -67,6 +67,20 @@ export const home: Page = {
       "Build and share online forms for free. Every response is written to a Google Sheet in your own Drive, not kept in another app's database.",
     path: "/",
     fitFrames: true,
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "@id": "https://freelyforms.com/#software",
+      name: "Freely Forms",
+      url: "https://freelyforms.com/",
+      description:
+        "Free, open-source form builder. Every response is written to a Google Sheet in the form owner's own Drive.",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      author: { "@id": "https://grigoryfrolov.com/about/#person" },
+    },
   },
   body: html`
     <section>

@@ -36,6 +36,15 @@ describe("website", () => {
     expect(await open.text()).not.toContain("noindex");
   });
 
+  it("describes the app on the homepage with JSON-LD", async () => {
+    const page = await (await get("/")).text();
+    const match = /<script type="application\/ld\+json">([^<]*)<\/script>/.exec(page);
+    const data = JSON.parse(match?.[1] ?? "{}") as Record<string, unknown>;
+    expect(data["@type"]).toBe("WebApplication");
+    expect(data["@id"]).toBe("https://freelyforms.com/#software");
+    expect(data.author).toEqual({ "@id": "https://grigoryfrolov.com/about/#person" });
+  });
+
   it("keeps the homepage, security and legal pages indexable for Google's brand verification", async () => {
     for (const path of ["/", "/security/", "/privacy", "/terms"]) {
       const res = await get(path);

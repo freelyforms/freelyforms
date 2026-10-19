@@ -17,6 +17,8 @@ export interface PageMeta {
   path: string;
   /** The page shows form previews: add the script that sizes them (FIT_FRAMES). */
   fitFrames?: boolean;
+  /** Structured data (schema.org JSON-LD) for this page. */
+  jsonLd?: Record<string, unknown>;
 }
 
 export interface SiteContext {
@@ -139,6 +141,13 @@ export function sitePage(ctx: SiteContext, meta: PageMeta, body: Html): Html {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
+        ${
+          meta.jsonLd
+            ? html`<script type="application/ld+json">
+                ${raw(JSON.stringify(meta.jsonLd).replace(/</g, "\\u003c"))}
+              </script>`
+            : ""
+        }
         <link rel="icon" href="/app/brand/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/app/brand/apple-touch-icon.png" />
         <style nonce="${ctx.nonce}">
