@@ -12,7 +12,7 @@
   "dependencies": {
     "@freelyforms/form-schema": "workspace:*",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
